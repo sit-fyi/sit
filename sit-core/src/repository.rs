@@ -200,7 +200,7 @@ impl<'a> IssueTrait for Issue<'a> {
         I: Iterator<Item=(S, R)>>(&self, iter: I, link_parents: bool) -> Result<Self::Record, Self::Error> {
         use tempdir::TempDir;
         use std::io::Write;
-        let tempdir = TempDir::new("sit")?;
+        let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
         let mut hasher = self.repository.config.hashing_algorithm.hasher();
         let mut buf = vec![0; 4096];
 
