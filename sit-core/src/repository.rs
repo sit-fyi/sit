@@ -6,7 +6,7 @@
 //!
 
 
-use std::path::{Component, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::fs;
 
 use glob;
@@ -127,6 +127,11 @@ impl Repository {
         let file = fs::File::create(&self.config_path)?;
         serde_json::to_writer_pretty(file, &self.config)?;
         Ok(())
+    }
+
+    /// Returns repository path
+    pub fn path(&self) -> &Path {
+        self.path.as_path()
     }
 
     /// Returns an unordered (as in "order not defined") issue iterator

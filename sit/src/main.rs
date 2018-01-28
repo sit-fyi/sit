@@ -1,5 +1,8 @@
 extern crate sit_core;
 
+extern crate chrono;
+use chrono::prelude::*;
+extern crate tempfile;
 #[macro_use] extern crate clap;
 
 use std::env;
@@ -46,6 +49,9 @@ fn main() {
                      .takes_value(true)
                      .required(true)
                      .help("Issue identifier"))
+            .arg(Arg::with_name("no-timestamp")
+                .long("no-timestamp")
+                .help("By default, SIT will add a wall clock timestamp to all new. This option disables this behaviour"))
             .arg(Arg::with_name("FILES")
                      .multiple(true)
                      .takes_value(true)
@@ -123,8 +129,7 @@ fn main() {
                     exit(1);
                 },
                 Some(issue) => {
-                    let record = issue.new_record(
-                        matches.values_of("FILES").unwrap().into_iter()
+                    let files = matches.values_of("FILES").unwrap().into_iter()
                             .map(move |name| {
                                 let path = PathBuf::from(&name);
                                 if !path.is_file() {
@@ -140,7 +145,18 @@ fn main() {
                                     Ok(path) => String::from(path.to_str().unwrap()),
                                 }
                             })
-                            .map(|name| (name.clone(), ::std::fs::File::open(name).expect("can't open file"))), true).expect("can't create a record");
+                            .map(|name| (name.clone(), ::std::fs::File::open(name).expect("can't open file")));
+
+                    let record = if !matches.is_present("no-timestamp") {
+                        use std::io::{Write, Seek, SeekFrom};
+                        let mut f = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.timestamp)");
+                        let utc: DateTime<Utc> = Utc::now();
+                        f.write(format!("{:?}", utc).as_bytes()).expect("can't write to a temporary file (.timestamp)");
+                        f.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.timestamp)");
+                        issue.new_record(files.chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
+                    } else {
+                        issue.new_record(files, true)
+                    }.expect("can't create a record");
                     println!("{}", record.encoded_hash());
                 }
             }
