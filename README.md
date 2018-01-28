@@ -55,6 +55,19 @@ some of their goals. Many have been abandoned (sad truth!).
 
 Hence the experiment to build SIT.
 
+## Build Instructions
+
+As SIT is not currently distributed in any package managers, you'd have to
+build it manually. Make sure you have Rust 1.23 or higher installed and run
+this:
+
+```shell
+cargo build --release
+```
+
+The resulting binary can be found at `./target/release/sit`. Put it in your
+`PATH` to be able to access it in your environment.
+
 ## Overview
 
 ### Repository
