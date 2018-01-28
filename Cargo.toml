@@ -1,0 +1,3 @@
+[workspace]
+
+members = ["sit-core", "sit"]
