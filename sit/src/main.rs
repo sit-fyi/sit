@@ -141,7 +141,7 @@ fn main() {
                     exit(1);
                 },
                 Some(issue) => {
-                    let files = matches.values_of("FILES").unwrap();
+                    let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
                     let types: Vec<_> = matches.value_of("type").unwrap().split(",").collect();
 
                     if !files.clone().any(|f| f.starts_with(".type/")) && types.len() == 0 {
