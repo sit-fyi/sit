@@ -244,14 +244,8 @@ an issue looked back then.
 The result of this reduction can be used as-is or in a user interface to produce a
 comprehensible rendering of it.
 
-Currently, the core dictionary processed by SIT is very small (but it is expected to grow):
-
-| Type           | Description                     | Files                                                | State effect                      |
-|----------------|---------------------------------|------------------------------------------------------|-----------------------------------|
-| SummaryChanged | Changes issue's summary (title) | * `text` - a UTF-8 string, expeced to be a one-liner | Updates `summary` field           |
-| DetailsChanged | Changes issue's details (body)  | * `text` - a UTF-8 string                            | Updates `details` field           |
-| Closed         | Closes issue                    |                                                      | Updates `state` field to `closed` |
-| Reopened       | Reopens issue                   |                                                      | Updates `state` field to `open`   |
+Currently, the core dictionary processed by SIT is very small (but it is expected to grow) and
+can be found in [documentation](doc/dict).
 
 One can look at the state of the issue with the `sit reduce <issue id>` command.
 
