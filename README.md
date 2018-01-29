@@ -76,6 +76,8 @@ issue to file!
 
 ## Overview
 
+![Overview diagram](overview.png)
+
 ### Repository
 
 Repository is a collection of issues. By default, such directory is called

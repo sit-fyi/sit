@@ -1,0 +1,21 @@
+@startuml
+class Repository {
+  hashing_algorithm : Blake2(N) | SHA-1
+  encoding: Base32
+  id_generator: UUIDv4
+  version: 1
+}
+class Issue {
+  id : repository.id_generator::type
+}
+class Record {
+  hash : repository.hashing_algorithm::type
+}
+class File {
+  name : String
+  content : Binary
+}
+Repository "1" --> "many" Issue: contains
+Issue "1" --> "many" Record: contains
+Record "1" --> "many" File: contains
+@enduml
