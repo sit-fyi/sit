@@ -21,3 +21,24 @@ pub trait Record {
    /// Returns an iterator over files in the record
    fn file_iter(&self) -> Self::Iter;
 }
+
+pub trait RecordExt: Record {
+
+   fn has_type<S: AsRef<str>>(&self, typ: S) -> bool {
+      let len = 6 + typ.as_ref().len();
+      self.file_iter().any(|(name, _)| {
+         let name = name.as_ref();
+         name.len() == len &&
+         name.starts_with(".type/") &&
+         name.ends_with(typ.as_ref())
+      })
+   }
+
+   fn file<S: AsRef<str>>(&self, file: S) -> Option<Self::Read> {
+      let file = file.as_ref();
+      self.file_iter().find(|&(ref name, _)| name.as_ref() == file).and_then(|(_, reader)| Some(reader))
+   }
+
+}
+
+impl<T> RecordExt for T where T: Record {}

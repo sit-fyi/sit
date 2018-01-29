@@ -1,0 +1,10 @@
+Currently, if one person updates an issue with, say, `SummaryChanged` or
+`DetailsChanged`, anybody else can create follow-up records of the same type
+and override the values originally submitted, even if they were not intended to
+be authorized to do so.
+
+Proposed solution: introduce a permissioning system based
+on allowing certain keys to sign updates, and, perhaps, introduce
+some kind of groups to the repository to be able to refer
+to sets of keys instead of specific keys. This is going
+to be quite a big feature.

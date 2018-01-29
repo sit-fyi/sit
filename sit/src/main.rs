@@ -69,6 +69,12 @@ fn main() {
                      .takes_value(true)
                      .required(true)
                      .help("Issue identifier")))
+        .subcommand(SubCommand::with_name("reduce")
+            .about("Reduce issue records")
+            .arg(Arg::with_name("id")
+                     .takes_value(true)
+                     .required(true)
+                     .help("Issue identifier")))
         .get_matches();
 
     let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
@@ -195,6 +201,26 @@ fn main() {
                            println!("{}", rec.encoded_hash());
                        }
                     }
+                }
+            }
+        }
+
+        if let Some(matches) = matches.subcommand_matches("reduce") {
+            let mut issues = repo.issue_iter().expect("can't list issues");
+            let id = matches.value_of("id").unwrap();
+            match issues.find(|i| i.id() == id) {
+                None => {
+                    println!("Issue {} not found", id);
+                    exit(1);
+                },
+                Some(issue) => {
+                    use sit_core::Reducer;
+                    use sit_core::reducers::BasicIssueReducer;
+                    let reducer = BasicIssueReducer::new();
+                    let records = issue.record_iter().expect("can't list records");
+                    let result = records.fold(sit_core::serde_json::Value::Object(Default::default()), |acc, recs|
+                        recs.into_iter().fold(acc, |acc, rec| reducer.reduce(acc, &rec)));
+                    println!("{}", sit_core::serde_json::to_string_pretty(&result).unwrap());
                 }
             }
         }
