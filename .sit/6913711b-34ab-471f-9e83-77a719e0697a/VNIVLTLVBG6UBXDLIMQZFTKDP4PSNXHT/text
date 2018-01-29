@@ -1,0 +1,9 @@
+SIT itself can't tell who created a record and the
+only way to retrieve this information is to use
+SCM's functionality (such as `git blame`) to figure
+that out. That's less than ideal, especially considering
+that this information will not surive a loss of an SCM
+repository.
+
+Proposed solution: introduce a convention for recording
+author's information and make `sit` tool do this by default.
