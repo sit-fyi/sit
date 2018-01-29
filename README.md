@@ -4,7 +4,7 @@
 
 SIT (Standalone Issue Tracker, or Simple Issue Tracker, or simply SIT's an Issue
 Tracker; or whatever else you like) is a small tool to manage project issue
-artifacts on a filesystem. It's (rather simple) goal is to make such artifacts
+artifacts on a filesystem. Its (rather simple) goal is to make such artifacts
 as bug reports, problem statements, discussions and such surive the lifetime of
 project. Instead of depending on a third-party provider (such as GitHub), it
 ensures that its database is not going to be lost if a third-party provider goes
