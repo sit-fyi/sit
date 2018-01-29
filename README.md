@@ -105,6 +105,8 @@ to record authorship in issues.
    Provide detailed information for your issue so that others can fully
    understand it. It is a good etiquette.
 5. Take ID from the first step and run `sit record -t DetailsChanged <id> text`
+6. You can check if everything is correct by running `sit reduce <id>`.
+   It will show the current state of the issue.
 
 ### Send it to upstream
 
