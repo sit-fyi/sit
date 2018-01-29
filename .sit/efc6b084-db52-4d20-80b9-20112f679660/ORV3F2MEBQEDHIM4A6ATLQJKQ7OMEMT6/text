@@ -1,0 +1,8 @@
+This is not a typical workflow (git, for example,
+will try to figure out user's name and email) and
+might be a little bit of an adoption barrier.
+
+Perhaps, we can do the same thing as git, or,
+considering that git [never] can figure out
+email correctly, maybe it is better to force
+users to do this manually?
