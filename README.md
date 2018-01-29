@@ -257,7 +257,7 @@ Currently, the core dictionary processed by SIT is very small (but it is expecte
 One can look at the state of the issue with the `sit reduce <issue id>` command.
 
 Currently, the only way to add reducers is through adding them to `sit-core` (or building a third-party library). However,
-adding [sandboxed] scrpiting languages backends (so that reducers can be added per-repository or per-user easily) is also
+adding [sandboxed] scripting languages backends (so that reducers can be added per-repository or per-user easily) is also
 planned.
 
 
