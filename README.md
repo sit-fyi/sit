@@ -68,6 +68,12 @@ cargo build --release
 The resulting binary can be found at `./target/release/sit`. Put it in your
 `PATH` to be able to access it in your environment.
 
+## Got questions, bug reports, etc?
+
+SIT's is using SIT for tracking issues (duh!) and because of this, GitHub
+issues are turned off. It's a good excuse to try out SIT if you have an
+issue to file!
+
 ## Overview
 
 ### Repository
