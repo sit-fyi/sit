@@ -14,7 +14,16 @@ use clap::{Arg, App, SubCommand};
 
 use sit_core::{Issue, Record};
 
+extern crate serde;
+#[macro_use] extern crate serde_derive;
+extern crate config;
+mod cfg;
+
+extern crate xdg;
+
 fn main() {
+    let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
+
     let cwd = env::current_dir().expect("can't get current working directory");
     let matches = App::new("SIT")
         .version(crate_version!())
@@ -28,6 +37,10 @@ fn main() {
             .short("v")
             .multiple(true)
             .help("Sets the level of verbosity"))
+        .arg(Arg::with_name("config")
+            .short("c")
+            .long("config")
+            .help("Config file (overrides default)"))
         .subcommand(SubCommand::with_name("init")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Initializes a new SIT repository in .sit"))
@@ -58,6 +71,9 @@ fn main() {
             .arg(Arg::with_name("no-timestamp")
                 .long("no-timestamp")
                 .help("By default, SIT will add a wall clock timestamp to all new. This option disables this behaviour"))
+            .arg(Arg::with_name("no-author")
+                .long("no-author")
+                .help("By default, SIT will authorship information to all new records. This option disables this behaviour"))
             .arg(Arg::with_name("FILES")
                      .multiple(true)
                      .takes_value(true)
@@ -76,6 +92,22 @@ fn main() {
                      .required(true)
                      .help("Issue identifier")))
         .get_matches();
+
+
+    let xdg_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
+    let config_path = matches.value_of("config").unwrap_or(xdg_config.to_str().unwrap());
+
+    let mut settings = config::Config::default();
+    settings
+        .merge(config::File::with_name(config_path).required(false)).unwrap();
+
+    let config: cfg::Configuration = settings.try_into().expect("can't load config");
+
+    if config.author.is_none() {
+        eprintln!("Authorship hasn't been configured. Update your {} config file\n\
+        to include `author` object with `name` and `email` properties specified", config_path);
+        exit(1);
+    }
 
     let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
     let canonical_working_dir = fs::canonicalize(&working_dir).expect("can't canonicalize working directory");
@@ -171,15 +203,26 @@ fn main() {
                                                            tempfile::tempfile_in(repo.path())
                                                                .expect(&format!("can't create a temporary file (.type/{})", t))));
 
+                    use std::io::{Write, Seek, SeekFrom};
+
+                    // .authors
+                    let mut authors = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.authors)");
+                    authors.write(format!("{}", config.author.unwrap()).as_bytes()).expect("can't write to a tempoary file (.authors)");
+                    authors.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.authors)");
+                    let authorship_files = if !matches.is_present("no-author") {
+                        vec![(".authors".into(), authors)].into_iter()
+                    } else {
+                        vec![].into_iter()
+                    };
+
                     let record = if !matches.is_present("no-timestamp") {
-                        use std::io::{Write, Seek, SeekFrom};
                         let mut f = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.timestamp)");
                         let utc: DateTime<Utc> = Utc::now();
                         f.write(format!("{:?}", utc).as_bytes()).expect("can't write to a temporary file (.timestamp)");
                         f.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.timestamp)");
-                        issue.new_record(files.chain(type_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
+                        issue.new_record(files.chain(type_files).chain(authorship_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
                     } else {
-                        issue.new_record(files.chain(type_files), true)
+                        issue.new_record(files.chain(type_files).chain(authorship_files), true)
                     }.expect("can't create a record");
                     println!("{}", record.encoded_hash());
                 }

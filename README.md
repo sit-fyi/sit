@@ -152,11 +152,12 @@ append-only files for two reasons:
   
 Below is a list of record file conventions:
   
-| Filename   | Description                                                                   | Notes                                                                                                |
-|------------|-------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
-| .type/TYPE | Record type. Open-ended, unknown types must be ignored.                       | Required, more than one entry is allowed. Case-insensitive to allow for case-insensitive filesystems |
-| .prev/ID   | Link to a previous record ID.                                                 | Optional, more than one entry is allowed                                                             |
-| .timestamp | ISO-8601 timestamp, always with zero UTF offset (`YYYY-MM-DDTHH:mm:ss.sssZ`). | Optional but generally encouraged                                                                    |
+| Filename   | Description                                                                                                        | Notes                                                                                                |
+|------------|--------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| .type/TYPE | Record type. Open-ended, unknown types must be ignored.                                                            | Required, more than one entry is allowed. Case-insensitive to allow for case-insensitive filesystems |
+| .prev/ID   | Link to a previous record ID.                                                                                      | Optional, more than one entry is allowed                                                             |
+| .timestamp | ISO-8601 timestamp, always with zero UTF offset (`YYYY-MM-DDTHH:mm:ss.sssZ`).                                      | Optional but generally encouraged                                                                    |
+| .authors   | List of record authors (one per line, `John Doe <john@doe>` format is recommended, `John Doe` is also acceptable ) | Recommended                                                                                          |
 
 You can create a record using `sit record <issue id> [FILE]..` command.
 
