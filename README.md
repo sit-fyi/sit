@@ -4,9 +4,9 @@
 
 SIT (Standalone Issue Tracker, or Simple Issue Tracker, or simply SIT's an Issue
 Tracker; or whatever else you like) is a small tool to manage project issue
-artifacts on a filesystem. Its (rather simple) goal is to make such artifacts
-as bug reports, problem statements, discussions and such surive the lifetime of
-project. Instead of depending on a third-party provider (such as GitHub), it
+artifacts on a filesystem. Its goal is to make such artifacts
+as bug reports, problem statements, discussions (and others) surive the lifetime of
+the project. Instead of depending on a third-party provider (such as GitHub), it
 ensures that its database is not going to be lost if a third-party provider goes
 out of business, loses data, or if you fall in love with a new SCM and decide to
 migrate over.
@@ -32,26 +32,21 @@ of record types and a decent UI. Hopefully not for long, though!
 
 ## Motivation
 
-Oh, why another issue tracker, let alone file-based? There's GitHub, JIRA,
+Oh, why another issue tracker, let alone file-based, you ask? There's GitHub, JIRA,
 Trello, Bugzilla, Redmine and hundreds of other trackers, including file-based
 ones as well (in various stages of abandonment).
 
 The core motivation for developing SIT was an understanding that these records
-of issues aren't just auxiliary. If they are maintained with at least some
+of issues aren't auxiliary. If they are maintained with at least some
 degree of responsibility, they carry a lot of important information. Besides
 things like backlog or current status, these records provide valuable insight
 into decision making by exposing all notes and conversations around particular
-changes, defects and such.
+changes, defects or issues.
 
 The idea was to build a tool that works nicely with SCMs (centralized or not)
 but ultimately does not depend on them and can live without one. A tool that
-would allow the source code of the project (or whatever else a repository might
-carry) to contain this entire body of knowledge, decreasing the risk of its
-loss.
-
-With that thought in mind, none of the SaaS or even self-hosted web tools would
-do the job. Some issue trackers depend on Git or an array of SCMs to accomplish
-some of their goals. Many have been abandoned (sad truth!).
+will allow the contents of the project to contain this entire body of knowledge,
+decreasing the risk of its loss.
 
 Hence the experiment to build SIT.
 
@@ -103,10 +98,10 @@ to record authorship in issues.
 3. Take ID from the first step and run `sit record -t SummaryChanged <id> text`
 4. Edit temporary `text` file to prepare details.
    Provide detailed information for your issue so that others can fully
-   understand it. It is a good etiquette.
+   understand it. It is a good etiquette to have one or a few paragraphs.
 5. Take ID from the first step and run `sit record -t DetailsChanged <id> text`
 6. You can check if everything is correct by running `sit reduce <id>`.
-   It will show the current state of the issue.
+   It will show the current state of the issue as a JSON.
 
 ### Send it to upstream
 
@@ -115,12 +110,13 @@ Now that your issue is recorded locally, you can send it to this repository:
 1. Create a branch (as a convention, you can use your issue ID as a branch name)
 2. Add new files in `.sit` and commit them. Commit message can be simply "Added issue <id>"
 3. Send a pull request with your branch or prepare a patch and send it to one of the maintainers
+   by email or any other available means.
 
 Once maintainers will receive it, they will merge it into master or another appropriate branch.
 
 ### Getting updates
 
-You will get all issue updates when you fetch the repository.
+You will get all issue updates when you fetch this git repository.
 
 ## Overview
 
@@ -136,13 +132,13 @@ Repository is a collection of issues. By default, such directory is called
 `.sit` and is found by the tooling by scanning the working directory and upwards
 until such directory is found.
 
-Each repository contains `config.json` file which contains its configuration.
-The convention of this file is to contain all configurable items to avoid
+Each repository has `config.json` file which contains its configuration.
+The convention for this file is to contain all configurable items to avoid
 potential breakage of behaviour if some defaults are to be changed going
 forward.
 
 One can initialize a SIT repository in their working directory using `sit init`
-command. It will create `.sit` in the working directory.
+command. It will create `.sit` directory.
 
 ### Issue
 
@@ -175,24 +171,23 @@ Record is used to represent an "event" that is applied to its container. For
 example, a record might represent changing an issue's title, stating a problem
 or adding an attachment (or just about anything else). By convention, `.type/TYPE`
 file within a record is used to describe the type of the record. Multiple types
-are allowed to describe the same record from different perspectivees (could be
+are allowed to describe the same record from different perspectives (could be
 a generic issue description submission, such as `.type/DescriptionChanged`,
 and can also be seen as a problem statement, for example, `.type/ProblemStated`)
-
-This allows to establish non-exclusive ordering of records and allow records to
-be prepared independently without having to synchronize their naming (for
-example, in a fork or over email). By convention, if there is more than one of
-the last records, when a new record needs to be added, it is appended to all of
-them.
 
 A record is represented by a directory named after its deterministic hash (by
 default, Base32-encoded), with the content hashed inside of this record.
 
 A record is typically linked to a previous record via previous record's hash,
 unless this record is considered to be one of the first records. A record can be
-linked ot more than one previous record, effectively "joining" the threads.
-These links are represented by empty files
-`.prev/[previous-record-id-using-the-same-encoding]`.
+linked to more than one previous record, effectively "joining" them.
+These links are represented by empty `.prev/[previous-record-id]` files.
+
+This allows to establish non-exclusive ordering of records and allow records to
+be prepared independently without having to synchronize their naming (for
+example, in a fork or over email). By convention, if there is more than one of
+the last records, when a new record needs to be added, it is appended to all of
+them.
 
 Below you can see an artificial example that shows ordering of records:
 
@@ -215,7 +210,7 @@ append-only files for two reasons:
 2. It's an easier mechanism for managing record's supplemental files (no need to both include files and list them in
    a file, just including a file is sufficient)
   
-Below is a list of record file conventions:
+Below is the list of some record files conventions:
   
 | Filename   | Description                                                                                                        | Notes                                                                                                |
 |------------|--------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
@@ -230,22 +225,24 @@ You can create a record using `sit record <issue id> [FILE]..` command.
 
 Reducer is a very important concept in SIT. By themselves, records are cool but of little
 practical value as they don't allow us to observe the current state of any issue but
-only its history. The naming comes from [fold, or reduce function](https://en.wikipedia.org/wiki/Fold_(higher-order_function))
+only its history. 
 
-In a nutshell, a reducer takes current state, an item to process and returns an update state:
+The naming comes from [fold, or reduce function](https://en.wikipedia.org/wiki/Fold_(higher-order_function))
+
+In a nutshell, a reducer takes current state and an item to process and returns an update state:
 
 ```
 Reducer(State, Item) -> State1;
 ```
 
 In practicular terms, a reducer takes a state of the issue (a JSON object), and a record
-and returns an update JSON object with the state of the issue. In order to produce a meaningful
+and returns an updated JSON object with the state of the issue. In order to produce a meaningful
 representation of an issue, we must iterate records in order to get a valid result. One of the
 interesting features here is the ability to process records up to a certain point to see how
 an issue looked back then.
 
-The result of this reduction can be used as-is or be used in a user interface to produce a
-useful rendering of it.
+The result of this reduction can be used as-is or in a user interface to produce a
+comprehensible rendering of it.
 
 Currently, the core dictionary processed by SIT is very small (but it is expected to grow):
 
@@ -258,7 +255,7 @@ Currently, the core dictionary processed by SIT is very small (but it is expecte
 
 One can look at the state of the issue with the `sit reduce <issue id>` command.
 
-Currently, the only way to add reducers is through adding them to `sit-core` (or building a third-party library). However,
+Currently, the only way to add reducers is by adding them to `sit-core` (or building a third-party library). However,
 adding [sandboxed] scripting languages backends (so that reducers can be added per-repository or per-user easily) is also
 planned.
 
