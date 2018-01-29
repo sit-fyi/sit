@@ -154,6 +154,43 @@ Below is a list of record file conventions:
 
 You can create a record using `sit record <issue id> [FILE]..` command.
 
+### Reducers
+
+Reducer is a very important concept in SIT. By themselves, records are cool but of little
+practical value as they don't allow us to observe the current state of any issue but
+only its history. The naming comes from []fold/reduce/accumulate/... term](https://en.wikipedia.org/wiki/Fold_(higher-order_function))
+
+In a nutshell, a reducer takes current state, an item to process and returns an update state:
+
+```
+Reducer(State, Item) -> State1;
+```
+
+In practicular terms, a reducer takes a state of the issue (a JSON object), and a record
+and returns an update JSON object with the state of the issue. In order to produce a meaningful
+representation of an issue, we must iterate records in order to get a valid result. One of the
+interesting features here is the ability to process records up to a certain point to see how
+an issue looked back then.
+
+The result of this reduction can be used as-is or be used in a user interface to produce a
+useful rendering of it.
+
+Currently, the core dictionary processed by SIT is very small (but it is expected to grow):
+
+| Type           | Description                     | Files                                                | State effect                      |
+|----------------|---------------------------------|------------------------------------------------------|-----------------------------------|
+| SummaryChanged | Changes issue's summary (title) | * `text` - a UTF-8 string, expeced to be a one-liner | Updates `summary` field           |
+| DetailsChanged | Changes issue's details (body)  | * `text` - a UTF-8 string                            | Updates `details` field           |
+| Closed         | Closes issue                    |                                                      | Updates `state` field to `closed` |
+| Reopened       | Reopens issue                   |                                                      | Updates `state` field to `open`   |
+
+One can look at the state of the issue with the `sit reduce <issue id>` command.
+
+Currently, the only way to add reducers is through adding them to `sit-core` (or building a third-party library). However,
+adding [sandboxed] scrpiting languages backends (so that reducers can be added per-repository or per-user easily) is also
+planned.
+
+
 ## License
 
 SIT is distributed under the terms of both the MIT license and the Apache License (Version 2.0).

@@ -13,7 +13,7 @@
 // Serialization
 extern crate serde;
 #[macro_use] extern crate serde_derive;
-extern crate serde_json;
+pub extern crate serde_json;
 
 extern crate tempdir;
 extern crate glob;
@@ -39,3 +39,5 @@ pub use issue::Issue;
 pub mod record;
 pub use record::Record;
 pub use repository::{Repository, Error as RepositoryError};
+pub mod reducers;
+pub use reducers::Reducer;
