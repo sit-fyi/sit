@@ -259,9 +259,12 @@ fn main() {
                 Some(issue) => {
                     use sit_core::Reducer;
                     use sit_core::reducers::BasicIssueReducer;
+                    use sit_core::serde_json::{Value, Map};
                     let reducer = BasicIssueReducer::new();
                     let records = issue.record_iter().expect("can't list records");
-                    let result = records.fold(sit_core::serde_json::Value::Object(Default::default()), |acc, recs|
+                    let mut state: Map<_, _> = Default::default();
+                    state.insert("id".into(), Value::String(issue.id().into()));
+                    let result = records.fold(Value::Object(state), |acc, recs|
                         recs.into_iter().fold(acc, |acc, rec| reducer.reduce(acc, &rec)));
                     println!("{}", sit_core::serde_json::to_string_pretty(&result).unwrap());
                 }
