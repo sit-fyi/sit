@@ -1,0 +1,10 @@
+{
+  "hashing_algorithm": {
+    "blake2b": {
+      "size": 20
+    }
+  },
+  "encoding": "base32",
+  "id_generator": "uuiv4",
+  "version": "1"
+}
