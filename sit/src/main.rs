@@ -49,6 +49,12 @@ fn main() {
                      .takes_value(true)
                      .required(true)
                      .help("Issue identifier"))
+            .arg(Arg::with_name("type")
+                .short("t")
+                .long("type")
+                .takes_value(true)
+                .long_help("Comma-separated list of types to merge with supplied .type/TYPE files.")
+                .help("Record type(s)"))
             .arg(Arg::with_name("no-timestamp")
                 .long("no-timestamp")
                 .help("By default, SIT will add a wall clock timestamp to all new. This option disables this behaviour"))
@@ -129,7 +135,14 @@ fn main() {
                     exit(1);
                 },
                 Some(issue) => {
-                    let files = matches.values_of("FILES").unwrap().into_iter()
+                    let files = matches.values_of("FILES").unwrap();
+                    let types: Vec<_> = matches.value_of("type").unwrap().split(",").collect();
+
+                    if !files.clone().any(|f| f.starts_with(".type/")) && types.len() == 0 {
+                        println!("At least one record type (.type/TYPE file) or `-t/--type` command line argument is required.");
+                        exit(1);
+                    }
+                    let files = files.into_iter()
                             .map(move |name| {
                                 let path = PathBuf::from(&name);
                                 if !path.is_file() {
@@ -147,15 +160,20 @@ fn main() {
                             })
                             .map(|name| (name.clone(), ::std::fs::File::open(name).expect("can't open file")));
 
+                    let type_files = types.iter().map(|t|
+                                                          (format!(".type/{}", *t),
+                                                           tempfile::tempfile_in(repo.path())
+                                                               .expect(&format!("can't create a temporary file (.type/{})", t))));
+
                     let record = if !matches.is_present("no-timestamp") {
                         use std::io::{Write, Seek, SeekFrom};
                         let mut f = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.timestamp)");
                         let utc: DateTime<Utc> = Utc::now();
                         f.write(format!("{:?}", utc).as_bytes()).expect("can't write to a temporary file (.timestamp)");
                         f.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.timestamp)");
-                        issue.new_record(files.chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
+                        issue.new_record(files.chain(type_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
                     } else {
-                        issue.new_record(files, true)
+                        issue.new_record(files.chain(type_files), true)
                     }.expect("can't create a record");
                     println!("{}", record.encoded_hash());
                 }
