@@ -164,7 +164,7 @@ You can create a record using `sit record <issue id> [FILE]..` command.
 
 Reducer is a very important concept in SIT. By themselves, records are cool but of little
 practical value as they don't allow us to observe the current state of any issue but
-only its history. The naming comes from []fold/reduce/accumulate/... term](https://en.wikipedia.org/wiki/Fold_(higher-order_function))
+only its history. The naming comes from [fold, or reduce function](https://en.wikipedia.org/wiki/Fold_(higher-order_function))
 
 In a nutshell, a reducer takes current state, an item to process and returns an update state:
 
