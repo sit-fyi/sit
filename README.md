@@ -76,7 +76,11 @@ issue to file!
 
 ## Overview
 
-![Overview diagram](overview.png)
+<center>
+<p align="center">
+<img src="overview.png" width="266" height="543">
+</p>
+</center>
 
 ### Repository
 
@@ -141,6 +145,17 @@ unless this record is considered to be one of the first records. A record can be
 linked ot more than one previous record, effectively "joining" the threads.
 These links are represented by empty files
 `.prev/[previous-record-id-using-the-same-encoding]`.
+
+Below you can see an artificial example that shows ordering of records:
+
+<center>
+<p align="center">
+<img src="records.png" width="525" height="543">
+</p>
+</center>
+
+(Here `H5JFAN2QSAPYX34SGTK66YFUTFS55V2` is the first record and `56AGOFFETK2KFQP2FX5OF5B2RULCAUB2`
+is the last one and it "joins" `ORV3F2MEBQEDHIM4A6ATLQJKQ7OMEMT6` and `ORV3F2MEBQEDHIM4A6ATLQJKQ7OMEMT6`)
 
 This approach allows us to preserve the totality of the changes occured, without
 having to rely on SCM capabilities. That's right, even if one is to lose the
