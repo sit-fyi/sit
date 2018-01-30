@@ -1,9 +1,10 @@
 //! Core reducers
 
 use super::{Reducer, ChainedReducer};
-use serde_json::Value as JsonValue;
+use serde_json::{Map, Value as JsonValue};
 use super::super::record::{Record, RecordExt};
 use std::marker::PhantomData;
+use std::io::Read;
 
 /// Reduces SummaryChanged type
 pub struct IssueSummaryReducer<R: Record>(PhantomData<R>);
@@ -19,7 +20,6 @@ impl<R: Record + RecordExt> Reducer for IssueSummaryReducer<R> {
     type Item = R;
 
     fn reduce(&self, state: Self::State, item: &Self::Item) -> Self::State {
-        use std::io::Read;;
         if item.has_type("SummaryChanged") {
             match state {
                 JsonValue::Object(mut map) => {
@@ -56,7 +56,6 @@ impl<R: Record + RecordExt> Reducer for IssueDetailsReducer<R> {
     type Item = R;
 
     fn reduce(&self, state: Self::State, item: &Self::Item) -> Self::State {
-        use std::io::Read;;
         if item.has_type("DetailsChanged") {
             match state {
                 JsonValue::Object(mut map) => {
@@ -121,13 +120,81 @@ impl<R: Record + RecordExt> Reducer for IssueClosureReducer<R> {
     }
 }
 
+/// Reduces Commented type
+pub struct CommentedReducer<R: Record>(PhantomData<R>);
+
+impl<R: Record> CommentedReducer<R> {
+    pub fn new() -> Self {
+        CommentedReducer(PhantomData)
+    }
+}
+
+impl<R: Record + RecordExt> Reducer for CommentedReducer<R> {
+    type State = JsonValue;
+    type Item = R;
+
+    fn reduce(&self, state: Self::State, item: &Self::Item) -> Self::State {
+        let state = match state {
+            JsonValue::Object(mut map) => {
+                map.entry("comments").or_insert(JsonValue::Array(vec![]));
+                JsonValue::Object(map)
+            },
+            _ => panic!("invalid state"),
+        };
+        if item.has_type("Commented") {
+            match state {
+                JsonValue::Object(map) => {
+                    let mut map = map.clone();
+                    // scope it to unborrow `map` before it is returned
+                    {
+                        let mut comments = map.get_mut("comments").unwrap();
+                        let mut comment: Map<String, JsonValue> = Default::default();
+                        comment.insert("text".into(), JsonValue::String(item.file("text")
+                            .and_then(|mut r| {
+                                let mut s = String::new();
+                                r.read_to_string(&mut s).unwrap();
+                                Some(s)
+                            })
+                            .or_else(|| Some(String::from("")))
+                            .unwrap()));
+                        comment.insert("authors".into(), JsonValue::String(item.file(".authors")
+                            .and_then(|mut r| {
+                                let mut s = String::new();
+                                r.read_to_string(&mut s).unwrap();
+                                Some(s)
+                            })
+                            .or_else(|| Some(String::from("")))
+                            .unwrap()));
+                        comment.insert("timestamp".into(), JsonValue::String(item.file(".timestamp")
+                            .and_then(|mut r| {
+                                let mut s = String::new();
+                                r.read_to_string(&mut s).unwrap();
+                                Some(s)
+                            })
+                            .or_else(|| Some(String::from("")))
+                            .unwrap()));
+                        comments.as_array_mut().unwrap().push(JsonValue::Object(comment));
+                    }
+                    JsonValue::Object(map)
+                }
+                _ => panic!("invalid state"),
+            }
+        } else {
+            state
+        }
+    }
+}
+
 
 /// Combines Closed, SummaryChanged, DetailsChanged reducers
-pub struct BasicIssueReducer<R: Record>(ChainedReducer<ChainedReducer<IssueClosureReducer<R>, IssueSummaryReducer<R>>, IssueDetailsReducer<R>>);
+pub struct BasicIssueReducer<R: Record>(ChainedReducer<CommentedReducer<R>, ChainedReducer<ChainedReducer<IssueClosureReducer<R>, IssueSummaryReducer<R>>, IssueDetailsReducer<R>>>);
 
 impl<R: Record> BasicIssueReducer<R> {
     pub fn new() -> Self {
-       BasicIssueReducer(IssueClosureReducer::new().chain(IssueSummaryReducer::new()).chain(IssueDetailsReducer::new()))
+       BasicIssueReducer(CommentedReducer::new()
+                             .chain(IssueClosureReducer::new()
+                             .chain(IssueSummaryReducer::new())
+                             .chain(IssueDetailsReducer::new())))
     }
 }
 
@@ -201,6 +268,24 @@ mod tests {
         issue.new_record(vec![(".type/Reopened", &b""[..])].into_iter(), true).unwrap();
         let state = issue.reduce_with_reducer(IssueClosureReducer::new()).unwrap();
         assert_eq!(state.as_object().unwrap().get("state").unwrap().as_str().unwrap(), "open");
+    }
+
+    #[test]
+    fn commented() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        let issue = repo.new_issue().unwrap();
+        issue.new_record(vec![(".type/Commented", &b""[..]), ("text", &b"Comment 1"[..]),
+                              (".timestamp", &b"2018-01-30T16:24:59.385560008Z"[..]),
+                              (".authors", &b"John Doe <john@foobar.com>"[..])].into_iter(), true).unwrap();
+        let state = issue.reduce_with_reducer(CommentedReducer::new()).unwrap();
+        let comments = state.get("comments").unwrap().as_array().unwrap();
+        assert_eq!(comments.len(), 1);
+        assert_eq!(comments[0].get("text").unwrap().as_str().unwrap(), "Comment 1");
+        assert_eq!(comments[0].get("authors").unwrap().as_str().unwrap(), "John Doe <john@foobar.com>");
+        assert_eq!(comments[0].get("timestamp").unwrap().as_str().unwrap(), "2018-01-30T16:24:59.385560008Z");
+
     }
 
 }

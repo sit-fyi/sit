@@ -137,6 +137,12 @@ $ sit issues -q @
 5. Take ID from the first step and run `sit record -t DetailsChanged <id> text`
 6. You can check if everything is correct by running `sit reduce <id>`.
    It will show the current state of the issue as a JSON.
+   
+### Comment on an issue
+
+1. Edit a temporary `text` file to prepare your comment.
+   It is important to name the file `text` and not something else.
+2. Take ID of your issue and run `sit record -t Commented <id> text`
 
 ### Send it to upstream
 
