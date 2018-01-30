@@ -93,5 +93,6 @@ mod tests {
         assert_eq!(object.get("summary").unwrap().as_str().unwrap(), "Title");
         assert_eq!(object.get("details").unwrap().as_str().unwrap(), "Explanation");
         assert_eq!(object.get("state").unwrap().as_str().unwrap(), "closed");
+        assert!(object.get("comments").unwrap().is_array());
     }
 }
