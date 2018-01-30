@@ -156,7 +156,7 @@ You will get all issue updates when you fetch this git repository.
 
 <center>
 <p align="center">
-<img src="overview.png" width="266" height="543">
+<img src="doc/overview.png" width="266" height="543">
 </p>
 </center>
 
@@ -227,7 +227,7 @@ Below you can see an artificial example that shows ordering of records:
 
 <center>
 <p align="center">
-<img src="records.png" width="525" height="543">
+<img src="doc/records.png" width="525" height="543">
 </p>
 </center>
 
