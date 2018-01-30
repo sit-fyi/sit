@@ -370,6 +370,16 @@ pub struct Record<'a> {
     repository: &'a Repository,
 }
 
+use serde::{Serialize, Serializer};
+
+impl<'a> Serialize for Record<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+        use record::RecordExt;
+        self.serde_serialize(serializer)
+    }
+}
+
+
 impl<'a> PartialEq for Record<'a> {
    fn eq(&self, other: &Record<'a>) -> bool {
        self.hash == other.hash

@@ -97,10 +97,22 @@ fn main() {
         .subcommand(SubCommand::with_name("records")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Lists records")
-             .arg(Arg::with_name("id")
+            .arg(Arg::with_name("id")
                      .takes_value(true)
                      .required(true)
-                     .help("Issue identifier")))
+                     .help("Issue identifier"))
+            .arg(Arg::with_name("filter")
+                     .long("filter")
+                     .short("f")
+                     .takes_value(true)
+                     .default_value("type(@) == 'object'")
+                     .help("Filter records with a JMESPath query"))
+            .arg(Arg::with_name("query")
+                     .long("query")
+                     .short("q")
+                     .takes_value(true)
+                     .default_value("hash")
+                     .help("Render a result of a JMESPath query over the record")))
         .subcommand(SubCommand::with_name("reduce")
             .about("Reduce issue records")
             .arg(Arg::with_name("id")
@@ -278,9 +290,23 @@ fn main() {
                 },
                 Some(issue) => {
                     let records = issue.record_iter().expect("can't lis records");
+
+                    let filter = jmespath::compile(matches.value_of("filter").unwrap()).expect("can't compile filter expression");
+                    let query = jmespath::compile(matches.value_of("query").unwrap()).expect("can't compile query expression");
+
                     for record in records {
                        for rec in record {
-                           println!("{}", rec.encoded_hash());
+                           let json = sit_core::serde_json::to_string(&rec).unwrap();
+                           let data = jmespath::Variable::from_json(&json).unwrap();
+                           let result = filter.search(&data).unwrap();
+                           if result.as_boolean().unwrap() {
+                               let view = query.search(&data).unwrap();
+                               if view.is_string() {
+                                   println!("{}", view.as_string().unwrap());
+                               } else {
+                                   println!("{}", serde_json::to_string_pretty(&view).unwrap());
+                               }
+                           }
                        }
                     }
                 }
