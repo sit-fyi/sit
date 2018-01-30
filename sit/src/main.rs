@@ -13,6 +13,7 @@ use std::process::exit;
 use clap::{Arg, App, SubCommand};
 
 use sit_core::{Issue, Record};
+use sit_core::issue::IssueReduction;
 
 extern crate serde;
 extern crate serde_json;
@@ -192,15 +193,7 @@ fn main() {
             let query = jmespath::compile(matches.value_of("query").unwrap()).expect("can't compile query expression");
 
             for issue in issues {
-                use sit_core::Reducer;
-                use sit_core::reducers::BasicIssueReducer;
-                use sit_core::serde_json::{Value, Map};
-                let reducer = BasicIssueReducer::new();
-                let records = issue.record_iter().expect("can't list records");
-                let mut state: Map<_, _> = Default::default();
-                state.insert("id".into(), Value::String(issue.id().into()));
-                let result = records.fold(Value::Object(state), |acc, recs|
-                    recs.into_iter().fold(acc, |acc, rec| reducer.reduce(acc, &rec)));
+                let result = issue.reduce().expect("can't reduce issue");
                 let json = sit_core::serde_json::to_string(&result).unwrap();
                 let data = jmespath::Variable::from_json(&json).unwrap();
                 let result = filter.search(&data).unwrap();
@@ -322,15 +315,7 @@ fn main() {
                     exit(1);
                 },
                 Some(issue) => {
-                    use sit_core::Reducer;
-                    use sit_core::reducers::BasicIssueReducer;
-                    use sit_core::serde_json::{Value, Map};
-                    let reducer = BasicIssueReducer::new();
-                    let records = issue.record_iter().expect("can't list records");
-                    let mut state: Map<_, _> = Default::default();
-                    state.insert("id".into(), Value::String(issue.id().into()));
-                    let result = records.fold(Value::Object(state), |acc, recs|
-                        recs.into_iter().fold(acc, |acc, rec| reducer.reduce(acc, &rec)));
+                    let result = issue.reduce().expect("can't reduce issue");
                     println!("{}", sit_core::serde_json::to_string_pretty(&result).unwrap());
                 }
             }
