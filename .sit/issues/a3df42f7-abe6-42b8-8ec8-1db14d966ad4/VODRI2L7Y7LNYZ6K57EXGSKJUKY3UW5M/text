@@ -1,0 +1,6 @@
+Proposed solution: develop a merge bot
+
+This bot should look into incoming pull requests
+(or any other inboxes, such as email, or whatever)
+and if it sees that the patch only includes new
+records and nothing else, merge it automatically.
