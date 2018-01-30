@@ -1,0 +1,18 @@
+A (potentially simpler) solution might be to develop
+a git hook that'll do the same verification and run
+it on a gitolite or similar git hosting instance.
+
+This would require updating documentation to show
+that issues are sent to another github server.
+
+Once that server is added as a remote, the workflow
+is actually going to be better than PR.
+
+With PR, one needs to push the branch, switch to
+the browser, go to the repository, click a few times
+to get the pull request created.
+
+With this approach, one would just do something like
+`git push sit a3df42f7-abe6-42b8-8ec8-1db14d966ad4`
+and it's dne.
+
