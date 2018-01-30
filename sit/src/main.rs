@@ -63,7 +63,7 @@ fn main() {
                      .long("filter")
                      .short("f")
                      .takes_value(true)
-                     .default_value("!false")
+                     .default_value("type(@) == 'object'")
                      .help("Filter issues with a JMESPath query"))
             .arg(Arg::with_name("query")
                      .long("query")
