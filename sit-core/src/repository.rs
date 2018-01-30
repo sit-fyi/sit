@@ -144,7 +144,7 @@ impl Repository {
 
     /// Returns repository path
     pub fn path(&self) -> &Path {
-        self.issues_path.as_path()
+        self.path.as_path()
     }
 
     /// Returns an unordered (as in "order not defined") issue iterator
@@ -470,6 +470,7 @@ mod tests {
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
         assert_eq!(repo.issue_iter().unwrap().count(), 0); // no issues in a new repo
+        assert_eq!(repo.path(), tmp);
     }
 
     #[test]
