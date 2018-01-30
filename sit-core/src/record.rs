@@ -22,6 +22,11 @@ pub trait Record {
    fn file_iter(&self) -> Self::Iter;
 }
 
+
+use serde_json::{Value as JsonValue, Map as JsonMap};
+use serde::Serializer;
+use serde::ser::SerializeStruct;
+
 pub trait RecordExt: Record {
 
    fn has_type<S: AsRef<str>>(&self, typ: S) -> bool {
@@ -38,6 +43,40 @@ pub trait RecordExt: Record {
       let file = file.as_ref();
       self.file_iter().find(|&(ref name, _)| name.as_ref() == file).and_then(|(_, reader)| Some(reader))
    }
+
+   fn serde_serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where
+        S: Serializer {
+       use std::io::Read;
+       let mut record = serializer.serialize_struct("Record", 2)?;
+       let mut files = JsonMap::new();
+       let mut buf = Vec::new();
+       for (name, mut reader) in self.file_iter() {
+           let name = name.as_ref().into();
+           match reader.read_to_end(&mut buf) {
+               Ok(_) => {
+                   match ::std::str::from_utf8(&buf) {
+                       Err(_) => {
+                           let mut typ = JsonMap::new();
+                           typ.insert("type".into(), JsonValue::String("binary".into()));
+                           files.insert(name, JsonValue::Object(typ));
+                       },
+                       Ok(str) => {
+                           files.insert(name, JsonValue::String(str.into()));
+                       }
+                   }
+               },
+               Err(err) => {
+                   let mut error = JsonMap::new();
+                   error.insert("error".into(), JsonValue::String(format!("{}", err)));
+                   files.insert(name, JsonValue::Object(error));
+               }
+           }
+           buf.clear();
+       }
+       record.serialize_field("hash", self.encoded_hash().as_ref().into())?;
+       record.serialize_field("files", &JsonValue::Object(files))?;
+       record.end()
+    }
 
 }
 
