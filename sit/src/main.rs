@@ -15,11 +15,15 @@ use clap::{Arg, App, SubCommand};
 use sit_core::{Issue, Record};
 
 extern crate serde;
+extern crate serde_json;
 #[macro_use] extern crate serde_derive;
+
 extern crate config;
 mod cfg;
 
 extern crate xdg;
+
+extern crate jmespath;
 
 fn main() {
     let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
@@ -54,7 +58,19 @@ fn main() {
                      .help("Specify issue identifier, otherwise generate automatically")))
         .subcommand(SubCommand::with_name("issues")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
-            .about("Lists issues"))
+            .about("Lists issues")
+            .arg(Arg::with_name("filter")
+                     .long("filter")
+                     .short("f")
+                     .takes_value(true)
+                     .default_value("!false")
+                     .help("Filter issues with a JMESPath query"))
+            .arg(Arg::with_name("query")
+                     .long("query")
+                     .short("q")
+                     .takes_value(true)
+                     .default_value("id")
+                     .help("Render a result of a JMESPath query over the issue")))
         .subcommand(SubCommand::with_name("record")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Creates a new record")
@@ -157,10 +173,33 @@ fn main() {
             println!("{}", issue.id());
         }
 
-        if let Some(_matches) = matches.subcommand_matches("issues") {
+        if let Some(matches) = matches.subcommand_matches("issues") {
             let issues = repo.issue_iter().expect("can't list issues");
+
+            let filter = jmespath::compile(matches.value_of("filter").unwrap()).expect("can't compile filter expression");
+            let query = jmespath::compile(matches.value_of("query").unwrap()).expect("can't compile query expression");
+
             for issue in issues {
-                println!("{}", issue.id());
+                use sit_core::Reducer;
+                use sit_core::reducers::BasicIssueReducer;
+                use sit_core::serde_json::{Value, Map};
+                let reducer = BasicIssueReducer::new();
+                let records = issue.record_iter().expect("can't list records");
+                let mut state: Map<_, _> = Default::default();
+                state.insert("id".into(), Value::String(issue.id().into()));
+                let result = records.fold(Value::Object(state), |acc, recs|
+                    recs.into_iter().fold(acc, |acc, rec| reducer.reduce(acc, &rec)));
+                let json = sit_core::serde_json::to_string(&result).unwrap();
+                let data = jmespath::Variable::from_json(&json).unwrap();
+                let result = filter.search(&data).unwrap();
+                if result.as_boolean().unwrap() {
+                    let view = query.search(&data).unwrap();
+                    if view.is_string() {
+                        println!("{}", view.as_string().unwrap());
+                    } else {
+                        println!("{}", serde_json::to_string_pretty(&view).unwrap());
+                    }
+                }
             }
         }
 

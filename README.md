@@ -91,23 +91,37 @@ to record authorship in issues.
 
 ### Listing issues
 
-While `sit issues` will list all issues by their IDs, this is hardly practical if
-you just want to see a list of issues you want to be able to process quickly.
+By default, `sit issues` will list all issues by their IDs. However,
+this is hardly practical if you just want to see a list of issues you want to be able
+to process quickly, or if you want to search for specific kinds of issues.
 
-Until we've got a better mechanism, it is suggested to use `sit` in conjunction
-with [jq](https://stedolan.github.io/jq/), for exmaple, like this:
+Luckily, sit integrates [JMESPath](http://jmespath.org) filter and querying. This allows
+us to achieve a lot.
 
-```
-$ sit issues | xargs -I '{}' sit reduce '{}' | jq -r '.id + " | " + .summary'
-```
-
-Or, if you want to list open issues only:
+For example, we can list all issues with their ID and summary using processing query (`--query/-q`):
 
 ```
-$ sit issues | xargs -I '{}' sit reduce '{}' | jq -r 'select(.state == "open" | ).id + " | " + .summary'
+$ sit issues -q "join(' | ', [id, summary])"
+a59dfc1e-cf88-4c18-a728-23baab41f7d2 | Problem: no way to discuss issues
+efc6b084-db52-4d20-80b9-20112f679660 | Problem: sit requires to specify authorship
+885a8af0-22ff-455c-89a6-68a13597dd53 | Problem: SIT is not very ergonomic for day-to-day use
+6913711b-34ab-471f-9e83-77a719e0697a | Problem: no record authorship preserved
+09274126-7d3c-4a32-9338-a5501e1bfb84 | Problem: issue state does not account for unauthorized editing
 ```
 
-You can see the entire issue with `sit reduce <id>`.
+(The above output is just an example so that you can see what it can produce)
+
+If you want to filter out closed issues, a filtering query (`--filter/-f`) will come in handy:
+
+```
+$ sit issues -f "state != 'closed'" -q "join(' | ', [id, summary])"
+```
+
+You can list issues in their entirety as well:
+
+```
+$ sit issues -q @
+```
 
 ### Open an issue
 
