@@ -1,0 +1,1 @@
+TOML is much nicer to edit for humans, which makes it a more ergonomic choice for sit's config file than the currently used JSON. It might even be used for the internal files, but there it is not as important for ergonomics.
