@@ -1,0 +1,3 @@
+A big repository may have 10,000s of issues, and each issues is likely to be represented by a few dozen files. This is likely to result in poor performance, especially on network file systems.
+
+A partial solution for this would be to have some binary database that is kept in sync with the text representation.
