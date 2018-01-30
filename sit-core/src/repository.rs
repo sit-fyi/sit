@@ -21,6 +21,8 @@ use super::id::IdGenerator;
 const VERSION: &str = "1";
 /// Repository's config file name
 const CONFIG_FILE: &str = "config.json";
+/// Repository's issues path
+const ISSUES_PATH: &str = "issues";
 
 /// Repository is the container for all SIT artifacts
 #[derive(Debug)]
@@ -31,6 +33,9 @@ pub struct Repository {
     /// this path on demand for every operation that would
     /// require it
     config_path: PathBuf,
+    /// Path to issues. Mainly to avoid creating this path
+    /// on demand for every operation that would require it
+    issues_path: PathBuf,
     /// Configuration
     config: Config,
 }
@@ -89,9 +94,13 @@ impl Repository {
         } else {
             let mut config_path = path.clone();
             config_path.push(CONFIG_FILE);
+            let mut issues_path = path.clone();
+            issues_path.push(ISSUES_PATH);
+            fs::create_dir_all(&issues_path)?;
             let repo = Repository {
                 path,
                 config_path,
+                issues_path,
                 config,
             };
             repo.save()?;
@@ -106,6 +115,9 @@ impl Repository {
         let path: PathBuf = path.into();
         let mut config_path = path.clone();
         config_path.push(CONFIG_FILE);
+        let mut issues_path = path.clone();
+        issues_path.push(ISSUES_PATH);
+        fs::create_dir_all(&issues_path)?;
         let file = fs::File::open(&config_path)?;
         let config: Config = serde_json::from_reader(file)?;
         if config.version != VERSION {
@@ -114,6 +126,7 @@ impl Repository {
         let repository = Repository {
             path,
             config_path,
+            issues_path,
             config,
         };
         Ok(repository)
@@ -131,12 +144,12 @@ impl Repository {
 
     /// Returns repository path
     pub fn path(&self) -> &Path {
-        self.path.as_path()
+        self.issues_path.as_path()
     }
 
     /// Returns an unordered (as in "order not defined") issue iterator
     pub fn issue_iter(&self) -> Result<IssueIter, Error> {
-        Ok(IssueIter { repository: self, dir: fs::read_dir(&self.path)? })
+        Ok(IssueIter { repository: self, dir: fs::read_dir(&self.issues_path)? })
     }
 
     /// Creates and returns a new issue with a unique ID
@@ -148,7 +161,7 @@ impl Repository {
     /// if there's an issue with the same name.
     pub fn new_named_issue<S: Into<String>>(&self, name: S) -> Result<Issue, Error> {
         let id: String = name.into();
-        let mut path = self.path.clone();
+        let mut path = self.issues_path.clone();
         path.push(&id);
         fs::create_dir(path)?;
         let id = OsString::from(id);
@@ -182,7 +195,7 @@ impl<'a> IssueTrait for Issue<'a> {
     }
 
     fn record_iter(&self) -> Result<Self::RecordIter, Self::Error> {
-        let path = self.repository.path.join(PathBuf::from(&self.id()));
+        let path = self.repository.issues_path.join(PathBuf::from(&self.id()));
         let glob_pattern = format!("{}/**/*", path.to_str().unwrap());
         let dir = fs::read_dir(&path)?.filter(|r| r.is_ok())
             .map(|e| e.unwrap())
@@ -247,7 +260,7 @@ impl<'a> IssueTrait for Issue<'a> {
         }
 
         let hash = hasher.result_box();
-        fs::rename(tempdir.into_path(), self.repository.path.join(PathBuf::from(self.id()))
+        fs::rename(tempdir.into_path(), self.repository.issues_path.join(PathBuf::from(self.id()))
             .join(PathBuf::from(self.repository.config.encoding.encode(&hash))))?;
         Ok(Record {
             hash,
@@ -400,7 +413,7 @@ impl<'a> RecordTrait for Record<'a> {
     }
 
     fn file_iter(&self) -> Self::Iter {
-        let path = self.repository.path.join(PathBuf::from(&self.issue)).join(self.encoded_hash());
+        let path = self.repository.issues_path.join(PathBuf::from(&self.issue)).join(self.encoded_hash());
         let glob_pattern = format!("{}/**/*", path.to_str().unwrap());
         RecordFileIterator {
             glob: glob::glob(&glob_pattern).expect("invalid glob pattern"),
@@ -424,7 +437,7 @@ impl<'a> Iterator for RecordFileIterator<'a> {
     type Item = (String, fs::File);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let prefix = self.repository.path.join(PathBuf::from(&self.issue)).join(PathBuf::from(&self.record));
+        let prefix = self.repository.issues_path.join(PathBuf::from(&self.issue)).join(PathBuf::from(&self.record));
         loop {
             match self.glob.next() {
                 None => return None,
