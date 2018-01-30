@@ -58,6 +58,8 @@ pub struct Config {
 pub enum Error {
     /// Item already exists
     AlreadyExists,
+    /// Item not found
+    NotFound,
     /// Invalid repository version
     #[error(no_from, non_std)]
     InvalidVersion {
@@ -130,6 +132,27 @@ impl Repository {
             config,
         };
         Ok(repository)
+    }
+
+    pub fn find_in_or_above<P: Into<PathBuf>, S: AsRef<str>>(dir: S, path: P) -> Result<Self, Error> {
+        let mut path: PathBuf = path.into();
+        let dir = dir.as_ref();
+        path.push(dir);
+        loop {
+            if !path.is_dir() {
+                // get out of `dir`
+                path.pop();
+                // if can't pop anymore, we're at the root of the filesystem
+                if !path.pop() {
+                    return Err(Error::NotFound)
+                }
+                // try assuming current path + `dir`
+                path.push(dir);
+            } else {
+                break;
+            }
+        }
+        Repository::open(path)
     }
 
 
@@ -497,6 +520,19 @@ mod tests {
         assert_eq!(issues.len(), 1);
         // check equality of the issue's ID
         assert_eq!(issues.pop().unwrap().id(), issue.id());
+    }
+
+    #[test]
+    fn find_repo() {
+        let tmp = TempDir::new("sit").unwrap().into_path();
+        let sit = tmp.join(".sit");
+        // create repo
+        Repository::new(&sit).unwrap();
+        let deep_subdir = tmp.join("a/b/c/d");
+        let repo = Repository::find_in_or_above(".sit", &deep_subdir).unwrap();
+        assert_eq!(repo.path(), sit);
+        // negative test
+        assert_matches!(Repository::find_in_or_above(".sit-dir", &deep_subdir), Err(Error::NotFound));
     }
 
     #[test]

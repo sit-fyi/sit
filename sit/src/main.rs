@@ -158,24 +158,7 @@ fn main() {
             }
         }
     } else {
-        // iterate the working directory up to find an existing repository
-        loop {
-            if !dot_sit.is_dir() {
-                // get out of .sit
-                dot_sit.pop();
-                // if can't pop anymore, we're at the root of the filesystem
-                if !dot_sit.pop() {
-                     eprintln!("Can't find a repository");
-                    exit(1);
-                }
-                // try assuming current path + .sit
-                dot_sit.push(".sit");
-            } else {
-                break;
-            }
-        }
-
-        let repo = sit_core::Repository::open(&dot_sit).expect("can't open repository");
+        let repo = sit_core::Repository::find_in_or_above(".sit",&canonical_working_dir).expect("can't open repository");
 
         if let Some(matches) = matches.subcommand_matches("issue") {
             let issue = (if matches.value_of("id").is_none() {
