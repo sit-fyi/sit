@@ -131,13 +131,12 @@ impl<R: Record> BasicIssueReducer<R> {
     }
 }
 
-use std::ops::Deref;
+impl<R: Record> Reducer for BasicIssueReducer<R> {
+    type State = JsonValue;
+    type Item = R;
 
-impl<R: Record> Deref for BasicIssueReducer<R> {
-    type Target = ChainedReducer<ChainedReducer<IssueClosureReducer<R>, IssueSummaryReducer<R>>, IssueDetailsReducer<R>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    fn reduce(&self, state: Self::State, item: &Self::Item) -> Self::State {
+        self.0.reduce(state, item)
     }
 }
 
@@ -147,19 +146,8 @@ mod tests {
 
     use super::*;
 
-    use issue::Issue;
+    use issue::{Issue, IssueReduction};
     use Repository;
-
-    fn reduce<Records: IntoIterator<Item=I::Record> + AsRef<[I::Record]>, I: Issue<Records=Records>,
-              R: Reducer<State = JsonValue, Item = I::Record>>(issue: &I, reducer: &R) -> JsonValue {
-        match issue.record_iter() {
-            Ok(records) => records
-                .fold(JsonValue::Object(Default::default()), |state, items|
-                    items.into_iter().fold(state, |state, item|
-                        reducer.reduce(state, &item))),
-            _ => panic!("can't iterate over records"),
-        }
-    }
 
     #[test]
     fn summary() {
@@ -168,15 +156,15 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         let issue = repo.new_issue().unwrap();
         // no SummaryChanged
-        let state = reduce(&issue, &IssueSummaryReducer::new());
+        let state = issue.reduce_with_reducer(IssueSummaryReducer::new()).unwrap();
         assert!(!state.as_object().unwrap().contains_key("summary"));
         // one SummaryChanged
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
-        let state = reduce(&issue, &IssueSummaryReducer::new());
+        let state = issue.reduce_with_reducer(IssueSummaryReducer::new()).unwrap();
         assert_eq!(state.as_object().unwrap().get("summary").unwrap().as_str().unwrap(), "Title");
         // two SummaryChanged items
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"New title"[..])].into_iter(), true).unwrap();
-                let state = reduce(&issue, &IssueSummaryReducer::new());
+        let state = issue.reduce_with_reducer(IssueSummaryReducer::new()).unwrap();
         assert_eq!(state.as_object().unwrap().get("summary").unwrap().as_str().unwrap(), "New title");
     }
 
@@ -187,15 +175,15 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         let issue = repo.new_issue().unwrap();
         // no DetailsChanged
-        let state = reduce(&issue, &IssueDetailsReducer::new());
+        let state = issue.reduce_with_reducer(IssueDetailsReducer::new()).unwrap();
         assert!(!state.as_object().unwrap().contains_key("details"));
         // one DetailsChanged
         issue.new_record(vec![(".type/DetailsChanged", &b""[..]), ("text", &b"Explanation"[..])].into_iter(), true).unwrap();
-        let state = reduce(&issue, &IssueDetailsReducer::new());
+        let state = issue.reduce_with_reducer(IssueDetailsReducer::new()).unwrap();
         assert_eq!(state.as_object().unwrap().get("details").unwrap().as_str().unwrap(), "Explanation");
         // two DetailsChanged items
         issue.new_record(vec![(".type/DetailsChanged", &b""[..]), ("text", &b"New explanation"[..])].into_iter(), true).unwrap();
-        let state = reduce(&issue, &IssueDetailsReducer::new());
+        let state = issue.reduce_with_reducer(IssueDetailsReducer::new()).unwrap();
         assert_eq!(state.as_object().unwrap().get("details").unwrap().as_str().unwrap(), "New explanation");
     }
 
@@ -207,11 +195,11 @@ mod tests {
         let issue = repo.new_issue().unwrap();
         // Closed
         issue.new_record(vec![(".type/Closed", &b""[..])].into_iter(), true).unwrap();
-        let state = reduce(&issue, &IssueClosureReducer::new());
+        let state = issue.reduce_with_reducer(IssueClosureReducer::new()).unwrap();
         assert_eq!(state.as_object().unwrap().get("state").unwrap().as_str().unwrap(), "closed");
         // Reopened
         issue.new_record(vec![(".type/Reopened", &b""[..])].into_iter(), true).unwrap();
-        let state = reduce(&issue, &IssueClosureReducer::new());
+        let state = issue.reduce_with_reducer(IssueClosureReducer::new()).unwrap();
         assert_eq!(state.as_object().unwrap().get("state").unwrap().as_str().unwrap(), "open");
     }
 
