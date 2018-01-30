@@ -1,0 +1,21 @@
+This is a great question. I actually was planning
+to use TOML originally.
+
+However, upon further consideration, I decided to
+use JSON.
+
+My main reasoning is that JSON definitely has made
+a significant dent in the history of programming and
+in that sense it is more likely to be future-proof, 
+be immediately understandable to a vast majority of
+programmers and have parses made for almost all
+programming languages.
+
+TOML is nicer but it is relatively unknown.
+
+Considering that one of SIT's goals is to preserve
+the history of these records for as long as possible,
+I felt like choosing something as ubiquitous as
+JSON was the right step, whether I like it or not.
+
+Thoughts, counterarguments?
