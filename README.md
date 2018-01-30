@@ -143,7 +143,7 @@ $ sit issues -q @
 Now that your issue is recorded locally, you can send it to this repository:
 
 1. Create a branch (as a convention, you can use your issue ID as a branch name)
-2. Add new files in `.sit` and commit them. Commit message can be simply "Added issue <id>"
+2. Add new files in `.sit` and commit them. Commit message can be simply "Added issue ISSUE-ID"
 3. Send a pull request with your branch or prepare a patch and send it to one of the maintainers
    by email or any other available means.
 
