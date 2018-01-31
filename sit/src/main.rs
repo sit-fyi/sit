@@ -22,11 +22,13 @@ extern crate serde_json;
 extern crate config;
 mod cfg;
 
+#[cfg(unix)]
 extern crate xdg;
 
 extern crate jmespath;
 
 fn main() {
+    #[cfg(unix)]
     let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
 
     let cwd = env::current_dir().expect("can't get current working directory");
@@ -124,8 +126,12 @@ fn main() {
         .get_matches();
 
 
-    let xdg_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
-    let config_path = matches.value_of("config").unwrap_or(xdg_config.to_str().unwrap());
+    #[cfg(unix)]
+    let default_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
+    #[cfg(windows)]
+    let default_config = env::home_dir().expect("can't identify home directory").join("sit_config.json");
+
+    let config_path = matches.value_of("config").unwrap_or(default_config.to_str().unwrap());
 
     let mut settings = config::Config::default();
     settings
