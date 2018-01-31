@@ -1,0 +1,11 @@
+I've deployed a merge bot on git@git.sit-it.org:sit-it/sit-inbox.git
+
+To push a records-only branch, this command must be used:
+
+```
+ GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit-it.org:sit-it/sit-inbox.git <branch>
+```
+
+(sit-inbox is to be supplied shortly)
+
+It will refuse any other updates (only new records are allowed)
