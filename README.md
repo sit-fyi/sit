@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.org/sit-it/sit.svg?branch=master)](https://travis-ci.org/sit-it/sit)
-[![Windows Build status](https://ci.appveyor.com/api/projects/status/0iv6ltgk3pa122hx7?svg=true)](https://ci.appveyor.com/project/yrashk/sit)
+[![Windows Build status](https://ci.appveyor.com/api/projects/status/0iv6ltgk3pa122hx?svg=true)](https://ci.appveyor.com/project/yrashk/sit)
+
 
 # SIT Issue Tracker
 
