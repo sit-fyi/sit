@@ -153,10 +153,23 @@ Now that your issue is recorded locally, you can send it to this repository:
 1. Create a branch (as a convention, you can use your issue ID as a branch name)
 2. Add new files in `.sit` and commit them. Commit message can be simply "Added issue ISSUE-ID"
    or, say, "Commented on issue ISSUE-ID"
-3. Push it out to the inbox: ` GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit-it.org:sit-it/sit-inbox.git <branch>`
+3. Push it out to the inbox: `GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit-it.org:sit-it/sit-inbox.git <branch>`
 4. If the commit only contains new records (nothing else permitted!) the inbox
    will accept the push and immediately push it out to sit's master repository on GitHub.
    Otherwise, the push will be rejected.
+   
+To further simplify the process of sending records to the upstream,
+it's highly recommended to add a remote (such as `issues`) for `git@git.sit-it.org:sit-it/sit-inbox.git`
+and add this to your `~/.ssh/config`:
+
+```
+host git.sit-it.org
+  HostName git.sit-it.org
+  IdentityFile /path/to/sit/repo/sit-inbox
+  User git
+```
+
+This way, pushing out, will be as nice as `git push issues <branch>`
 
 ### Getting updates
 
