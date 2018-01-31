@@ -45,6 +45,7 @@ fn main() {
         .arg(Arg::with_name("config")
             .short("c")
             .long("config")
+            .takes_value(true)
             .help("Config file (overrides default)"))
         .subcommand(SubCommand::with_name("init")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
