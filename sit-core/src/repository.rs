@@ -468,7 +468,10 @@ impl<'a> Iterator for RecordFileIterator<'a> {
                 Some(Err(_)) => continue,
                 Some(Ok(name)) => {
                     if name.is_file() {
-                        return Some((String::from(name.strip_prefix(&prefix).unwrap().to_str().unwrap()), fs::File::open(name).unwrap()))
+                        let stripped = String::from(name.strip_prefix(&prefix).unwrap().to_str().unwrap());
+                        #[cfg(windows)] // replace backslashes with slashes
+                        let stripped = stripped.replace("\\", "/");
+                        return Some((stripped, fs::File::open(name).unwrap()))
                     } else {
                         // if it is not a file, keep iterating
                         continue
