@@ -147,8 +147,7 @@ fn main() {
 
     let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
     let canonical_working_dir = fs::canonicalize(&working_dir).expect("can't canonicalize working directory");
-    let mut dot_sit = working_dir;
-    dot_sit.push(".sit");
+    let dot_sit = working_dir.join(".sit");
 
     if let Some(_matches) = matches.subcommand_matches("init") {
         let dot_sit_str = dot_sit.to_str().unwrap();
@@ -165,7 +164,7 @@ fn main() {
             }
         }
     } else {
-        let repo = sit_core::Repository::find_in_or_above(".sit",&canonical_working_dir).expect("can't open repository");
+        let repo = sit_core::Repository::find_in_or_above(".sit",&working_dir).expect("can't open repository");
 
         if let Some(matches) = matches.subcommand_matches("issue") {
             let issue = (if matches.value_of("id").is_none() {
