@@ -1,0 +1,10 @@
+This severely limits the ability to customize
+the workflows as such reducers would have
+to be external.
+
+Proposed solution: consider allowing external
+scripts (security risk as it won't be sandboxed)
+or a sandbox scripting language of some sort
+(I don't like JavaScript but it's the most ubiquitous
+language these, and there's V8 -- so maybe JavaScript
+and some others later?)
