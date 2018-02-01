@@ -1,0 +1,17 @@
+Thanks, that's a pretty ingenious way to capture fairly
+accurate information!
+
+A thought: currently, it'll try to derive this information
+either from working directory (which is usually current
+working directory) or a global git config.
+
+However, the user might be not in the root of their
+git repo but somewhere a level or few below.
+
+So, how'd we figure this out? We can re-use the algorithm
+in `Repository::find_in_or_above` -- either essentially
+copy paste it, or extract a generalization.
+
+This way even if the user is not in the root of their project,
+sit will still be able to start without having to configure
+sit first.
