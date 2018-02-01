@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+
+use tini::Ini;
+
 #[derive(Serialize, Deserialize)]
 pub struct Author {
     pub name: String,
@@ -13,7 +17,18 @@ impl Display for Author {
             None => Ok(())
         }
     }
+}
 
+impl Author {
+    pub fn from_gitconfig(path: PathBuf) -> Option<Author> {
+        let gitconfig = Ini::from_file(&path).ok()?;
+        let name = gitconfig.get("user", "name")?;
+        let email = Some(gitconfig.get("user", "email")?);
+        Some(Author {
+            name,
+            email
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize)]
