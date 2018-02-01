@@ -27,6 +27,8 @@ extern crate xdg;
 
 extern crate jmespath;
 
+extern crate tini;
+
 fn main() {
     #[cfg(unix)]
     let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
@@ -137,17 +139,23 @@ fn main() {
     settings
         .merge(config::File::with_name(config_path).required(false)).unwrap();
 
-    let config: cfg::Configuration = settings.try_into().expect("can't load config");
-
-    if config.author.is_none() {
-        eprintln!("Authorship hasn't been configured. Update your {} config file\n\
-        to include `author` object with `name` and `email` properties specified", config_path);
-        exit(1);
-    }
+    let mut config: cfg::Configuration = settings.try_into().expect("can't load config");
 
     let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
     let canonical_working_dir = fs::canonicalize(&working_dir).expect("can't canonicalize working directory");
     let dot_sit = working_dir.join(".sit");
+
+    if config.author.is_none() {
+        if let Some(author) = cfg::Author::from_gitconfig(canonical_working_dir.join(".git/config")) {
+            config.author = Some(author);
+        } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
+            config.author = Some(author);
+        } else {
+            eprintln!("Authorship hasn't been configured. Update your {} config file\n\
+            to include `author` object with `name` and `email` properties specified", config_path);
+            exit(1);
+        }
+    }
 
     if let Some(_matches) = matches.subcommand_matches("init") {
         let dot_sit_str = dot_sit.to_str().unwrap();
