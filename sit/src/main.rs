@@ -75,7 +75,7 @@ fn main() {
                      .long("query")
                      .short("q")
                      .takes_value(true)
-                     .default_value("id")
+                     .default_value("join(' | ', [id, summary])")
                      .help("Render a result of a JMESPath query over the issue")))
         .subcommand(SubCommand::with_name("record")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
