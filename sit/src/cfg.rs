@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use tini::Ini;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Author {
     pub name: String,
     pub email: Option<String>,
@@ -31,7 +31,20 @@ impl Author {
     }
 }
 
+use std::collections::HashMap;
+#[derive(Default, Serialize, Deserialize)]
+pub struct JMESPathConfig {
+    #[serde(default)]
+    pub filters: HashMap<String, String>,
+    #[serde(default)]
+    pub queries: HashMap<String, String>,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Configuration {
     pub author: Option<Author>,
+    #[serde(default)]
+    pub issues: JMESPathConfig,
+    #[serde(default)]
+    pub records: JMESPathConfig,
 }

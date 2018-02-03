@@ -1,0 +1,43 @@
+Josh, you're raising a very valid point. However, let me share
+my view on this (accompanied by some code changes).
+
+Firstly, my intention for the CLI was not to be an actual user
+interface for day-to-day use, but rather something to be used
+for scripting. With that in mind I think it was a reasonable
+decision to make outputs of these commands as barebones as possible
+and as machine-readable as possible by default.
+
+The web UI is not ready yet, of course, but I am moving towards
+a proof of concept. That (of course) doesn't preclude others from
+trying building their concepts of "porcelain" CLI or other forms
+of UI (TUI, GUI, etc.). In fact, that'd be great -- this would be
+an interesting way to discover the best interface possible.
+
+So, in accompanying code, I am reversing the change you proposed
+(please don't take that as an offense -- this is rather a discussion process
+that's backed by code -- feel free to continue on evolving this matter
+if it bears significance to you, I am open to productive arguments) AND
+I am also proposing a change of my own to address the issue.
+
+The code is allowing SIT users to specify filters and queries for
+both issues and records either locally in their config files or
+shared with other repository users (storing them in the repository).
+
+So, for example, if you want to have the overview listing, you can
+create `.sit/.issues/queries/overview` with `join(' | ', [id, summary])`
+inside (or define `issues.queries.overview` property in your config) and
+then run it with a different version of the flag:
+
+```
+sit issues -Q overview
+```
+
+And if typing that becomes too much, I think this should better be
+addressed with shell aliases/abbreviations. This way scripts can
+use SIT in the simplest way possible and CLI users can get
+nicely customized output without too much typing hassle.
+
+And, of course, eventually, most of them are expected to migrate
+to more ergonomic UIs.
+
+Thoughts, questions, suggestions?
