@@ -50,11 +50,11 @@ pub trait IssueReduction: Issue {
     /// Will insert issue's `id` into the initial state
     ///
     /// [`Reducer`]: ../reducers/trait.Reducer.html
-    fn reduce_with_reducer<R: Reducer<State=Value, Item=Self::Record>>(&self, reducer: R) -> Result<Value, ReductionError<Self::Error>> {
+    fn reduce_with_reducer<R: Reducer<State=Map<String, Value>, Item=Self::Record>>(&self, reducer: R) -> Result<Map<String, Value>, ReductionError<Self::Error>> {
         let records = self.record_iter()?;
         let mut state: Map<String, Value> = Default::default();
         state.insert("id".into(), Value::String(self.id().into()));
-        Ok(records.fold(Value::Object(state), |acc, recs|
+        Ok(records.fold(state, |acc, recs|
             recs.into_iter().fold(acc, |acc, rec| reducer.reduce(acc, &rec))))
     }
 
@@ -64,7 +64,7 @@ pub trait IssueReduction: Issue {
     /// Currently, this is [`BasicIssueReducer`]
     ///
     /// [`BasicIssueReducer`]: ../reducers/core/struct.BasicIssueReducer.html
-    fn reduce(&self) -> Result<Value, ReductionError<Self::Error>> {
+    fn reduce(&self) -> Result<Map<String, Value>, ReductionError<Self::Error>> {
         self.reduce_with_reducer(BasicIssueReducer::new())
     }
 }
@@ -88,11 +88,10 @@ mod tests {
         issue.new_record(vec![(".type/DetailsChanged", &b""[..]), ("text", &b"Explanation"[..])].into_iter(), true).unwrap();
         issue.new_record(vec![(".type/Closed", &b""[..])].into_iter(), true).unwrap();
         let state = issue.reduce_with_reducer(BasicIssueReducer::new()).unwrap();
-        let object = state.as_object().unwrap();
-        assert_eq!(object.get("id").unwrap().as_str().unwrap(), issue.id());
-        assert_eq!(object.get("summary").unwrap().as_str().unwrap(), "Title");
-        assert_eq!(object.get("details").unwrap().as_str().unwrap(), "Explanation");
-        assert_eq!(object.get("state").unwrap().as_str().unwrap(), "closed");
-        assert!(object.get("comments").unwrap().is_array());
+        assert_eq!(state.get("id").unwrap().as_str().unwrap(), issue.id());
+        assert_eq!(state.get("summary").unwrap().as_str().unwrap(), "Title");
+        assert_eq!(state.get("details").unwrap().as_str().unwrap(), "Explanation");
+        assert_eq!(state.get("state").unwrap().as_str().unwrap(), "closed");
+        assert!(state.get("comments").unwrap().is_array());
     }
 }
