@@ -1,0 +1,28 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="rendered-text.html">
+
+<dom-module id="issue-comment">
+    <template>
+
+        <link rel="stylesheet" href="/src/issue/comment.css" />
+
+        <div>
+            <rendered-text text="{{ comment.text }}"></rendered-text>
+            <div>By: {{ comment.authors }}</div>
+        </div>
+    </template>
+
+    <script>
+        class IssueComment extends Polymer.Element {
+            static get is() { return 'issue-comment'; }
+            static get properties() {
+                return {
+                    comment: {
+                        type: String
+                    }
+                }
+            }
+        }
+        customElements.define(IssueComment.is, IssueComment);
+    </script>
+</dom-module>

@@ -1,0 +1,59 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
+<link rel="import" href="comment.html">
+<link rel="import" href="new-comment.html">
+<link rel="import" href="rendered-text.html">
+
+<dom-module id="issue-view">
+   <template>
+
+       <link rel="stylesheet" href="/src/issue/issue.css">
+
+       <a href="/">&lt;&lt; Back to issues</a>
+
+       <iron-ajax id="request"
+                   auto url="/api/issue/{{ id }}/{{ query }}" handle-as="json"
+                   last-response="{{ view }}"></iron-ajax>
+
+       <h1>{{ view.summary }}</rendered-text></h1>
+
+       <div>
+           {{ view.state }}
+       </div>
+
+       <div>
+           <rendered-text text="{{ view.details }}"></rendered-text>
+       </div>
+
+       <h4>Comments</h4>
+
+       <template is="dom-repeat" items="{{ view.comments }}">
+           <issue-comment comment="{{item}}"></issue-comment>
+       </template>
+
+       <issue-new-comment on-new-comment="reload" issue="{{ id }}"></issue-new-comment>
+    </template>
+
+    <script>
+        class Issue extends Polymer.Element {
+            static get is() { return 'issue-view'; }
+            static get properties() {
+                return {
+                    id: {
+                        type: String
+                    }
+                }
+            }
+            constructor() {
+                super();
+                this.query = "@";
+            }
+
+            reload() {
+                this.$.request.generateRequest();
+            }
+        }
+        customElements.define(Issue.is, Issue);
+    </script>
+</dom-module>

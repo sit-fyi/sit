@@ -1,0 +1,27 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+
+<dom-module id="error-page">
+  <template>
+    <link rel="stylesheet" type="text/css" href="/src/sit-app/error.css">
+
+    <h1>Error</h1>
+
+    <div>{{ message }}</div>
+
+  </template>
+
+  <script>
+    class SitError extends Polymer.Element {
+      static get is() { return 'error-page'; }
+      static get properties() {
+          return {
+            message: {
+                type: String
+            }
+          };
+      }
+    }
+
+    window.customElements.define(SitError.is, SitError);
+  </script>
+</dom-module>

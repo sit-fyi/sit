@@ -1,3 +1,4 @@
+//! Client configuration
 use std::path::PathBuf;
 
 use tini::Ini;
