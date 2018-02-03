@@ -141,7 +141,6 @@ specify them in `issues.filters` and `issues.queries` properties:
 ```json
 
 {
- # ...
  "isues": {
     "queries": {
        "overview": "join(' | ', [id, summary])"
@@ -153,6 +152,8 @@ specify them in `issues.filters` and `issues.queries` properties:
 } 
 ```
 
+These queries can be used with the `--named-query/-Q` flag and filters
+with `--named-filter/-F` flag.
 
 ### Open an issue
 
