@@ -29,6 +29,22 @@ extern crate jmespath;
 
 extern crate tini;
 
+use std::collections::HashMap;
+fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
+                                       repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
+    let path = repo.path().join(repo_path.as_ref()).join(name.as_ref());
+    if path.is_file() {
+        use std::fs::File;
+        use std::io::Read;
+        let mut f = File::open(path).unwrap();
+        let mut result = String::new();
+        f.read_to_string(&mut result).unwrap();
+        Some(result)
+    } else {
+        exprs.get(name.as_ref()).map(String::clone)
+    }
+}
+
 fn main() {
     #[cfg(unix)]
     let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
@@ -66,17 +82,29 @@ fn main() {
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Lists issues")
             .arg(Arg::with_name("filter")
+                     .conflicts_with("named-filter")
                      .long("filter")
                      .short("f")
                      .takes_value(true)
-                     .default_value("type(@) == 'object'")
-                     .help("Filter issues with a JMESPath query"))
+                     .help("Filter issues with a JMESPath query (default to `type(@) == 'object'`)"))
             .arg(Arg::with_name("query")
+                     .conflicts_with("named-query")
                      .long("query")
                      .short("q")
                      .takes_value(true)
-                     .default_value("join(' | ', [id, summary])")
-                     .help("Render a result of a JMESPath query over the issue")))
+                     .help("Render a result of a JMESPath query over the issue (default to `id`)"))
+            .arg(Arg::with_name("named-filter")
+                     .conflicts_with("filter")
+                     .long("named-filter")
+                     .short("F")
+                     .takes_value(true)
+                     .help("Filter issues with a named JMESPath query"))
+            .arg(Arg::with_name("named-query")
+                     .conflicts_with("query")
+                     .long("named-query")
+                     .short("Q")
+                     .takes_value(true)
+                     .help("Render a result of a named JMESPath query over the issue")))
         .subcommand(SubCommand::with_name("record")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Creates a new record")
@@ -108,17 +136,29 @@ fn main() {
                      .required(true)
                      .help("Issue identifier"))
             .arg(Arg::with_name("filter")
+                     .conflicts_with("named-filter")
                      .long("filter")
                      .short("f")
                      .takes_value(true)
-                     .default_value("type(@) == 'object'")
-                     .help("Filter records with a JMESPath query"))
+                     .help("Filter records with a JMESPath query (defaults to `type(@) == 'object'`)"))
             .arg(Arg::with_name("query")
+                     .conflicts_with("named-query")
                      .long("query")
                      .short("q")
                      .takes_value(true)
-                     .default_value("hash")
-                     .help("Render a result of a JMESPath query over the record")))
+                     .help("Render a result of a JMESPath query over the record (defaults to `hash`)"))
+            .arg(Arg::with_name("named-filter")
+                     .conflicts_with("filter")
+                     .long("named-filter")
+                     .short("F")
+                     .takes_value(true)
+                     .help("Filter records with a named JMESPath query"))
+            .arg(Arg::with_name("named-query")
+                     .conflicts_with("query")
+                     .long("named-query")
+                     .short("Q")
+                     .takes_value(true)
+                     .help("Render a result of a named JMESPath query over the record")))
         .subcommand(SubCommand::with_name("reduce")
             .about("Reduce issue records")
             .arg(Arg::with_name("id")
@@ -186,8 +226,19 @@ fn main() {
         if let Some(matches) = matches.subcommand_matches("issues") {
             let issues = repo.issue_iter().expect("can't list issues");
 
-            let filter = jmespath::compile(matches.value_of("filter").unwrap()).expect("can't compile filter expression");
-            let query = jmespath::compile(matches.value_of("query").unwrap()).expect("can't compile query expression");
+            let filter_expr = matches.value_of("named-filter")
+                .and_then(|name|
+                              get_named_expression(name, &repo, ".issues/filters", &config.issues.filters))
+                .or_else(|| matches.value_of("filter").or_else(|| Some("type(@) == 'object'")).map(String::from))
+                .unwrap();
+            let query_expr = matches.value_of("named-query")
+                .and_then(|name|
+                              get_named_expression(name, &repo, ".issues/queries", &config.issues.queries))
+                .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
+                .unwrap();
+
+            let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
+            let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
             for issue in issues {
                 let result = issue.reduce().expect("can't reduce issue");
@@ -248,7 +299,7 @@ fn main() {
 
                     // .authors
                     let mut authors = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.authors)");
-                    authors.write(format!("{}", config.author.unwrap()).as_bytes()).expect("can't write to a tempoary file (.authors)");
+                    authors.write(format!("{}", config.author.clone().unwrap()).as_bytes()).expect("can't write to a tempoary file (.authors)");
                     authors.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.authors)");
                     let authorship_files = if !matches.is_present("no-author") {
                         vec![(".authors".into(), authors)].into_iter()
@@ -281,8 +332,19 @@ fn main() {
                 Some(issue) => {
                     let records = issue.record_iter().expect("can't lis records");
 
-                    let filter = jmespath::compile(matches.value_of("filter").unwrap()).expect("can't compile filter expression");
-                    let query = jmespath::compile(matches.value_of("query").unwrap()).expect("can't compile query expression");
+                    let filter_expr = matches.value_of("named-filter")
+                        .and_then(|name|
+                            get_named_expression(name, &repo, ".records/filters", &config.records.filters))
+                        .or_else(|| matches.value_of("filter").or_else(|| Some("type(@) == 'object'")).map(String::from))
+                        .unwrap();
+                    let query_expr = matches.value_of("named-query")
+                        .and_then(|name|
+                            get_named_expression(name, &repo, ".records/queries", &config.records.queries))
+                        .or_else(|| matches.value_of("query").or_else(|| Some("hash")).map(String::from))
+                        .unwrap();
+
+                    let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
+                    let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
                     for record in records {
                        for rec in record {
