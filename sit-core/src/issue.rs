@@ -3,7 +3,6 @@
 use serde_json::{Map, Value};
 
 use super::Reducer;
-use super::reducers::BasicIssueReducer;
 
 #[derive(Debug, Error)]
 pub enum ReductionError<Err: ::std::error::Error + ::std::fmt::Debug> {
@@ -59,39 +58,7 @@ pub trait IssueReduction: Issue {
     }
 
 
-    /// Reduces issue with a preset reducer
-    ///
-    /// Currently, this is [`BasicIssueReducer`]
-    ///
-    /// [`BasicIssueReducer`]: ../reducers/core/struct.BasicIssueReducer.html
-    fn reduce(&self) -> Result<Map<String, Value>, ReductionError<Self::Error>> {
-        self.reduce_with_reducer(BasicIssueReducer::new())
-    }
 }
 
 impl<T> IssueReduction for T where T: Issue {}
 
-#[cfg(test)]
-mod tests {
-
-    use tempdir::TempDir;
-    use super::*;
-    use Repository;
-
-    #[test]
-    fn reduction() {
-        let mut tmp = TempDir::new("sit").unwrap().into_path();
-        tmp.push(".sit");
-        let repo = Repository::new(tmp).unwrap();
-        let issue = repo.new_issue().unwrap();
-        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
-        issue.new_record(vec![(".type/DetailsChanged", &b""[..]), ("text", &b"Explanation"[..])].into_iter(), true).unwrap();
-        issue.new_record(vec![(".type/Closed", &b""[..])].into_iter(), true).unwrap();
-        let state = issue.reduce_with_reducer(BasicIssueReducer::new()).unwrap();
-        assert_eq!(state.get("id").unwrap().as_str().unwrap(), issue.id());
-        assert_eq!(state.get("summary").unwrap().as_str().unwrap(), "Title");
-        assert_eq!(state.get("details").unwrap().as_str().unwrap(), "Explanation");
-        assert_eq!(state.get("state").unwrap().as_str().unwrap(), "closed");
-        assert!(state.get("comments").unwrap().is_array());
-    }
-}

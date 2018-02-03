@@ -82,7 +82,14 @@ fn main() {
             .help("Config file (overrides default)"))
         .subcommand(SubCommand::with_name("init")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
-            .about("Initializes a new SIT repository in .sit"))
+            .about("Initializes a new SIT repository in .sit")
+            .arg(Arg::with_name("dont-populate")
+                     .long("no-default-files")
+                     .short("n")
+                     .help("Don't populate repository with default files (such as reducers)")))
+        .subcommand(SubCommand::with_name("populate-files")
+            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+            .about("(Re)-populate default files in the repository (such as reducers)"))
         .subcommand(SubCommand::with_name("rebuild")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Rebuild a repository")
@@ -263,10 +270,13 @@ fn main() {
         }
     }
 
-    if let Some(_matches) = matches.subcommand_matches("init") {
+    if let Some(init_matches) = matches.subcommand_matches("init") {
         let dot_sit_str = matches.value_of("repository").unwrap_or(dot_sit.to_str().unwrap());
         match sit_core::Repository::new(&dot_sit) {
-            Ok(_repo) => {
+            Ok(repo) => {
+                if !init_matches.is_present("dont-populate") {
+                    repo.populate_default_files().expect("can't populate default files");
+                }
                 eprintln!("Repository {} initialized", dot_sit_str);
             }
             Err(sit_core::RepositoryError::AlreadyExists) => {
@@ -287,7 +297,9 @@ fn main() {
             .unwrap()
             .expect("can't open repository");
 
-        if let Some(matches) = matches.subcommand_matches("issue") {
+        if let Some(_) = matches.subcommand_matches("populate-files") {
+            repo.populate_default_files().expect("can't populate default files");
+        } else if let Some(matches) = matches.subcommand_matches("issue") {
             let issue = (if matches.value_of("id").is_none() {
                 repo.new_issue()
             } else {
@@ -314,7 +326,8 @@ fn main() {
             let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
             for issue in issues {
-                let result = issue.reduce().expect("can't reduce issue");
+                let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+                let result = issue.reduce_with_reducer(reducer).expect("can't reduce issue");
                 let json = sit_core::serde_json::to_string(&result).unwrap();
                 let data = jmespath::Variable::from_json(&json).unwrap();
                 let result = filter.search(&data).unwrap();
@@ -569,7 +582,8 @@ fn main() {
 
                     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
-                    let result = issue.reduce().expect("can't reduce issue");
+                    let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+                    let result = issue.reduce_with_reducer(reducer).expect("can't reduce issue");
                     let json = sit_core::serde_json::to_string(&result).unwrap();
                     let data = jmespath::Variable::from_json(&json).unwrap();
                     let view = query.search(&data).unwrap();

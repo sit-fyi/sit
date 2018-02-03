@@ -344,18 +344,26 @@ representation of an issue, we must iterate records in order to get a valid resu
 interesting features here is the ability to process records up to a certain point to see how
 an issue looked back then.
 
-The result of this reduction can be used as-is or in a user interface to produce a
-comprehensible rendering of it.
-
 Currently, the core dictionary processed by SIT is very small (but it is expected to grow) and
 can be found in [documentation](doc/dict).
 
 One can look at the state of the issue with the `sit reduce <issue id>` command.
 
-Currently, the only way to add reducers is by adding them to `sit-core` (or building a third-party library). However,
-adding [sandboxed] scripting languages backends (so that reducers can be added per-repository or per-user easily) is also
-planned.
+By default, standard reducers are added to every new SIT repository, and can be updated
+from new SIT builds by running `sit populate-files`.
 
+One can write their own reducer by putting an extra file to `.sit/.reducers/FILENAME.js` and
+implementing this interface:
+
+```javascript
+function(state, record) {
+  // ...
+  return newState;
+}
+```
+
+This function will be invoked with an object bound to `this` so that the state can be saved
+across invocations, per issue.
 
 ## License
 
