@@ -1,0 +1,2 @@
+I think that the default query for 'issues' should be changed to be more user friendly. Really, I don't think the user should ever have to type a raw query, there should be CLI flags to show/hide different things. The 'reduce' command also definitely needs a more user-friendly output format.
+Having a web UI would also be nice, but I don't know how far along that is.
