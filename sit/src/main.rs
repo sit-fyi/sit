@@ -164,7 +164,19 @@ fn main() {
             .arg(Arg::with_name("id")
                      .takes_value(true)
                      .required(true)
-                     .help("Issue identifier")))
+                     .help("Issue identifier"))
+            .arg(Arg::with_name("query")
+                     .conflicts_with("named-query")
+                     .long("query")
+                     .short("q")
+                     .takes_value(true)
+                     .help("Render a result of a JMESPath query over the issue (defaults to `@`)"))
+            .arg(Arg::with_name("named-query")
+                     .conflicts_with("query")
+                     .long("named-query")
+                     .short("Q")
+                     .takes_value(true)
+                     .help("Render a result of a named JMESPath query over the issue")))
         .get_matches();
 
 
@@ -374,8 +386,24 @@ fn main() {
                     exit(1);
                 },
                 Some(issue) => {
+                    let query_expr = matches.value_of("named-query")
+                        .and_then(|name|
+                            get_named_expression(name, &repo, ".issues/queries", &config.issues.queries))
+                        .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
+                        .unwrap();
+
+                    let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+
                     let result = issue.reduce().expect("can't reduce issue");
-                    println!("{}", sit_core::serde_json::to_string_pretty(&result).unwrap());
+                    let json = sit_core::serde_json::to_string(&result).unwrap();
+                    let data = jmespath::Variable::from_json(&json).unwrap();
+                    let view = query.search(&data).unwrap();
+                    if view.is_string() {
+                        println!("{}", view.as_string().unwrap());
+                    } else {
+                        println!("{}", serde_json::to_string_pretty(&view).unwrap());
+                    }
+
                 }
             }
         }
