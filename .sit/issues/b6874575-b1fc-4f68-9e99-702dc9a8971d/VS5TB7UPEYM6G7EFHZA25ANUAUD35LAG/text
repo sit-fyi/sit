@@ -1,0 +1,6 @@
+The fact of a pull request on GitHub, or the subsequent
+conversation do not get preserved in SIT, resulting a loss
+of information.
+
+Solution: designate a simple "merge request" workflow
+based on MergeRequested record type.
