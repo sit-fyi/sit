@@ -389,7 +389,7 @@ fn main() {
                     let query_expr = matches.value_of("named-query")
                         .and_then(|name|
                             get_named_expression(name, &repo, ".issues/queries", &config.issues.queries))
-                        .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
+                        .or_else(|| matches.value_of("query").or_else(|| Some("@")).map(String::from))
                         .unwrap();
 
                     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
