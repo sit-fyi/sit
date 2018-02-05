@@ -1,0 +1,30 @@
+From 00eaa4f2637553178d62c79f1554d53f7cdf4ff9 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 5 Feb 2018 13:05:39 +0700
+Subject: [PATCH] Problem: default `sit reduce` query is `id`
+
+However, this is not useful as `reduce` is supposed
+to give maximum useful information by default. Simply
+returning what was passed to it isn't meaningful.
+
+Solution: make `@` the default query (as it was some time ago)
+---
+ sit/src/main.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 83bc3d4..99b3928 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -389,7 +389,7 @@ fn main() {
+                     let query_expr = matches.value_of("named-query")
+                         .and_then(|name|
+                             get_named_expression(name, &repo, ".issues/queries", &config.issues.queries))
+-                        .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
++                        .or_else(|| matches.value_of("query").or_else(|| Some("@")).map(String::from))
+                         .unwrap();
+ 
+                     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+-- 
+2.15.0
+

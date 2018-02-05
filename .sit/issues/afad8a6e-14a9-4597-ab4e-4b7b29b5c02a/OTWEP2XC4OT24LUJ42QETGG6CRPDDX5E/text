@@ -1,0 +1,5 @@
+However, this is not useful as `reduce` is supposed
+to give maximum useful information by default. Simply
+returning what was passed to it isn't meaningful.
+
+Solution: make `@` the default query (as it was some time ago)
