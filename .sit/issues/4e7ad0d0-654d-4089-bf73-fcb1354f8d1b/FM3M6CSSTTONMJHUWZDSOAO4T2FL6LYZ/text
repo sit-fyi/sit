@@ -1,0 +1,9 @@
+With the replacement of GitHub Pull Request
+we've [knowingly] lost the automatic testing
+of incoming patches (Travis CI and AppVeyor
+for Windows). As a side note, nothing hsa changed
+for testing the `master` branch.
+
+Still, it's a loss because now the maintainers
+are expected to run tests, preferably on all
+available platforms, which is less than efficient.
