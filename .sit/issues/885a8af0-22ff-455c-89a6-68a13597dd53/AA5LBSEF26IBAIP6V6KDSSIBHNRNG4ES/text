@@ -1,0 +1,1 @@
+I haven't been able to get the shortcut functionality working, but it seems like a reasonable compromise. I would still suggest that a script or tool using sit would probably provide its own query to get exactly the information it wants, which might just be the ID, whereas a user wants to type as little as possible.
