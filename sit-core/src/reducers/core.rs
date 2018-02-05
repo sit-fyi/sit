@@ -147,16 +147,48 @@ impl<R: Record + RecordExt> Reducer for CommentedReducer<R> {
     }
 }
 
+/// Reduces Commented type
+pub struct MergeRequestedReducer<R: Record>(PhantomData<R>);
 
-/// Combines Closed, SummaryChanged, DetailsChanged reducers
-pub struct BasicIssueReducer<R: Record>(ChainedReducer<CommentedReducer<R>, ChainedReducer<ChainedReducer<IssueClosureReducer<R>, IssueSummaryReducer<R>>, IssueDetailsReducer<R>>>);
+impl<R: Record> MergeRequestedReducer<R> {
+    pub fn new() -> Self {
+        MergeRequestedReducer(PhantomData)
+    }
+}
+
+impl<R: Record + RecordExt> Reducer for MergeRequestedReducer<R> {
+    type State = Map<String, JsonValue>;
+    type Item = R;
+
+    fn reduce(&self, mut state: Self::State, item: &Self::Item) -> Self::State {
+        state.entry("merge_requests").or_insert(JsonValue::Array(vec![]));
+        if item.has_type("MergeRequested") {
+            // scope it to unborrow `requests` before it is returned
+            {
+                let requests = state.get_mut("merge_requests").unwrap();
+                let hash = item.encoded_hash();
+                requests.as_array_mut().unwrap().push(JsonValue::String(hash.as_ref().into()));
+            }
+            state
+        } else {
+            state
+        }
+    }
+}
+
+
+/// Combines Closed, SummaryChanged, DetailsChanged, Commented, MergeRequested reducers
+pub struct BasicIssueReducer<R: Record>(ChainedReducer<MergeRequestedReducer<R>,
+    ChainedReducer<CommentedReducer<R>, ChainedReducer< ChainedReducer<IssueClosureReducer<R>, IssueSummaryReducer<R>>,
+    IssueDetailsReducer<R>>>>);
+
 
 impl<R: Record> BasicIssueReducer<R> {
     pub fn new() -> Self {
-       BasicIssueReducer(CommentedReducer::new()
+       BasicIssueReducer(MergeRequestedReducer::new().chain(CommentedReducer::new()
                              .chain(IssueClosureReducer::new()
                              .chain(IssueSummaryReducer::new())
-                             .chain(IssueDetailsReducer::new())))
+                             .chain(IssueDetailsReducer::new()))))
     }
 }
 
@@ -249,5 +281,19 @@ mod tests {
         assert_eq!(comments[0].get("timestamp").unwrap().as_str().unwrap(), "2018-01-30T16:24:59.385560008Z");
 
     }
+
+    #[test]
+    fn merge_requested() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        let issue = repo.new_issue().unwrap();
+        let record = issue.new_record(vec![(".type/MergeRequested", &b""[..])].into_iter(), true).unwrap();
+        let state = issue.reduce_with_reducer(MergeRequestedReducer::new()).unwrap();
+        let requests = state.get("merge_requests").unwrap().as_array().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0], record.encoded_hash());
+    }
+
 
 }

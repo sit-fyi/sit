@@ -1,11 +1,16 @@
+**This project does not accept GitHub Pull Requests**. This is done intentionally,
+as it allows us to maintain the entire history of submitted patches in SIT itself. Any
+opened Pull Requests will be closed. The contributors will be asked to use our
+own merge request procedure (see below).
+
 Our goal is to encourage frictionless contributions to the project. In order to
 achieve that, we use Unprotocols' [C4 process](https://rfc.unprotocols.org/spec:1/C4)
 as an inspiration. Please read it, it will answer a lot of questions. Our goal is to
-merge pull requests as quickly as possible and make new stable releases regularly. 
+merge patches as quickly as possible and make new stable releases regularly. 
 
 In a nutshell, this means:
 
-* We merge pull requests rapidly (try!)
+* We merge patches rapidly (try!)
 * We are open to diverse ideas
 * We prefer code now over consensus later
 
@@ -46,7 +51,18 @@ Solution: explanation of the solution to the problem. Could
 be longer than one line.
 ```
 
-Typically, patches are expected to be submitted over a pull request, but
-if your circumstances preclude you from doing so, you can reach out to
-any maintainer privately by e-mail or any other available means and
-send the patch that way.
+# Preparing a merge request
+
+Once you have a branch (BRANCH) with your patch ready:
+
+1. Create a new issue: `sit issue` and take a note of the generated ID.
+2. Generate patches: `rm -rf git && git format-patch $(git merge-base --fork-point master BRANCH)..BRANCH -o git` (cleaning `git` assures there are no leftover patches)
+2. Edit temporary `text` file to supply the one-line summary (such as `Problem: ...`).
+   It is important to name the file `text` and not something else
+3. Take ID from the first step and run `sit record -t SummaryChanged ID text`
+4. Edit temporary `text` file to prepare details.
+   Provide detailed information for your patch so that others can fully
+   understand it. It is a good etiquette to have one or a few paragraphs.
+4. Take ID from the first step and run `sit record -t DetailsChanged,MergeRequested ID text git/*.patch`
+5. Refer to [this instruction](https://github.com/sit-it/sit#send-it-to-upstream) to send the merge request to the upstream.
+

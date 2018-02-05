@@ -205,6 +205,10 @@ This way, pushing out, will be as nice as `git push issues <branch>`
 
 You will get all issue updates when you fetch this git repository.
 
+### Preparing a merge request
+
+Please refer to [CONTRIBUTING](https://github.com/sit-it/sit/blob/master/CONTRIBUTING.md#preparing-a-merge-request] for the instruction.
+
 ## Overview
 
 <center>
@@ -355,11 +359,11 @@ contributors.
 Our goal is to encourage frictionless contributions to the project. In order to
 achieve that, we use Unprotocols' [C4 process](https://rfc.unprotocols.org/spec:1/C4)
 as an inspiration. Please read it, it will answer a lot of questions. Our goal is to
-merge pull requests as quickly as possible and make new stable releases regularly.
+merge patches as quickly as possible and make new stable releases regularly.
 
 In a nutshell, this means:
 
-* We merge pull requests rapidly (try!)
+* We merge patches rapidly (try!)
 * We are open to diverse ideas
 * We prefer code now over consensus later
 
