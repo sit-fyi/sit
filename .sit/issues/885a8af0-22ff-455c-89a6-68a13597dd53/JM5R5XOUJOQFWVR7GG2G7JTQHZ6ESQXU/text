@@ -1,0 +1,23 @@
+Josh, thank you for providing your feedback.
+
+Let me split this into two parts.
+
+You mentioned you weren't able to get the shortcut
+(named filters/queries) functionality working. Can
+you please elaborate on that?
+
+Now, the user experience. Let me explain further
+what drove my thinking process. Firstly, I am still
+fairly confident that once any actual UI is released
+(be it web, GUI, or TUI), that'll be the primary
+interface for the vast majority of users, including
+myself (it'll be just so much more convenient and
+less error-prone). Secondly, the problem I personally
+see with finding a reasonable "default rendering"
+is that it is hard to find a common ground. Should
+it be "id + summary"? Should it filter out closed issues?
+The rabbit hole is deep, and I'd rather let the users
+choose what they want to see by typing in something like
+`sit issues -F open -Q overview` and let them choose
+their own shell abbreviatons/aliases for most common
+cases (the above could be `sioo` for all I know).
