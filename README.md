@@ -207,7 +207,7 @@ You will get all issue updates when you fetch this git repository.
 
 ### Preparing a merge request
 
-Please refer to [CONTRIBUTING](https://github.com/sit-it/sit/blob/master/CONTRIBUTING.md#preparing-a-merge-request] for the instruction.
+Please refer to [CONTRIBUTING](https://github.com/sit-it/sit/blob/master/CONTRIBUTING.md#preparing-a-merge-request) for the instruction.
 
 ## Overview
 
