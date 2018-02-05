@@ -66,3 +66,5 @@ Once you have a branch (BRANCH) with your patch ready:
 4. Take ID from the first step and run `sit record -t DetailsChanged,MergeRequested ID text git/*.patch`
 5. Refer to [this instruction](https://github.com/sit-it/sit#send-it-to-upstream) to send the merge request to the upstream.
 
+Alternatively, if the problem was already stated in some issue, it also makes sense to add
+a merge request directly to that issue (ID1): `sit record -t MergeRequested,Commented ID1 text git/*.patch` and follow sending instructions in Step 5.
