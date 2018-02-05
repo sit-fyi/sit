@@ -1,0 +1,13 @@
+When used over a directory, `sit record`
+will produce this error:
+
+```
+DIRECTORY does not exist or is not a regular file
+```
+
+Hence, forcing the user to enter all files in that directory
+manually (or using shell's autocompletion)
+
+Proposed solution: treat directories in the least confusing way:
+that is, process them recursively, adding all files as if they
+were supplied over the command line.
