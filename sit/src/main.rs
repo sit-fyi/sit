@@ -155,6 +155,20 @@ fn main() {
             .arg(Arg::with_name("no-author")
                 .long("no-author")
                 .help("By default, SIT will authorship information to all new records. This option disables this behaviour"))
+            .arg(Arg::with_name("sign")
+                .long("sign")
+                .short("s")
+                .help("Sign record with GnuPG (overrides config's signing.enabled)"))
+            .arg(Arg::with_name("signing-key")
+                .long("signing-key")
+                .requires("sign")
+                .takes_value(true)
+                .help("Specify non-default signing key (overrides config's signing.key)"))
+            .arg(Arg::with_name("gnupg")
+                .long("gnupg")
+                .requires("sign")
+                .takes_value(true)
+                .help("Specify gnupg command (`gpg` by default or overridden by config's signing.gnupg)"))
             .arg(Arg::with_name("FILES")
                      .multiple(true)
                      .takes_value(true)
@@ -184,6 +198,14 @@ fn main() {
                      .short("F")
                      .takes_value(true)
                      .help("Filter records with a named JMESPath query"))
+            .arg(Arg::with_name("verify")
+                     .short("v")
+                     .long("verify")
+                     .help("Verify record's signature (if present)"))
+            .arg(Arg::with_name("gnupg")
+                .requires("verify")
+                .takes_value(true)
+                .help("Specify gnupg command (`gpg` by default or overridden by config's signing.gnupg)"))
             .arg(Arg::with_name("named-query")
                      .conflicts_with("query")
                      .long("named-query")
@@ -366,6 +388,66 @@ fn main() {
                     } else {
                         issue.new_record(files.chain(type_files).chain(authorship_files), true)
                     }.expect("can't create a record");
+
+
+                    let signing = matches.is_present("sign") || config.signing.enabled;
+
+                    if signing {
+                        use std::ffi::OsString;
+                        let program = OsString::from(matches.value_of("gnupg").map(String::from)
+                            .unwrap_or(match config.signing.gnupg {
+                            Some(ref command) => command.clone(),
+                            None => String::from("gpg"),
+                        }));
+                        let key = match matches.value_of("signing-key").map(String::from).or_else(|| config.signing.key.clone()) {
+                            Some(key) => Some(OsString::from(key)),
+                            None => None,
+                        };
+                        let mut command = ::std::process::Command::new(program);
+
+                        command
+                            .stdin(::std::process::Stdio::piped())
+                            .stdout(::std::process::Stdio::piped())
+                            .arg("--sign")
+                            .arg("--armor")
+                            .arg("--detach-sign")
+                            .arg("-o")
+                            .arg("-");
+
+                        if key.is_some() {
+                            let _ = command.arg("--default-key").arg(key.unwrap());
+                        }
+
+                        let mut child = command.spawn().expect("failed spawning gnupg");
+
+                        {
+                            let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
+                            stdin.write_all(record.encoded_hash().as_bytes()).expect("Failed to write to stdin");
+                        }
+
+                        let output = child.wait_with_output().expect("failed to read stdout");
+
+                        if !output.status.success() {
+                            eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
+                            exit(1);
+                        } else {
+                            use sit_core::repository::DynamicallyHashable;
+                            let dynamically_hashed_record = record.dynamically_hashed();
+                            let mut file = fs::File::create(record.path().join(".signature"))
+                                .expect("can't open signature file");
+                            file.write(&output.stdout).expect("can't write signature file");
+                            drop(file);
+                            let new_hash = dynamically_hashed_record.encoded_hash();
+                            let mut new_path = record.path();
+                            new_path.pop();
+                            new_path.push(&new_hash);
+                            fs::rename(record.path(), new_path).expect("can't rename record");
+                            println!("{}", new_hash);
+                            exit(0);
+                        }
+
+                    }
+
                     println!("{}", record.encoded_hash());
                 }
             }
@@ -398,7 +480,61 @@ fn main() {
 
                     for record in records {
                        for rec in record {
-                           let json = sit_core::serde_json::to_string(&rec).unwrap();
+                           let json = serde_json::to_string(&rec).unwrap();
+                           let mut json: serde_json::Value = serde_json::from_str(&json).unwrap();
+                           if let serde_json::Value::Object(ref mut map) = json {
+                               let verify = matches.is_present("verify") && rec.path().join(".signature").is_file();
+
+                               if verify {
+                                   use std::ffi::OsString;
+                                   use std::io::Write;
+                                   let program = OsString::from(matches.value_of("gnupg").map(String::from)
+                                       .unwrap_or(match config.signing.gnupg {
+                                           Some(ref command) => command.clone(),
+                                           None => String::from("gpg"),
+                                       }));
+                                   let mut command = ::std::process::Command::new(program);
+
+                                   command
+                                       .stdin(::std::process::Stdio::piped())
+                                       .stdout(::std::process::Stdio::piped())
+                                       .stderr(::std::process::Stdio::piped())
+                                       .arg("--verify")
+                                       .arg(rec.path().join(".signature"))
+                                       .arg("-");
+
+                                   let mut child = command.spawn().expect("failed spawning gnupg");
+
+                                   {
+                                       use sit_core::repository::DynamicallyHashable;
+                                       fn not_signature(val: &(String, fs::File)) -> bool {
+                                           &val.0 != ".signature"
+                                       }
+                                       let filtered_record = rec.filtered(not_signature);
+                                       let filtered_dynamic = filtered_record.dynamically_hashed();
+                                       let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
+                                       stdin.write_all(filtered_dynamic.encoded_hash().as_bytes()).expect("Failed to write to stdin");
+                                   }
+
+                                   let output = child.wait_with_output().expect("failed to read stdout");
+
+                                   if !output.status.success() {
+                                       let mut status = serde_json::Map::new();
+                                       status.insert("success".into(), serde_json::Value::Bool(false));
+                                       status.insert("output".into(), serde_json::Value::String(String::from_utf8_lossy(&output.stderr).into()));
+                                       map.insert("verification".into(), serde_json::Value::Object(status));
+                                   } else {
+                                       let mut status = serde_json::Map::new();
+                                       status.insert("success".into(), serde_json::Value::Bool(true));
+                                       status.insert("output".into(), serde_json::Value::String(String::from_utf8_lossy(&output.stderr).into()));
+                                       map.insert("verification".into(), serde_json::Value::Object(status));
+                                   }
+
+                               }
+
+                           }
+
+                           let json = sit_core::serde_json::to_string(&json).unwrap();
                            let data = jmespath::Variable::from_json(&json).unwrap();
                            let result = filter.search(&data).unwrap();
                            if result.as_boolean().unwrap() {

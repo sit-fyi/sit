@@ -91,6 +91,16 @@ file and record your information:
 Currently, SIT will refuse to start without this information specified as it is used
 to record authorship in issues.
 
+It is also **highly recommended** to sign your records. To enable this, add the following
+to your config file:
+
+```json
+"signing": {
+   "enabled": true,
+   "key": "key you are going to use"
+}
+```
+
 ### Listing issues
 
 By default, `sit issues` will list all issues by their IDs. However,
@@ -309,6 +319,7 @@ Below is the list of some record files conventions:
 | .prev/ID   | Link to a previous record ID.                                                                                      | Optional, more than one entry is allowed                                                             |
 | .timestamp | ISO-8601 timestamp, always with zero UTF offset (`YYYY-MM-DDTHH:mm:ss.sssZ`).                                      | Optional but generally encouraged                                                                    |
 | .authors   | List of record authors (one per line, `John Doe <john@doe>` format is recommended, `John Doe` is also acceptable ) | Recommended                                                                                          |
+| .signature | ASCII PGP signature of the encoded hash of the record without this file (`gpg --sign --armor`)                     | Recommended                                                                                          |
 
 You can create a record using `sit record <issue id> [FILE]..` command.
 

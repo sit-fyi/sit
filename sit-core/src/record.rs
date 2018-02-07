@@ -4,12 +4,14 @@
 pub trait Record {
    /// Implementation's type for reading files
    type Read : ::std::io::Read;
+   /// Implementation's type for non-encoded hash
+   type Hash : AsRef<[u8]>;
    /// Implementation's type for file names
    type Str : AsRef<str>;
    /// Implementation's iterator type for listing files
    type Iter : Iterator<Item=(Self::Str, Self::Read)>;
    /// Returns record hash
-   fn hash(&self) -> &[u8];
+   fn hash(&self) -> Self::Hash;
    /// Returns encoded record hash
    ///
    /// The encoding is defined by its container (typically, the repository)
