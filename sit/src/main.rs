@@ -22,12 +22,20 @@ extern crate serde_json;
 extern crate config;
 mod cfg;
 
+mod rebuild;
+use rebuild::rebuild_repository;
+
 #[cfg(unix)]
 extern crate xdg;
 
 extern crate jmespath;
 
 extern crate tini;
+
+extern crate fs_extra;
+extern crate pbr;
+extern crate tempdir;
+extern crate glob;
 
 use std::collections::HashMap;
 fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
@@ -58,6 +66,11 @@ fn main() {
             .short("d")
             .default_value(cwd.to_str().unwrap())
             .help("Working directory"))
+        .arg(Arg::with_name("repository")
+            .short("r")
+            .long("repository")
+            .takes_value(true)
+            .help("Point to a specific directory of SIT's repository"))
         .arg(Arg::with_name("verbosity")
             .short("v")
             .multiple(true)
@@ -70,6 +83,24 @@ fn main() {
         .subcommand(SubCommand::with_name("init")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Initializes a new SIT repository in .sit"))
+        .subcommand(SubCommand::with_name("rebuild")
+            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+            .about("Rebuild a repository")
+            .long_about("Useful for re-hashing all records while (optionally) \
+            applying changes to them")
+            .arg(Arg::with_name("SRC")
+                     .takes_value(true)
+                     .required(true)
+                     .help("Source repository directory"))
+            .arg(Arg::with_name("DEST")
+                     .takes_value(true)
+                     .required(true)
+                     .help("Destination reposutory directory (must not exist)"))
+            .arg(Arg::with_name("on-record")
+                     .long("on-record")
+                     .takes_value(true)
+                     .long_help("Execute this command on every record before re-hashing it. \
+                     The directory is passed as the first argument.")))
         .subcommand(SubCommand::with_name("issue")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Creates a new issue")
@@ -210,7 +241,7 @@ fn main() {
     }
 
     if let Some(_matches) = matches.subcommand_matches("init") {
-        let dot_sit_str = dot_sit.to_str().unwrap();
+        let dot_sit_str = matches.value_of("repository").unwrap_or(dot_sit.to_str().unwrap());
         match sit_core::Repository::new(&dot_sit) {
             Ok(_repo) => {
                 eprintln!("Repository {} initialized", dot_sit_str);
@@ -223,8 +254,15 @@ fn main() {
                 exit(1);
             }
         }
+    } else if let Some(matches) = matches.subcommand_matches("rebuild") {
+        rebuild_repository(matches.value_of("SRC").unwrap(),
+                           matches.value_of("DEST").unwrap(),
+                           matches.value_of("on-record"));
     } else {
-        let repo = sit_core::Repository::find_in_or_above(".sit",&working_dir).expect("can't open repository");
+        let repo = matches.value_of("repository").map(sit_core::Repository::open)
+            .or_else(|| Some(sit_core::Repository::find_in_or_above(".sit",&working_dir)))
+            .unwrap()
+            .expect("can't open repository");
 
         if let Some(matches) = matches.subcommand_matches("issue") {
             let issue = (if matches.value_of("id").is_none() {

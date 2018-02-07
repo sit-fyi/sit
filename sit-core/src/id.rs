@@ -1,6 +1,6 @@
 //! ID generation abstraction
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IdGenerator {
     /// UUID v4 (random)
     #[cfg(feature = "uuid")]

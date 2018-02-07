@@ -16,4 +16,8 @@ serde_derive = "1.0"
 xdg = "2.1"
 jmespath = "0.2"
 tini = "0.2.0"
+fs_extra = "1.1"
+pbr = "1.0"
+tempdir = "0.3"
+glob = "0.2"
 sit-core = { path = "../sit-core" }
