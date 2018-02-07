@@ -1,7 +1,7 @@
 //! Binary identifier encodings
 
 /// Available encodings
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Encoding {
     /// [Base32] encoding
     ///

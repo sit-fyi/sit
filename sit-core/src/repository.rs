@@ -41,7 +41,7 @@ pub struct Repository {
 }
 
 /// Repository configuration
-#[derive(Debug, TypedBuilder, Serialize, Deserialize)]
+#[derive(Debug, Clone, TypedBuilder, Serialize, Deserialize)]
 pub struct Config {
      /// Hashing algorithm used
     hashing_algorithm: HashingAlgorithm,
@@ -170,6 +170,16 @@ impl Repository {
         self.path.as_path()
     }
 
+    /// Returns issues path
+    pub fn issues_path(&self) -> &Path {
+        self.issues_path.as_path()
+    }
+
+    /// Returns repository's config
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
     /// Returns an unordered (as in "order not defined") issue iterator
     pub fn issue_iter(&self) -> Result<IssueIter, Error> {
         Ok(IssueIter { repository: self, dir: fs::read_dir(&self.issues_path)? })
@@ -240,13 +250,17 @@ impl<'a> IssueTrait for Issue<'a> {
     fn new_record<S: AsRef<str>, R: ::std::io::Read,
         I: Iterator<Item=(S, R)>>(&self, iter: I, link_parents: bool) -> Result<Self::Record, Self::Error> {
         use tempdir::TempDir;
-        use std::io::Write;
+        use std::io::{Read, Write};
         let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
         let mut hasher = self.repository.config.hashing_algorithm.hasher();
         let mut buf = vec![0; 4096];
 
         fn process_file<S: AsRef<str>, R: ::std::io::Read>(hasher: &mut Hasher, name: S, mut reader: R, mut buf: &mut Vec<u8>, tempdir: &TempDir) -> Result<(), ::std::io::Error> {
-            hasher.process((name.as_ref() as &str).as_bytes());
+            #[cfg(windows)] // replace backslashes with slashes
+            let name_for_hashing = name.as_ref().replace("\\", "/");
+            #[cfg(unix)]
+            let name_for_hashing = name.as_ref();
+            hasher.process((name_for_hashing.as_ref() as &str).as_bytes());
             let path = tempdir.path().join(PathBuf::from(name.as_ref() as &str));
             let mut dir = path.clone();
             dir.pop();
@@ -263,9 +277,10 @@ impl<'a> IssueTrait for Issue<'a> {
             Ok(())
         }
 
+        let mut files: Vec<(Box<AsRef<str>>, Box<Read>)> = vec![];
         // iterate over all files
         for (name, mut reader) in iter {
-            process_file(&mut *hasher, name, reader, &mut buf, &tempdir)?;
+            files.push((Box::new(name) as Box<AsRef<str>>, Box::new(reader) as Box<Read>));
         }
 
         // Link parents if requested
@@ -276,10 +291,19 @@ impl<'a> IssueTrait for Issue<'a> {
                     let parents = records.iter().map(|rec| (format!(".prev/{}", rec.encoded_hash()), &b""[..]));
 
                     for (name, mut reader) in parents {
-                        process_file(&mut *hasher, name, reader, &mut buf, &tempdir)?;
+                        files.push((Box::new(name) as Box<AsRef<str>>, Box::new(reader) as Box<Read>));
                     }
                 },
             }
+        }
+
+        // IMPORTANT: Sort lexicographically
+        files.sort_by(|&(ref name1, _), &(ref name2, _)|
+            name1.as_ref().as_ref().cmp(name2.as_ref().as_ref()));
+
+
+        for (name, mut reader) in files {
+            process_file(&mut *hasher, name.as_ref(), reader, &mut buf, &tempdir)?;
         }
 
         let hash = hasher.result_box();
@@ -659,5 +683,23 @@ mod tests {
         assert_eq!(row_3.len(), 1);
         assert!(row_3.iter().any(|r| r == &record5));
     }
+
+    #[test]
+    fn record_deterministic_hashing() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(&tmp).unwrap();
+        let issue1 = repo.new_issue().unwrap();
+        let record1 = issue1.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
+        let issue2 = repo.new_issue().unwrap();
+        let record2 = issue2.new_record(vec![("test", &[1u8][..]), ("z/a", &[2u8][..])].into_iter(), false).unwrap();
+        assert_eq!(record1.hash(), record2.hash());
+        #[cfg(windows)] {
+            let issue3 = repo.new_issue().unwrap();
+            let record3 = issue3.new_record(vec![("test", &[1u8][..]), ("z\\a", &[2u8][..])].into_iter(), false).unwrap();
+            assert_eq!(record3.hash(), record2.hash());
+        }
+    }
+
 
 }
