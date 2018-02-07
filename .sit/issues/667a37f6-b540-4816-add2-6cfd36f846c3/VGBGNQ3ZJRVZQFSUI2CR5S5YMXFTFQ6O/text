@@ -1,0 +1,14 @@
+Currently, if we wanted to either verify that a certain person made a record,
+or even simply allow to make an "authorized" record by the same, or allowed
+person (such as allowing a limited number of people to change DetailsChanged,
+for example), it would be next to impossible.
+
+Solution: introduce PGP signing of records with GnuPG
+
+This involves specifying a convention for `.signature` and adding relevant
+functionality to the command line client.
+
+While on its own this doesn't prevent anything (with regards to permissioning)
+this can be utilized by reducers to filter out unsigned/incorrectly signed
+records.
+

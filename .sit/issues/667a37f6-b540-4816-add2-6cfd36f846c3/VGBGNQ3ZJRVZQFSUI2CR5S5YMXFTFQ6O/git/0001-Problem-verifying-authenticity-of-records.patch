@@ -1,0 +1,588 @@
+From cbc5a9e27289dd4ab7bae1999d0e1d2a702cae5c Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 7 Feb 2018 13:09:25 +0700
+Subject: [PATCH] Problem: verifying authenticity of records
+
+Currently, if we wanted to either verify that a certain person made a
+record, or even simply allow to make an "authorized" record by the same,
+or allowed person (such as allowing a limited number of people to change
+DetailsChanged, for example), it would be next to impossible.
+
+Solution: introduce PGP signing of records with GnuPG
+
+This involves specifying a convention for `.signature` and adding
+relevant functionality to the command line client.
+
+While on its own this doesn't prevent anything (with regards
+to permissioning) this can be utilized by reducers to filter
+out unsigned/incorrectly signed records.
+---
+ .../4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.authors      |   1 +
+ .../.prev/QINUDF24P4VJXRZKUJL6QSIC67RVIMLM         |   0
+ .../4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.signature    |  17 ++
+ .../4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.timestamp    |   1 +
+ .../.type/Commented                                |   0
+ .../4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/text          |   2 +
+ README.md                                          |  11 ++
+ sit-core/src/record.rs                             |   4 +-
+ sit-core/src/repository.rs                         | 188 ++++++++++++++++++---
+ sit/src/cfg.rs                                     |  12 ++
+ sit/src/main.rs                                    | 138 ++++++++++++++-
+ 11 files changed, 345 insertions(+), 29 deletions(-)
+ create mode 100644 .sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.authors
+ create mode 100644 .sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.prev/QINUDF24P4VJXRZKUJL6QSIC67RVIMLM
+ create mode 100644 .sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.signature
+ create mode 100644 .sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.timestamp
+ create mode 100644 .sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.type/Commented
+ create mode 100644 .sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/text
+
+diff --git a/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.authors b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.authors
+new file mode 100644
+index 0000000..8022052
+--- /dev/null
++++ b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.authors
+@@ -0,0 +1 @@
++Yurii Rashkovskii <me@yrashk.com>
+\ No newline at end of file
+diff --git a/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.prev/QINUDF24P4VJXRZKUJL6QSIC67RVIMLM b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.prev/QINUDF24P4VJXRZKUJL6QSIC67RVIMLM
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.signature b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.signature
+new file mode 100644
+index 0000000..9d8e8a9
+--- /dev/null
++++ b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.signature
+@@ -0,0 +1,17 @@
++-----BEGIN PGP SIGNATURE-----
++
++iQJCBAABCAAsFiEEjmkaFOaskcs7s6g8HWDXz9gIRf8FAlp6l6UOHG1lQHlyYXNo
++ay5jb20ACgkQHWDXz9gIRf9LMw//cO6iWrHCnmN3RlpRAFmvSgUCp+8fumN1JwGg
++H+cxSVZnuFlFvoKqfHvr+w6TanWCL2T4MFLsiEZc5boGMlUfDMTPuOEJZoUK8cvw
++4Vc9K6xU971sjMWmTc8cSo2Hx5jSBAWuKeuKwVjFYbe+hNSshc/cIVPUvKChm1rb
++PWHVtDapynEhzlRJcTxpsPOwMscTJ+CFWoC73W6uX3wlpmqe978OG0MK+B80BcIf
++LpUQL72ApNJb9aeE576gGX6XuQwTGMENnPOnXwsevn8PvU3hsZiqgOaoWo1XTT/1
++zi6UT5eOil10k16nxqAbpL4Ivx6EhDpasuNxPjjawT7JaUAt2ukDKBTUCqBVPDrK
++L5UAG/UEeGF7rcb4E2Pd5Vr2KvdORVtBLP772EudMcVs+05NRz4UhbsiThi8PISw
++NyzM2Una/Rkd4kK9FJRjsz5K34IoAc/IvfrxVxRxrkwPGBKhNFVZZT/9MH5iGmBo
++Ei3KsaeQ0h1fDQ9w+5VjMF2YGWR/oa2wci/6rXy3o0Qa5rJS0ZOG1HK/Fo12HmxS
++TuBPRhJN17ikB+ql9Y1W4B2mCAeBbKQ7H76eOjVg550Vq2OVOI1RSwoCRvmdH+Al
++P1+Rn8dQ9zs/jP36DFien7oRASgcEn44rrex6uta9KKZV2tXrNpLOIzFUWgGSfcs
++qzheiPE=
++=mxK5
++-----END PGP SIGNATURE-----
+diff --git a/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.timestamp b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.timestamp
+new file mode 100644
+index 0000000..3d6d638
+--- /dev/null
++++ b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.timestamp
+@@ -0,0 +1 @@
++2018-02-07T06:07:33.276340925Z
+\ No newline at end of file
+diff --git a/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.type/Commented b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/.type/Commented
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/text b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/text
+new file mode 100644
+index 0000000..54d5150
+--- /dev/null
++++ b/.sit/issues/09274126-7d3c-4a32-9338-a5501e1bfb84/4Y5CRMBYQAYG2IBVDVCKHLDEDDGIEAVU/text
+@@ -0,0 +1,2 @@
++I've made the first step towards this by defining & implementing
++the convention for storing PGP signatures.
+diff --git a/README.md b/README.md
+index a770d57..d5cb73f 100644
+--- a/README.md
++++ b/README.md
+@@ -91,6 +91,16 @@ file and record your information:
+ Currently, SIT will refuse to start without this information specified as it is used
+ to record authorship in issues.
+ 
++It is also **highly recommended** to sign your records. To enable this, add the following
++to your config file:
++
++```json
++"signing": {
++   "enabled": true,
++   "key": "key you are going to use"
++}
++```
++
+ ### Listing issues
+ 
+ By default, `sit issues` will list all issues by their IDs. However,
+@@ -309,6 +319,7 @@ Below is the list of some record files conventions:
+ | .prev/ID   | Link to a previous record ID.                                                                                      | Optional, more than one entry is allowed                                                             |
+ | .timestamp | ISO-8601 timestamp, always with zero UTF offset (`YYYY-MM-DDTHH:mm:ss.sssZ`).                                      | Optional but generally encouraged                                                                    |
+ | .authors   | List of record authors (one per line, `John Doe <john@doe>` format is recommended, `John Doe` is also acceptable ) | Recommended                                                                                          |
++| .signature | ASCII PGP signature of the encoded hash of the record without this file (`gpg --sign --armor`)                     | Recommended                                                                                          |
+ 
+ You can create a record using `sit record <issue id> [FILE]..` command.
+ 
+diff --git a/sit-core/src/record.rs b/sit-core/src/record.rs
+index 1072ee9..d3fc8d1 100644
+--- a/sit-core/src/record.rs
++++ b/sit-core/src/record.rs
+@@ -4,12 +4,14 @@
+ pub trait Record {
+    /// Implementation's type for reading files
+    type Read : ::std::io::Read;
++   /// Implementation's type for non-encoded hash
++   type Hash : AsRef<[u8]>;
+    /// Implementation's type for file names
+    type Str : AsRef<str>;
+    /// Implementation's iterator type for listing files
+    type Iter : Iterator<Item=(Self::Str, Self::Read)>;
+    /// Returns record hash
+-   fn hash(&self) -> &[u8];
++   fn hash(&self) -> Self::Hash;
+    /// Returns encoded record hash
+    ///
+    /// The encoding is defined by its container (typically, the repository)
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 09a9473..0468c30 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -8,6 +8,9 @@
+ 
+ use std::path::{Component, Path, PathBuf};
+ use std::fs;
++use std::io::{Read, Write};
++
++use tempdir::TempDir;
+ 
+ use glob;
+ 
+@@ -216,6 +219,29 @@ pub struct Issue<'a> {
+     id: OsString,
+ }
+ 
++
++fn process_file<S: AsRef<str>, R: ::std::io::Read>(hasher: &mut Hasher, name: S, mut reader: R, mut buf: &mut Vec<u8>, tempdir: &TempDir) -> Result<(), ::std::io::Error> {
++    #[cfg(windows)] // replace backslashes with slashes
++    let name_for_hashing = name.as_ref().replace("\\", "/");
++    #[cfg(unix)]
++    let name_for_hashing = name.as_ref();
++    hasher.process((name_for_hashing.as_ref() as &str).as_bytes());
++    let path = tempdir.path().join(PathBuf::from(name.as_ref() as &str));
++    let mut dir = path.clone();
++    dir.pop();
++    fs::create_dir_all(dir)?;
++    let mut file = fs::File::create(path)?;
++    loop {
++        let bytes_read = reader.read(&mut buf)?;
++        hasher.process(&buf);
++        file.write(&buf[0..bytes_read])?;
++        if bytes_read == 0 {
++            break;
++        }
++    }
++    Ok(())
++}
++
+ impl<'a> IssueTrait for Issue<'a> {
+ 
+     type Error = Error;
+@@ -249,34 +275,10 @@ impl<'a> IssueTrait for Issue<'a> {
+ 
+     fn new_record<S: AsRef<str>, R: ::std::io::Read,
+         I: Iterator<Item=(S, R)>>(&self, iter: I, link_parents: bool) -> Result<Self::Record, Self::Error> {
+-        use tempdir::TempDir;
+-        use std::io::{Read, Write};
+         let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
+         let mut hasher = self.repository.config.hashing_algorithm.hasher();
+         let mut buf = vec![0; 4096];
+ 
+-        fn process_file<S: AsRef<str>, R: ::std::io::Read>(hasher: &mut Hasher, name: S, mut reader: R, mut buf: &mut Vec<u8>, tempdir: &TempDir) -> Result<(), ::std::io::Error> {
+-            #[cfg(windows)] // replace backslashes with slashes
+-            let name_for_hashing = name.as_ref().replace("\\", "/");
+-            #[cfg(unix)]
+-            let name_for_hashing = name.as_ref();
+-            hasher.process((name_for_hashing.as_ref() as &str).as_bytes());
+-            let path = tempdir.path().join(PathBuf::from(name.as_ref() as &str));
+-            let mut dir = path.clone();
+-            dir.pop();
+-            fs::create_dir_all(dir)?;
+-            let mut file = fs::File::create(path)?;
+-            loop {
+-                let bytes_read = reader.read(&mut buf)?;
+-                hasher.process(&buf);
+-                file.write(&buf[0..bytes_read])?;
+-                if bytes_read == 0 {
+-                    break;
+-                }
+-            }
+-            Ok(())
+-        }
+-
+         let mut files: Vec<(Box<AsRef<str>>, Box<Read>)> = vec![];
+         // iterate over all files
+         for (name, mut reader) in iter {
+@@ -430,6 +432,117 @@ pub struct Record<'a> {
+     repository: &'a Repository,
+ }
+ 
++/// Somethiing that can provide access to its underlying repository
++pub trait RepositoryProvider {
++    /// Returns underlying repository;
++    fn repository(&self) -> &Repository;
++}
++
++impl<'a> RepositoryProvider for Record<'a> {
++    fn repository(&self) -> &Repository {
++        self.repository
++    }
++}
++
++#[derive(Debug)]
++/// Record wrapper that dynamically rehashes wrapped Record's content
++pub struct DynamicallyHashedRecord<'a, T: RecordTrait + RepositoryProvider + 'a>(&'a T);
++
++impl<'a, T: RecordTrait<Str=String, Hash=Vec<u8>> + RepositoryProvider + 'a> RecordTrait for DynamicallyHashedRecord<'a, T> {
++    type Read = T::Read;
++    type Str = String;
++    type Hash = Vec<u8>;
++    type Iter = T::Iter;
++
++    fn hash(&self) -> Self::Hash {
++        let tempdir = TempDir::new_in(&self.0.repository().path(),"sit").unwrap();
++        let mut hasher = self.0.repository().config.hashing_algorithm.hasher();
++        let mut buf = vec![0; 4096];
++
++        let mut files: Vec<(Box<AsRef<str>>, Box<Read>)> = vec![];
++
++        for (name, reader) in self.file_iter() {
++            files.push((Box::new(name) as Box<AsRef<str>>, Box::new(reader) as Box<Read>));
++        }
++
++        // IMPORTANT: Sort lexicographically
++        files.sort_by(|&(ref name1, _), &(ref name2, _)|
++            name1.as_ref().as_ref().cmp(name2.as_ref().as_ref()));
++
++        for (name, mut reader) in files {
++            process_file(&mut *hasher, name.as_ref(), reader, &mut buf, &tempdir).unwrap();
++        }
++
++        hasher.result_box()
++    }
++
++    fn encoded_hash(&self) -> Self::Str {
++        self.0.repository().config.encoding.encode(self.hash().as_ref())
++    }
++
++    fn file_iter(&self) -> Self::Iter {
++        self.0.file_iter()
++    }
++}
++
++#[derive(Debug)]
++/// Record with filtered content
++pub struct FilteredRecord<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvider + 'a,
++           F: Fn(&(S, R)) -> bool>(&'a T, F);
++
++impl<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvider + 'a, F: Copy + Fn(&(S, R)) -> bool> RecordTrait for FilteredRecord<'a, S, R, T, F> {
++    type Read = T::Read;
++    type Hash = T::Hash;
++    type Str = T::Str;
++    type Iter = ::std::iter::Filter<T::Iter, F>;
++
++    fn hash(&self) -> Self::Hash {
++        self.0.hash()
++    }
++
++    fn encoded_hash(&self) -> Self::Str {
++        self.0.encoded_hash()
++    }
++
++    fn file_iter(&self) -> Self::Iter {
++        self.0.file_iter().filter(self.1)
++    }
++}
++
++impl <'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvider + 'a, F: Copy + Fn(&(S, R)) -> bool> RepositoryProvider for FilteredRecord<'a, S, R, T, F> {
++    fn repository(&self) -> &Repository {
++        self.0.repository()
++    }
++}
++
++/// Allows any Record to have its content dynamically rehashed
++pub trait DynamicallyHashable<'a> : RecordTrait + RepositoryProvider + Sized {
++    /// Returns a record that has its hash dynamically computed
++    fn dynamically_hashed(&'a self) -> DynamicallyHashedRecord<'a, Self> {
++        DynamicallyHashedRecord(self)
++    }
++}
++
++impl<'a> DynamicallyHashable<'a> for Record<'a> {}
++impl<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvider + 'a, F: Copy + Fn(&(S, R)) -> bool> DynamicallyHashable<'a> for FilteredRecord<'a, S, R, T, F> {}
++
++impl<'a> Record<'a> {
++
++    /// Returns path to the record
++    pub fn path(&self) -> PathBuf {
++        self.repository.issues_path.join(PathBuf::from(&self.issue)).join(self.encoded_hash())
++    }
++
++
++    /// Returns a record with filtered files
++    pub fn filtered<F>(&'a self, filter: F) -> FilteredRecord<'a, <Record<'a> as RecordTrait>::Str,
++        <Record<'a> as RecordTrait>::Read,
++        Record<'a>, F> where F: Fn(&(<Record<'a> as RecordTrait>::Str, <Record<'a> as RecordTrait>::Read)) -> bool {
++        FilteredRecord(self, filter)
++    }
++
++}
++
+ use serde::{Serialize, Serializer};
+ 
+ impl<'a> Serialize for Record<'a> {
+@@ -449,10 +562,11 @@ impl<'a> PartialEq for Record<'a> {
+ impl<'a> RecordTrait for Record<'a> {
+     type Read = ::std::fs::File;
+     type Str = String;
++    type Hash = Vec<u8>;
+     type Iter = RecordFileIterator<'a>;
+ 
+-    fn hash(&self) -> &[u8] {
+-        &self.hash
++    fn hash(&self) -> Self::Hash {
++        self.hash.clone()
+     }
+ 
+     fn encoded_hash(&self) -> Self::Str {
+@@ -460,7 +574,7 @@ impl<'a> RecordTrait for Record<'a> {
+     }
+ 
+     fn file_iter(&self) -> Self::Iter {
+-        let path = self.repository.issues_path.join(PathBuf::from(&self.issue)).join(self.encoded_hash());
++        let path = self.path();
+         let glob_pattern = format!("{}/**/*", path.to_str().unwrap());
+         RecordFileIterator {
+             glob: glob::glob(&glob_pattern).expect("invalid glob pattern"),
+@@ -701,5 +815,25 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn record_dynamic_hashing() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(&tmp).unwrap();
++        let issue = repo.new_issue().unwrap();
++        let record = issue.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
++        let record_dynamic = record.dynamically_hashed();
++        assert_eq!(record_dynamic.hash(), record.hash());
++        assert_eq!(record_dynamic.encoded_hash(), record.encoded_hash());
++        // now, put some file in the dynamic one
++        let hash = record.hash();
++        let encoded_hash = record.encoded_hash();
++        ::std::fs::File::create(record.path().join("dynamic")).unwrap();
++        assert_eq!(record.hash(), hash);
++        assert_eq!(record.encoded_hash(), encoded_hash);
++        assert_ne!(record_dynamic.hash(), record.hash());
++        assert_ne!(record_dynamic.encoded_hash(), record.encoded_hash());
++    }
++
+ 
+ }
+diff --git a/sit/src/cfg.rs b/sit/src/cfg.rs
+index 73e13fc..71ede31 100644
+--- a/sit/src/cfg.rs
++++ b/sit/src/cfg.rs
+@@ -40,6 +40,16 @@ pub struct JMESPathConfig {
+     pub queries: HashMap<String, String>,
+ }
+ 
++#[derive(Default, Serialize, Deserialize)]
++pub struct Signing {
++    #[serde(default)]
++    pub enabled: bool,
++    #[serde(default)]
++    pub key: Option<String>,
++    #[serde(default)]
++    pub gnupg: Option<String>,
++}
++
+ #[derive(Serialize, Deserialize)]
+ pub struct Configuration {
+     pub author: Option<Author>,
+@@ -47,4 +57,6 @@ pub struct Configuration {
+     pub issues: JMESPathConfig,
+     #[serde(default)]
+     pub records: JMESPathConfig,
++    #[serde(default)]
++    pub signing: Signing,
+ }
+\ No newline at end of file
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 3ecb5dd..b4f4372 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -155,6 +155,20 @@ fn main() {
+             .arg(Arg::with_name("no-author")
+                 .long("no-author")
+                 .help("By default, SIT will authorship information to all new records. This option disables this behaviour"))
++            .arg(Arg::with_name("sign")
++                .long("sign")
++                .short("s")
++                .help("Sign record with GnuPG (overrides config's signing.enabled)"))
++            .arg(Arg::with_name("signing-key")
++                .long("signing-key")
++                .requires("sign")
++                .takes_value(true)
++                .help("Specify non-default signing key (overrides config's signing.key)"))
++            .arg(Arg::with_name("gnupg")
++                .long("gnupg")
++                .requires("sign")
++                .takes_value(true)
++                .help("Specify gnupg command (`gpg` by default or overridden by config's signing.gnupg)"))
+             .arg(Arg::with_name("FILES")
+                      .multiple(true)
+                      .takes_value(true)
+@@ -184,6 +198,14 @@ fn main() {
+                      .short("F")
+                      .takes_value(true)
+                      .help("Filter records with a named JMESPath query"))
++            .arg(Arg::with_name("verify")
++                     .short("v")
++                     .long("verify")
++                     .help("Verify record's signature (if present)"))
++            .arg(Arg::with_name("gnupg")
++                .requires("verify")
++                .takes_value(true)
++                .help("Specify gnupg command (`gpg` by default or overridden by config's signing.gnupg)"))
+             .arg(Arg::with_name("named-query")
+                      .conflicts_with("query")
+                      .long("named-query")
+@@ -366,6 +388,66 @@ fn main() {
+                     } else {
+                         issue.new_record(files.chain(type_files).chain(authorship_files), true)
+                     }.expect("can't create a record");
++
++
++                    let signing = matches.is_present("sign") || config.signing.enabled;
++
++                    if signing {
++                        use std::ffi::OsString;
++                        let program = OsString::from(matches.value_of("gnupg").map(String::from)
++                            .unwrap_or(match config.signing.gnupg {
++                            Some(ref command) => command.clone(),
++                            None => String::from("gpg"),
++                        }));
++                        let key = match matches.value_of("signing-key").map(String::from).or_else(|| config.signing.key.clone()) {
++                            Some(key) => Some(OsString::from(key)),
++                            None => None,
++                        };
++                        let mut command = ::std::process::Command::new(program);
++
++                        command
++                            .stdin(::std::process::Stdio::piped())
++                            .stdout(::std::process::Stdio::piped())
++                            .arg("--sign")
++                            .arg("--armor")
++                            .arg("--detach-sign")
++                            .arg("-o")
++                            .arg("-");
++
++                        if key.is_some() {
++                            let _ = command.arg("--default-key").arg(key.unwrap());
++                        }
++
++                        let mut child = command.spawn().expect("failed spawning gnupg");
++
++                        {
++                            let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
++                            stdin.write_all(record.encoded_hash().as_bytes()).expect("Failed to write to stdin");
++                        }
++
++                        let output = child.wait_with_output().expect("failed to read stdout");
++
++                        if !output.status.success() {
++                            eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
++                            exit(1);
++                        } else {
++                            use sit_core::repository::DynamicallyHashable;
++                            let dynamically_hashed_record = record.dynamically_hashed();
++                            let mut file = fs::File::create(record.path().join(".signature"))
++                                .expect("can't open signature file");
++                            file.write(&output.stdout).expect("can't write signature file");
++                            drop(file);
++                            let new_hash = dynamically_hashed_record.encoded_hash();
++                            let mut new_path = record.path();
++                            new_path.pop();
++                            new_path.push(&new_hash);
++                            fs::rename(record.path(), new_path).expect("can't rename record");
++                            println!("{}", new_hash);
++                            exit(0);
++                        }
++
++                    }
++
+                     println!("{}", record.encoded_hash());
+                 }
+             }
+@@ -398,7 +480,61 @@ fn main() {
+ 
+                     for record in records {
+                        for rec in record {
+-                           let json = sit_core::serde_json::to_string(&rec).unwrap();
++                           let json = serde_json::to_string(&rec).unwrap();
++                           let mut json: serde_json::Value = serde_json::from_str(&json).unwrap();
++                           if let serde_json::Value::Object(ref mut map) = json {
++                               let verify = matches.is_present("verify") && rec.path().join(".signature").is_file();
++
++                               if verify {
++                                   use std::ffi::OsString;
++                                   use std::io::Write;
++                                   let program = OsString::from(matches.value_of("gnupg").map(String::from)
++                                       .unwrap_or(match config.signing.gnupg {
++                                           Some(ref command) => command.clone(),
++                                           None => String::from("gpg"),
++                                       }));
++                                   let mut command = ::std::process::Command::new(program);
++
++                                   command
++                                       .stdin(::std::process::Stdio::piped())
++                                       .stdout(::std::process::Stdio::piped())
++                                       .stderr(::std::process::Stdio::piped())
++                                       .arg("--verify")
++                                       .arg(rec.path().join(".signature"))
++                                       .arg("-");
++
++                                   let mut child = command.spawn().expect("failed spawning gnupg");
++
++                                   {
++                                       use sit_core::repository::DynamicallyHashable;
++                                       fn not_signature(val: &(String, fs::File)) -> bool {
++                                           &val.0 != ".signature"
++                                       }
++                                       let filtered_record = rec.filtered(not_signature);
++                                       let filtered_dynamic = filtered_record.dynamically_hashed();
++                                       let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
++                                       stdin.write_all(filtered_dynamic.encoded_hash().as_bytes()).expect("Failed to write to stdin");
++                                   }
++
++                                   let output = child.wait_with_output().expect("failed to read stdout");
++
++                                   if !output.status.success() {
++                                       let mut status = serde_json::Map::new();
++                                       status.insert("success".into(), serde_json::Value::Bool(false));
++                                       status.insert("output".into(), serde_json::Value::String(String::from_utf8_lossy(&output.stderr).into()));
++                                       map.insert("verification".into(), serde_json::Value::Object(status));
++                                   } else {
++                                       let mut status = serde_json::Map::new();
++                                       status.insert("success".into(), serde_json::Value::Bool(true));
++                                       status.insert("output".into(), serde_json::Value::String(String::from_utf8_lossy(&output.stderr).into()));
++                                       map.insert("verification".into(), serde_json::Value::Object(status));
++                                   }
++
++                               }
++
++                           }
++
++                           let json = sit_core::serde_json::to_string(&json).unwrap();
+                            let data = jmespath::Variable::from_json(&json).unwrap();
+                            let result = filter.search(&data).unwrap();
+                            if result.as_boolean().unwrap() {
+-- 
+2.15.0
+
