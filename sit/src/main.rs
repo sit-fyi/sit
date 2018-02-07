@@ -203,6 +203,7 @@ fn main() {
                      .long("verify")
                      .help("Verify record's signature (if present)"))
             .arg(Arg::with_name("gnupg")
+                .long("gnupg")
                 .requires("verify")
                 .takes_value(true)
                 .help("Specify gnupg command (`gpg` by default or overridden by config's signing.gnupg)"))
