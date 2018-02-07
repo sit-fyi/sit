@@ -40,6 +40,16 @@ pub struct JMESPathConfig {
     pub queries: HashMap<String, String>,
 }
 
+#[derive(Default, Serialize, Deserialize)]
+pub struct Signing {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub key: Option<String>,
+    #[serde(default)]
+    pub gnupg: Option<String>,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Configuration {
     pub author: Option<Author>,
@@ -47,4 +57,6 @@ pub struct Configuration {
     pub issues: JMESPathConfig,
     #[serde(default)]
     pub records: JMESPathConfig,
+    #[serde(default)]
+    pub signing: Signing,
 }
