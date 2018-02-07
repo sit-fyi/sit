@@ -1,0 +1,27 @@
+From d489b38b53e4f362a6bbd01fbf003c634d676697 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 7 Feb 2018 13:51:43 +0700
+Subject: [PATCH] Problem: `sit records` `gnupg` argument is positional
+
+Clearly a mistake, tt should be an option instead.
+
+Solution: make it an option.
+---
+ sit/src/main.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index b4f4372..b621ab8 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -203,6 +203,7 @@ fn main() {
+                      .long("verify")
+                      .help("Verify record's signature (if present)"))
+             .arg(Arg::with_name("gnupg")
++                .long("gnupg")
+                 .requires("verify")
+                 .takes_value(true)
+                 .help("Specify gnupg command (`gpg` by default or overridden by config's signing.gnupg)"))
+-- 
+2.15.0
+
