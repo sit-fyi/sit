@@ -1,0 +1,5 @@
+If the current directory is outside of the working directory, sit will
+not allow to have these recorded.
+
+Solution: use current directory instead of working directory
+as a way to detect where the files are.
