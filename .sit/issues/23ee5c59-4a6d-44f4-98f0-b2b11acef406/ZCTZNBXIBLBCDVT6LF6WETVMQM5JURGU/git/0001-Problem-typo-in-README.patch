@@ -1,0 +1,29 @@
+From 807a5f7292831d5ccd9c9d9cc6e1553cf85b638d Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 8 Feb 2018 21:28:56 +0700
+Subject: [PATCH] Problem: typo in README
+
+A config.json example has a typo that prevents
+the said example from working.
+
+Solution: fix the typo.
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 33c2555..4314279 100644
+--- a/README.md
++++ b/README.md
+@@ -157,7 +157,7 @@ specify them in `issues.filters` and `issues.queries` properties:
+        "overview": "join(' | ', [id, summary])"
+     },
+     "filters": {
+-       "not-closed": "state != 'closed!"
++       "not-closed": "state != 'closed'"
+     }
+  }
+ } 
+-- 
+2.15.0
+
