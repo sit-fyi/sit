@@ -90,6 +90,9 @@ fn main() {
         .subcommand(SubCommand::with_name("populate-files")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("(Re)-populate default files in the repository (such as reducers)"))
+        .subcommand(SubCommand::with_name("path")
+            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+            .about("Prints the path to the repository"))
         .subcommand(SubCommand::with_name("rebuild")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Rebuild a repository")
@@ -299,6 +302,8 @@ fn main() {
 
         if let Some(_) = matches.subcommand_matches("populate-files") {
             repo.populate_default_files().expect("can't populate default files");
+        } else if let Some(_) = matches.subcommand_matches("path") {
+            println!("{}", repo.path().to_str().unwrap());
         } else if let Some(matches) = matches.subcommand_matches("issue") {
             let issue = (if matches.value_of("id").is_none() {
                 repo.new_issue()
