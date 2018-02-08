@@ -1,0 +1,40 @@
+From 4616140c71ae6687162c847300e98d1bafe54497 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 9 Feb 2018 01:25:21 +0700
+Subject: [PATCH] Problem: impossible to know where actual .sit repo is
+
+sit commands use it, but other scripts can't figure that
+out easily.
+
+Solution: expose `sit path` command that prints actual
+path to the repository
+---
+ sit/src/main.rs | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 1e50d15..80272d9 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -90,6 +90,9 @@ fn main() {
+         .subcommand(SubCommand::with_name("populate-files")
+             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+             .about("(Re)-populate default files in the repository (such as reducers)"))
++        .subcommand(SubCommand::with_name("path")
++            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
++            .about("Prints the path to the repository"))
+         .subcommand(SubCommand::with_name("rebuild")
+             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+             .about("Rebuild a repository")
+@@ -299,6 +302,8 @@ fn main() {
+ 
+         if let Some(_) = matches.subcommand_matches("populate-files") {
+             repo.populate_default_files().expect("can't populate default files");
++        } else if let Some(_) = matches.subcommand_matches("path") {
++            println!("{}", repo.path().to_str().unwrap());
+         } else if let Some(matches) = matches.subcommand_matches("issue") {
+             let issue = (if matches.value_of("id").is_none() {
+                 repo.new_issue()
+-- 
+2.15.0
+

@@ -1,0 +1,5 @@
+sit commands use it, but other scripts can't figure that
+out easily.
+
+Solution: expose `sit path` command that prints actual
+path to the repository
