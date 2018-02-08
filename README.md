@@ -157,7 +157,7 @@ specify them in `issues.filters` and `issues.queries` properties:
        "overview": "join(' | ', [id, summary])"
     },
     "filters": {
-       "not-closed": "state != 'closed!"
+       "not-closed": "state != 'closed'"
     }
  }
 } 
