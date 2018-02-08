@@ -1,0 +1,174 @@
+From c4b6c11fb86dc8c8163e2422cbe68f374a44c0eb Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 9 Feb 2018 01:00:54 +0700
+Subject: [PATCH] Problem: overriding summary/details doesn't affect reduced
+ message
+
+Solution: fix the order of arguments in `Object.assign()` in reducers
+
+The last argument wins:
+
+```
+> Object.assign({state: 1}, {state: 0});
+{ state: 0 }
+```
+---
+ .sit/.reducers/Commented.js                        | 2 +-
+ .sit/.reducers/DetailsChanges.js                   | 2 +-
+ .sit/.reducers/MergeRequested.js                   | 2 +-
+ .sit/.reducers/State.js                            | 6 +++---
+ .sit/.reducers/SummaryChanged.js                   | 2 +-
+ sit-core/default-files/.reducers/Commented.js      | 2 +-
+ sit-core/default-files/.reducers/DetailsChanges.js | 2 +-
+ sit-core/default-files/.reducers/MergeRequested.js | 2 +-
+ sit-core/default-files/.reducers/State.js          | 6 +++---
+ sit-core/default-files/.reducers/SummaryChanged.js | 2 +-
+ 10 files changed, 14 insertions(+), 14 deletions(-)
+
+diff --git a/.sit/.reducers/Commented.js b/.sit/.reducers/Commented.js
+index 7d26817..92d7a77 100644
+--- a/.sit/.reducers/Commented.js
++++ b/.sit/.reducers/Commented.js
+@@ -7,7 +7,7 @@ function(state, record) {
+             authors: decoder.decode(record.files[".authors"]),
+             timestamp: decoder.decode(record.files[".timestamp"])
+         });
+-        return Object.assign({comments: comments}, state);
++        return Object.assign(state, {comments: comments});
+     }
+     return state;
+ }
+\ No newline at end of file
+diff --git a/.sit/.reducers/DetailsChanges.js b/.sit/.reducers/DetailsChanges.js
+index 3605b2e..6bdcea2 100644
+--- a/.sit/.reducers/DetailsChanges.js
++++ b/.sit/.reducers/DetailsChanges.js
+@@ -1,6 +1,6 @@
+ function(state, record) {
+     if (typeof record.files[".type/DetailsChanged"] !== 'undefined') {
+-        return Object.assign({details: new TextDecoder("utf-8").decode(record.files.text).trim()}, state);
++        return Object.assign(state, {details: new TextDecoder("utf-8").decode(record.files.text).trim()});
+     } else {
+         return state;
+     }
+diff --git a/.sit/.reducers/MergeRequested.js b/.sit/.reducers/MergeRequested.js
+index e56a354..e61b1eb 100644
+--- a/.sit/.reducers/MergeRequested.js
++++ b/.sit/.reducers/MergeRequested.js
+@@ -2,7 +2,7 @@ function(state, record) {
+     if (typeof record.files[".type/MergeRequested"] !== 'undefined') {
+         var merge_requests = record.merge_requests || [];
+         merge_requests.push(record.hash);
+-        return Object.assign({merge_requests: merge_requests}, state);
++        return Object.assign(state, {merge_requests: merge_requests});
+     }
+     return state;
+ }
+\ No newline at end of file
+diff --git a/.sit/.reducers/State.js b/.sit/.reducers/State.js
+index 98a1777..547f8f0 100644
+--- a/.sit/.reducers/State.js
++++ b/.sit/.reducers/State.js
+@@ -4,11 +4,11 @@ function(state, record) {
+     }
+     if (typeof record.files[".type/Closed"] !== 'undefined') {
+         this.state = 'closed';
+-        return Object.assign({state: 'closed'}, state);
++        return Object.assign(state, {state: 'closed'});
+     }
+     if (typeof record.files[".type/Reopened"] !== 'undefined') {
+         this.state = 'open';
+-        return Object.assign({state: 'open'}, state);
++        return Object.assign(state, {state: 'open'});
+     }
+-    return Object.assign({state: this.state}, state);
++    return Object.assign(state, {state: this.state});
+ }
+\ No newline at end of file
+diff --git a/.sit/.reducers/SummaryChanged.js b/.sit/.reducers/SummaryChanged.js
+index cab77be..071afac 100644
+--- a/.sit/.reducers/SummaryChanged.js
++++ b/.sit/.reducers/SummaryChanged.js
+@@ -1,6 +1,6 @@
+ function(state, record) {
+     if (typeof record.files[".type/SummaryChanged"] !== 'undefined') {
+-        return Object.assign({summary: new TextDecoder("utf-8").decode(record.files.text).trim()}, state);
++        return Object.assign(state, {summary: new TextDecoder("utf-8").decode(record.files.text).trim()});
+     } else {
+         return state;
+     }
+diff --git a/sit-core/default-files/.reducers/Commented.js b/sit-core/default-files/.reducers/Commented.js
+index 7d26817..92d7a77 100644
+--- a/sit-core/default-files/.reducers/Commented.js
++++ b/sit-core/default-files/.reducers/Commented.js
+@@ -7,7 +7,7 @@ function(state, record) {
+             authors: decoder.decode(record.files[".authors"]),
+             timestamp: decoder.decode(record.files[".timestamp"])
+         });
+-        return Object.assign({comments: comments}, state);
++        return Object.assign(state, {comments: comments});
+     }
+     return state;
+ }
+\ No newline at end of file
+diff --git a/sit-core/default-files/.reducers/DetailsChanges.js b/sit-core/default-files/.reducers/DetailsChanges.js
+index 3605b2e..6bdcea2 100644
+--- a/sit-core/default-files/.reducers/DetailsChanges.js
++++ b/sit-core/default-files/.reducers/DetailsChanges.js
+@@ -1,6 +1,6 @@
+ function(state, record) {
+     if (typeof record.files[".type/DetailsChanged"] !== 'undefined') {
+-        return Object.assign({details: new TextDecoder("utf-8").decode(record.files.text).trim()}, state);
++        return Object.assign(state, {details: new TextDecoder("utf-8").decode(record.files.text).trim()});
+     } else {
+         return state;
+     }
+diff --git a/sit-core/default-files/.reducers/MergeRequested.js b/sit-core/default-files/.reducers/MergeRequested.js
+index e56a354..e61b1eb 100644
+--- a/sit-core/default-files/.reducers/MergeRequested.js
++++ b/sit-core/default-files/.reducers/MergeRequested.js
+@@ -2,7 +2,7 @@ function(state, record) {
+     if (typeof record.files[".type/MergeRequested"] !== 'undefined') {
+         var merge_requests = record.merge_requests || [];
+         merge_requests.push(record.hash);
+-        return Object.assign({merge_requests: merge_requests}, state);
++        return Object.assign(state, {merge_requests: merge_requests});
+     }
+     return state;
+ }
+\ No newline at end of file
+diff --git a/sit-core/default-files/.reducers/State.js b/sit-core/default-files/.reducers/State.js
+index 98a1777..547f8f0 100644
+--- a/sit-core/default-files/.reducers/State.js
++++ b/sit-core/default-files/.reducers/State.js
+@@ -4,11 +4,11 @@ function(state, record) {
+     }
+     if (typeof record.files[".type/Closed"] !== 'undefined') {
+         this.state = 'closed';
+-        return Object.assign({state: 'closed'}, state);
++        return Object.assign(state, {state: 'closed'});
+     }
+     if (typeof record.files[".type/Reopened"] !== 'undefined') {
+         this.state = 'open';
+-        return Object.assign({state: 'open'}, state);
++        return Object.assign(state, {state: 'open'});
+     }
+-    return Object.assign({state: this.state}, state);
++    return Object.assign(state, {state: this.state});
+ }
+\ No newline at end of file
+diff --git a/sit-core/default-files/.reducers/SummaryChanged.js b/sit-core/default-files/.reducers/SummaryChanged.js
+index cab77be..071afac 100644
+--- a/sit-core/default-files/.reducers/SummaryChanged.js
++++ b/sit-core/default-files/.reducers/SummaryChanged.js
+@@ -1,6 +1,6 @@
+ function(state, record) {
+     if (typeof record.files[".type/SummaryChanged"] !== 'undefined') {
+-        return Object.assign({summary: new TextDecoder("utf-8").decode(record.files.text).trim()}, state);
++        return Object.assign(state, {summary: new TextDecoder("utf-8").decode(record.files.text).trim()});
+     } else {
+         return state;
+     }
+-- 
+2.15.0
+

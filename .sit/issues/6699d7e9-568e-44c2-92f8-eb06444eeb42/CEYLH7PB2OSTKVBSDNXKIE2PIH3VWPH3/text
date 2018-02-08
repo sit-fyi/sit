@@ -1,0 +1,8 @@
+Solution: fix the order of arguments in `Object.assign()` in reducers
+
+The last argument wins:
+
+```
+> Object.assign({state: 1}, {state: 0});
+{ state: 0 }
+```
