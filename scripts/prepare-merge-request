@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+branch=$1
+tmpdir="$(mktemp -d)"
+curdir=$(pwd)
+editor=${EDITOR:nano}
+range=$(git merge-base --fork-point master $branch)..$branch
+curbranch=$(git rev-parse --abbrev-ref HEAD)
+sit=$(which sit)
+
+if [ -z ${branch} ]; then
+        echo "Usage: prepare-merge-request <branch>"
+        exit 1
+fi
+
+if [ -z ${sit} ]; then
+        echo "sit not found"
+        exit 1
+fi
+
+git format-patch "${range}"  -o "${tmpdir}/git" || exit 2
+git log --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/text" || exit 2
+$editor "${tmpdir}/text" || exit 2
+
+issue=$(${sit} issue)
+
+git checkout -b ${issue} || exit 2
+
+pushd $(pwd) >/dev/null
+cd "${tmpdir}"
+
+tail -n +3 text > details
+head -n 1 text > text1
+mv text1 text
+${sit} -d ${curdir} record -t SummaryChanged ${issue} text || exit 2
+
+mv -f details text
+${sit} -d ${curdir} record -t DetailsChanged,MergeRequested ${issue} text git/*.patch || exit 2
+
+popd >/dev/null
+
+rm -rf "${tmpdir}"
+
+git add .sit/issues/${issue} || exit 2
+git commit -m "Added merge request ${issue}" || exit 2
+git checkout ${curbranch} || exit 2
+
+echo You can push the merge request:
+echo
+echo git push git@git.sit-it.org:sit-it/sit-inbox.git ${issue}
