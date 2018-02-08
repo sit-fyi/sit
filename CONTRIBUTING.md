@@ -68,3 +68,9 @@ Once you have a branch (BRANCH) with your patch ready:
 
 Alternatively, if the problem was already stated in some issue, it also makes sense to add
 a merge request directly to that issue (ID1): `sit record -t MergeRequested,Commented ID1 text git/*.patch` and follow sending instructions in Step 5.
+
+**OR**
+
+(at your risk, as it is not well tested yet) you can use
+`./scripts/prepare-merge-request <branch>` script and follow its instructions
+at the end.

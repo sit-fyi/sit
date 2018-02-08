@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+issue=$1
+mr=$2
+tmpdir="$(mktemp -d)"
+curdir=$(pwd)
+editor=${EDITOR:nano}
+range=$(git merge-base --fork-point master $branch)..$branch
+curbranch=$(git rev-parse --abbrev-ref HEAD)
+sit=$(which sit)
+
+if [ -z ${issue} ]; then
+        echo "Usage: merge-merge-request <issue> <mr>"
+        exit 1
+fi
+
+if [ -z ${mr} ]; then
+        echo "Usage: merge-merge-request <issue> <mr>"
+        exit 1
+fi
+
+if [ -z ${sit} ]; then
+        echo "sit not found"
+        exit 1
+fi
+
+repo=$(${sit} path)
+
+git checkout -b merge-${issue}-${mr} || exit 2
+
+git am $(ls ${repo}/issues/${issue}/${mr}/git/*.patch) || exit 2
+
+
+pushd $(pwd) >/dev/null
+cd "${tmpdir}"
+
+echo "Merged ${mr}" > text
+${sit} -d ${curdir} record -t Commented,Closed ${issue} text || exit 2
+
+popd >/dev/null
+
+rm -rf "${tmpdir}"
+
+git add .sit/issues/${issue} || exit 2
+git commit -m "Closed merge request ${issue}/${mr}" || exit 2
+git checkout ${curbranch} || exit 2
+git merge --no-ff merge-${issue}-${mr}
+
+echo You can push to upstream now
