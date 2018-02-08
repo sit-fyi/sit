@@ -130,11 +130,7 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
                 let mut buf = vec![];
                 let sz = reader.read_to_end(&mut buf).unwrap();
                 let ptr = duktape::duk_push_buffer_raw(ctx,sz, 0);
-                let mut counter = 0;
-                for byte in buf {
-                    ptr::write(ptr.offset(counter) as *mut u8, byte);
-                    counter += 1;
-                }
+                ptr::copy_nonoverlapping(buf.as_ptr(), ptr.offset(0) as *mut _, sz);
                 // }
                 duktape::duk_put_prop_string(ctx, -2, filename.as_ptr());
             }
