@@ -1,0 +1,86 @@
+From 9f41044099b92e54e6163f9c1550276944012979 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 8 Feb 2018 21:44:49 +0700
+Subject: [PATCH] Problem: dead commented code
+
+I know, it is embarrasing, but I just discovered
+that I forgot a piece of commented code near
+duktape bindings.
+
+(facepalm)
+
+Solution: Remove it
+---
+ sit-core/src/duktape/mod.rs | 57 ---------------------------------------------
+ 1 file changed, 57 deletions(-)
+
+diff --git a/sit-core/src/duktape/mod.rs b/sit-core/src/duktape/mod.rs
+index 5aa2c8b..4751722 100644
+--- a/sit-core/src/duktape/mod.rs
++++ b/sit-core/src/duktape/mod.rs
+@@ -1,61 +1,4 @@
+-
+ #[allow(non_camel_case_types, non_snake_case)]
+ pub mod bindings;
+ 
+ pub use self::bindings::*;
+-
+-/*
+-use std::ffi::CString;
+-use std::ptr;
+-
+-pub struct Context(*mut bindings::duk_context);
+-
+-impl Context {
+-    pub fn new() -> Context {
+-        let context = unsafe {
+-            bindings::duk_create_heap(None, None, None, ptr::null_mut(), None)
+-        };
+-        Context(context)
+-    }
+-
+-    pub fn compile_fn<S: AsRef<str>>(&self, code: S) -> Result<Compiled, ()> {
+-        let cstring = CString::new(code.as_ref());
+-        unsafe {
+-            bindings::duk_compile_raw(self.0,
+-                                      cstring.as_ptr(),
+-                                      code.as_ref().as_bytes().len(),
+-                                      bindings::DUK_COMPILE_NOFILENAME |
+-                                          bindings::DUK_COMPILE_FUNCTION |
+-                                          bindings::DUK_COMPILE_STRLEN);
+-            bindings::duk_get_f
+-        }
+-
+-
+-        )
+-    }
+-
+-}
+-
+-pub struct Compiled;
+-
+-impl Drop for Context {
+-
+-    fn drop(&mut self) {
+-        unsafe {
+-            bindings::duk_destroy_heap(self.0)
+-        }
+-    }
+-}
+-
+-#[cfg(tests)]
+-mod tests {
+-
+-    use super::*;
+-
+-    #[test]
+-    fn test() {
+-        let ctx = Context::new();
+-        ctx.compile_fn("function (x) { return x + 1; }")
+-    }
+-}
+-*/
+\ No newline at end of file
+-- 
+2.15.0
+

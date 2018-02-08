@@ -1,0 +1,7 @@
+I know, it is embarrasing, but I just discovered
+that I forgot a piece of commented code near
+duktape bindings.
+
+(facepalm)
+
+Solution: Remove it
