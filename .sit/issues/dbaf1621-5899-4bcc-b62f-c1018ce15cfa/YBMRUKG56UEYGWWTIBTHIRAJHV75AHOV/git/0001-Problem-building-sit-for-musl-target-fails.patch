@@ -1,0 +1,55 @@
+From 61fb5ecc15cffda0f5fc92bb466535feb5d2aa58 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 9 Feb 2018 00:11:04 +0700
+Subject: [PATCH] Problem: building sit for musl target fails
+
+The error looks like this (during linking):
+
+```
+         /nix/store/j4q18y05wpnjin423wf69nfb7r7q0ml9-glibc-2.25-123-dev/include/bits/stdio2.h:77: undefined reference to `__vsnprintf_chk'
+          /home/yrashk/Projects/sit-it/sit/target/x86_64-unknown-linux-musl/debug/deps/libsit_core-6b14b7f23da57fac.rlib(duktape.o): In function `memcpy':
+          /nix/store/j4q18y05wpnjin423wf69nfb7r7q0ml9-glibc-2.25-123-dev/include/bits/string3.h:53: undefined reference to `__memcpy_chk'
+          /home/yrashk/Projects/sit-it/sit/target/x86_64-unknown-linux-musl/debug/deps/libsit_core-6b14b7f23da57fac.rlib(duktape.o): In function `memset':
+          /nix/store/j4q18y05wpnjin423wf69nfb7r7q0ml9-glibc-2.25-123-dev/include/bits/string3.h:90: undefined reference to `__memset_chk'
+          /home/yrashk/Projects/sit-it/sit/target/x86_64-unknown-linux-musl/debug/deps/libsit_core-6b14b7f23da57fac.rlib(duktape.o): In function `vsnprintf':
+          /nix/store/j4q18y05wpnjin423wf69nfb7r7q0ml9-glibc-2.25-123-dev/include/bits/stdio2.h:77: undefined reference to `__vsnprintf_chk'
+          /home/yrashk/Projects/sit-it/sit/target/x86_64-unknown-linux-musl/debug/deps/libsit_core-6b14b7f23da57fac.rlib(duktape.o): In function `duk_err_longjmp':
+          /home/yrashk/Projects/sit-it/sit/sit-core/duk_error_longjmp.c:102: undefined reference to `__longjmp_chk'
+```
+
+This is because Nixpkgs's gcc was always adding -D_FORTIFY_SOURCE which
+enables these `*_chk` functions to replace their counterparts. However,
+they are not available on musl.
+
+Solution: disable -D_FORTIFY_SOURCE in duktape.c if glibc is not
+detected
+
+This is not done as a compile flag because in cases like Nixpkgs the
+fortification flag is always added at the end, overriding whatever
+might have been passed in build.rs.
+
+This perhaps should be extracted as a patch to duktape (it kind of
+makes sense, I suppose?)
+---
+ sit-core/src/duktape/duktape.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/sit-core/src/duktape/duktape.h b/sit-core/src/duktape/duktape.h
+index 848b1ee..5de4eec 100644
+--- a/sit-core/src/duktape/duktape.h
++++ b/sit-core/src/duktape/duktape.h
+@@ -144,6 +144,11 @@
+  *  BEGIN PUBLIC API
+  */
+ 
++// Local sit-core patch for enabling compiling on musl
++#ifndef __GLIBC__
++#undef _FORTIFY_SOURCE
++#endif
++
+ /*
+  *  Version and Git commit identification
+  */
+-- 
+2.15.0
+
