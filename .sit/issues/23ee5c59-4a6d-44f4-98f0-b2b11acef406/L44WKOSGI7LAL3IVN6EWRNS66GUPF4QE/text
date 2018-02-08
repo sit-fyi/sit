@@ -1,0 +1,6 @@
+Problem: found a typo in the README
+
+There's a problem with the issues config.json example. There's a typo
+in it. If you copy and paste it from the README it doesn't work.
+
+Soluton: Add 1 character to fix it :)
