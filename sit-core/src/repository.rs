@@ -77,6 +77,32 @@ pub enum Error {
     BaseDecodeError(::data_encoding::DecodeError),
 }
 
+#[allow(unused_variables,dead_code)]
+mod default_files {
+    include!(concat!(env!("OUT_DIR"), "/default_files.rs"));
+
+    use std::path::PathBuf;
+    use std::collections::HashMap;
+
+    lazy_static! {
+      pub static ref ASSETS: HashMap<PathBuf, File> = {
+         let mut map = HashMap::new();
+         let prefix = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default-files");
+         for entry in FILES.walk() {
+            match entry {
+               DirEntry::File(f) => {
+                  let path = PathBuf::from(f.path().strip_prefix(&prefix).unwrap());
+                  map.insert(path.clone(), f.clone());
+               },
+               _ => (),
+            }
+         }
+         map
+       };
+    }
+
+}
+
 impl Repository {
 
     /// Attempts creating a new repository. Fails with `Error::AlreadyExists`
@@ -165,6 +191,18 @@ impl Repository {
         fs::create_dir_all(&self.path)?;
         let file = fs::File::create(&self.config_path)?;
         serde_json::to_writer_pretty(file, &self.config)?;
+        Ok(())
+    }
+
+    /// Populates repository with default files
+    pub fn populate_default_files(&self) -> Result<(), Error> {
+        for (name, file) in default_files::ASSETS.iter() {
+            let mut dir = self.path.join(name);
+            dir.pop();
+            fs::create_dir_all(dir)?;
+            let mut f = fs::File::create(self.path.join(name))?;
+            f.write(file.contents)?;
+        }
         Ok(())
     }
 

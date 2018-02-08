@@ -16,8 +16,8 @@ pub trait Reducer: Sized {
     }
 }
 
-pub mod core;
-pub use self::core::BasicIssueReducer;
+#[cfg(feature = "duktape-reducers")]
+pub mod duktape;
 
 /// Chained reducer (consists of two reducers)
 ///

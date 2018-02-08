@@ -18,6 +18,7 @@ pub extern crate serde_json;
 extern crate tempdir;
 extern crate glob;
 extern crate data_encoding;
+#[macro_use] extern crate lazy_static;
 
 // Hashing
 extern crate digest;
@@ -41,3 +42,5 @@ pub use record::Record;
 pub use repository::{Repository, Error as RepositoryError};
 pub mod reducers;
 pub use reducers::Reducer;
+#[cfg(feature = "duktape")]
+pub mod duktape;
