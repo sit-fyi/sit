@@ -144,6 +144,11 @@
  *  BEGIN PUBLIC API
  */
 
+// Local sit-core patch for enabling compiling on musl
+#ifndef __GLIBC__
+#undef _FORTIFY_SOURCE
+#endif
+
 /*
  *  Version and Git commit identification
  */
