@@ -1,0 +1,150 @@
+From 051667090fda018a20fb33f0539032c279f4dddd Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 9 Feb 2018 01:43:44 +0700
+Subject: [PATCH] Problem: doing merge requests and merging them manually is
+ hard
+
+It's a lot of work and just about anything can go wrong.
+
+Solution: add contributor and maintainer scripts (scripts/)
+
+These scripts will help preparing and merging a merge request.
+
+These are not well tested yet, but they are important enough to
+get out so that they can be improved.
+---
+ CONTRIBUTING.md               |  6 ++++++
+ scripts/merge-merge-request   | 49 ++++++++++++++++++++++++++++++++++++++++++
+ scripts/prepare-merge-request | 50 +++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 105 insertions(+)
+ create mode 100755 scripts/merge-merge-request
+ create mode 100755 scripts/prepare-merge-request
+
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index a7feee4..bd4ff7f 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -68,3 +68,9 @@ Once you have a branch (BRANCH) with your patch ready:
+ 
+ Alternatively, if the problem was already stated in some issue, it also makes sense to add
+ a merge request directly to that issue (ID1): `sit record -t MergeRequested,Commented ID1 text git/*.patch` and follow sending instructions in Step 5.
++
++**OR**
++
++(at your risk, as it is not well tested yet) you can use
++`./scripts/prepare-merge-request <branch>` script and follow its instructions
++at the end.
+diff --git a/scripts/merge-merge-request b/scripts/merge-merge-request
+new file mode 100755
+index 0000000..d7d94b4
+--- /dev/null
++++ b/scripts/merge-merge-request
+@@ -0,0 +1,49 @@
++#!/usr/bin/env bash
++
++issue=$1
++mr=$2
++tmpdir="$(mktemp -d)"
++curdir=$(pwd)
++editor=${EDITOR:nano}
++range=$(git merge-base --fork-point master $branch)..$branch
++curbranch=$(git rev-parse --abbrev-ref HEAD)
++sit=$(which sit)
++
++if [ -z ${issue} ]; then
++        echo "Usage: merge-merge-request <issue> <mr>"
++        exit 1
++fi
++
++if [ -z ${mr} ]; then
++        echo "Usage: merge-merge-request <issue> <mr>"
++        exit 1
++fi
++
++if [ -z ${sit} ]; then
++        echo "sit not found"
++        exit 1
++fi
++
++repo=$(${sit} path)
++
++git checkout -b merge-${issue}-${mr} || exit 2
++
++git am $(ls ${repo}/issues/${issue}/${mr}/git/*.patch) || exit 2
++
++
++pushd $(pwd) >/dev/null
++cd "${tmpdir}"
++
++echo "Merged ${mr}" > text
++${sit} -d ${curdir} record -t Commented,Closed ${issue} text || exit 2
++
++popd >/dev/null
++
++rm -rf "${tmpdir}"
++
++git add .sit/issues/${issue} || exit 2
++git commit -m "Closed merge request ${issue}/${mr}" || exit 2
++git checkout ${curbranch} || exit 2
++git merge --no-ff merge-${issue}-${mr}
++
++echo You can push to upstream now
+diff --git a/scripts/prepare-merge-request b/scripts/prepare-merge-request
+new file mode 100755
+index 0000000..ea63282
+--- /dev/null
++++ b/scripts/prepare-merge-request
+@@ -0,0 +1,50 @@
++#!/usr/bin/env bash
++
++branch=$1
++tmpdir="$(mktemp -d)"
++curdir=$(pwd)
++editor=${EDITOR:nano}
++range=$(git merge-base --fork-point master $branch)..$branch
++curbranch=$(git rev-parse --abbrev-ref HEAD)
++sit=$(which sit)
++
++if [ -z ${branch} ]; then
++        echo "Usage: prepare-merge-request <branch>"
++        exit 1
++fi
++
++if [ -z ${sit} ]; then
++        echo "sit not found"
++        exit 1
++fi
++
++git format-patch "${range}"  -o "${tmpdir}/git" || exit 2
++git log --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/text" || exit 2
++$editor "${tmpdir}/text" || exit 2
++
++issue=$(${sit} issue)
++
++git checkout -b ${issue} || exit 2
++
++pushd $(pwd) >/dev/null
++cd "${tmpdir}"
++
++tail -n +3 text > details
++head -n 1 text > text1
++mv text1 text
++${sit} -d ${curdir} record -t SummaryChanged ${issue} text || exit 2
++
++mv -f details text
++${sit} -d ${curdir} record -t DetailsChanged,MergeRequested ${issue} text git/*.patch || exit 2
++
++popd >/dev/null
++
++rm -rf "${tmpdir}"
++
++git add .sit/issues/${issue} || exit 2
++git commit -m "Added merge request ${issue}" || exit 2
++git checkout ${curbranch} || exit 2
++
++echo You can push the merge request:
++echo
++echo git push git@git.sit-it.org:sit-it/sit-inbox.git ${issue}
+-- 
+2.15.0
+

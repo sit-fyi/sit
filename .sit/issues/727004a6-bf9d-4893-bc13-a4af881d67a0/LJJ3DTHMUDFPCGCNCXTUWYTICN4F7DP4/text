@@ -1,0 +1,8 @@
+It's a lot of work and just about anything can go wrong.
+
+Solution: add contributor and maintainer scripts (scripts/)
+
+These scripts will help preparing and merging a merge request.
+
+These are not well tested yet, but they are important enough to
+get out so that they can be improved.
