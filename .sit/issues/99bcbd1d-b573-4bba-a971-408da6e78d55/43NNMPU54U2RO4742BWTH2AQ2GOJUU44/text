@@ -1,0 +1,1 @@
+Problem: copying files into buffers for Duktape reducers is slow
