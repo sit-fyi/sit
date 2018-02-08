@@ -1,0 +1,33 @@
+From 025e734af5966bea1dd1aff072f624a31a8c158e Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 8 Feb 2018 22:03:59 +0700
+Subject: [PATCH] Problem: copying files into buffers for Duktape reducers is
+ slow
+
+This is because we're copying byte by byte
+
+Soluton: use std::ptr::copy_nonoverlapping instead
+---
+ sit-core/src/reducers/duktape.rs | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index 48e9f77..b8d214d 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -130,11 +130,7 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+                 let mut buf = vec![];
+                 let sz = reader.read_to_end(&mut buf).unwrap();
+                 let ptr = duktape::duk_push_buffer_raw(ctx,sz, 0);
+-                let mut counter = 0;
+-                for byte in buf {
+-                    ptr::write(ptr.offset(counter) as *mut u8, byte);
+-                    counter += 1;
+-                }
++                ptr::copy_nonoverlapping(buf.as_ptr(), ptr.offset(0) as *mut _, sz);
+                 // }
+                 duktape::duk_put_prop_string(ctx, -2, filename.as_ptr());
+             }
+-- 
+2.15.0
+
