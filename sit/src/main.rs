@@ -366,9 +366,10 @@ fn main() {
                                     exit(1);
                                 }
                                 let abs_name = fs::canonicalize(path).expect("can't canonicalize path");
-                                match abs_name.strip_prefix(&canonical_working_dir) {
+                                let cur_dir = fs::canonicalize(env::current_dir().expect("can't get current directory")).expect("can't canonicalize current directory");
+                                match abs_name.strip_prefix(&cur_dir) {
                                     Err(_) => {
-                                        eprintln!("Path {} is not relative to {} working directory", name, canonical_working_dir.to_str().unwrap());
+                                        eprintln!("Path {} is not relative to {} current directory", name, cur_dir.to_str().unwrap());
                                         exit(1);
                                     },
                                     Ok(path) => String::from(path.to_str().unwrap()),
