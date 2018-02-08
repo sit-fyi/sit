@@ -4,11 +4,11 @@ function(state, record) {
     }
     if (typeof record.files[".type/Closed"] !== 'undefined') {
         this.state = 'closed';
-        return Object.assign({state: 'closed'}, state);
+        return Object.assign(state, {state: 'closed'});
     }
     if (typeof record.files[".type/Reopened"] !== 'undefined') {
         this.state = 'open';
-        return Object.assign({state: 'open'}, state);
+        return Object.assign(state, {state: 'open'});
     }
-    return Object.assign({state: this.state}, state);
+    return Object.assign(state, {state: this.state});
 }

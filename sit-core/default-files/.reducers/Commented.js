@@ -7,7 +7,7 @@ function(state, record) {
             authors: decoder.decode(record.files[".authors"]),
             timestamp: decoder.decode(record.files[".timestamp"])
         });
-        return Object.assign({comments: comments}, state);
+        return Object.assign(state, {comments: comments});
     }
     return state;
 }
