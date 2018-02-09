@@ -20,6 +20,7 @@ lazy_static = "1.0"
 blake2 = { version = "0.7", optional = true }
 sha-1 = { version = "0.7", optional = true }
 uuid = { version = "0.5", features = ["v4"], optional = true }
+memmap = { version = "0.6", optional = true}
 
 [dev-dependencies]
 assert_matches = "1.1"
@@ -29,6 +30,7 @@ cc = "1.0"
 include_dir = { git = "https://github.com/yrashk/include_dir", branch="include_files_backslashes", version = "0.1" }
 
 [features]
-default = ["blake2", "sha-1", "uuid", "duktape-reducers"]
+default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap"]
 duktape-reducers = ["duktape"]
 duktape = []
+duktape-mmap = ["memmap"]
