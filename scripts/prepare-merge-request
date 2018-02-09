@@ -24,7 +24,7 @@ $editor "${tmpdir}/text" || exit 2
 
 issue=$(${sit} issue)
 
-git checkout -b ${issue} || exit 2
+git checkout -b ${issue} master || exit 2
 
 pushd $(pwd) >/dev/null
 cd "${tmpdir}"
