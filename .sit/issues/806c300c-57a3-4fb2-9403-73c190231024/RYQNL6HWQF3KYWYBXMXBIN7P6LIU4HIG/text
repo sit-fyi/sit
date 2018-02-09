@@ -1,0 +1,11 @@
+Firstly, DuktapeReducer is always consumed by
+`IssueReduction.reduce_with_reducer` so there's no
+chance of re-using it.
+
+Secondly, even if it wasn't, it carries state produced
+by individual reducers that should not be carried over
+to other (or updated) issues.
+
+Solution: Allow resetting DuktapeReducer's cumulative state
+and make `IssueReduction.reduce_with_reducer` take a reference
+to a reducer instead of consuming it.

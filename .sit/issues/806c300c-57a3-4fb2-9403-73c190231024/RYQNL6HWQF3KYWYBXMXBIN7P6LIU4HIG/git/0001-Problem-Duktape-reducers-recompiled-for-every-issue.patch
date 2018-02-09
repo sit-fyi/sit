@@ -1,0 +1,190 @@
+From b09ab3c2e25f6d49107e50d195ba8273b1f2b4a8 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 9 Feb 2018 22:13:29 +0700
+Subject: [PATCH] Problem: Duktape reducers recompiled for every issue
+
+Firstly, DuktapeReducer is always consumed by
+`IssueReduction.reduce_with_reducer` so there's no
+chance of re-using it.
+
+Secondly, even if it wasn't, it carries state produced
+by individual reducers that should not be carried over
+to other (or updated) issues.
+
+Solution: Allow resetting DuktapeReducer's cumulative state
+and make `IssueReduction.reduce_with_reducer` take a reference
+to a reducer instead of consuming it.
+---
+ sit-core/src/issue.rs            |  2 +-
+ sit-core/src/reducers/duktape.rs | 68 +++++++++++++++++++++++++++++++++++++---
+ sit/src/main.rs                  |  7 +++--
+ 3 files changed, 68 insertions(+), 9 deletions(-)
+
+diff --git a/sit-core/src/issue.rs b/sit-core/src/issue.rs
+index dd57b1f..26835d1 100644
+--- a/sit-core/src/issue.rs
++++ b/sit-core/src/issue.rs
+@@ -49,7 +49,7 @@ pub trait IssueReduction: Issue {
+     /// Will insert issue's `id` into the initial state
+     ///
+     /// [`Reducer`]: ../reducers/trait.Reducer.html
+-    fn reduce_with_reducer<R: Reducer<State=Map<String, Value>, Item=Self::Record>>(&self, reducer: R) -> Result<Map<String, Value>, ReductionError<Self::Error>> {
++    fn reduce_with_reducer<R: Reducer<State=Map<String, Value>, Item=Self::Record>>(&self, reducer: &R) -> Result<Map<String, Value>, ReductionError<Self::Error>> {
+         let records = self.record_iter()?;
+         let mut state: Map<String, Value> = Default::default();
+         state.insert("id".into(), Value::String(self.id().into()));
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index 8b96c9c..10be811 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -102,6 +102,21 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+             phantom_data: PhantomData,
+         })
+     }
++
++    /// Resets every reducer's state back to an empty object
++    ///
++    /// Very useful for re-using the same set of reducers for
++    /// multiple issues, helps avoiding re-reading and re-compiling
++    /// reducer functions every time.
++    pub fn reset_state(&self) {
++        for i in 0..self.reducers {
++            unsafe {
++                duktape::duk_push_object(self.context);
++                duktape::duk_swap_top(self.context,(i * 2 + 1) as i32);
++                duktape::duk_pop(self.context);
++            }
++        }
++    }
+ }
+ 
+ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+@@ -253,7 +268,7 @@ mod tests {
+ 
+         let issue = repo.new_issue().unwrap();
+         let record = issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+-        let state = issue.reduce_with_reducer(DuktapeReducer::new(&repo).unwrap()).unwrap();
++        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+ 
+         assert_eq!(state.get("hello").unwrap(), &JsonValue::String(record.encoded_hash()));
+     }
+@@ -272,7 +287,7 @@ mod tests {
+ 
+         let issue = repo.new_issue().unwrap();
+         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+-        let state = issue.reduce_with_reducer(DuktapeReducer::new(&repo).unwrap()).unwrap();
++        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+ 
+         assert_eq!(state.get("hello").unwrap(), &JsonValue::String("Title".into()));
+     }
+@@ -303,7 +318,7 @@ mod tests {
+         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+ 
+-        let state = issue.reduce_with_reducer(DuktapeReducer::new(&repo).unwrap()).unwrap();
++        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+ 
+         use serde_json::Number;
+         assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(3)));
+@@ -324,7 +339,7 @@ mod tests {
+ 
+         let issue = repo.new_issue().unwrap();
+         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+-        let state = issue.reduce_with_reducer(DuktapeReducer::new(&repo).unwrap()).unwrap();
++        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+ 
+         use serde_json::Number;
+         assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(1)));
+@@ -369,7 +384,7 @@ mod tests {
+ 
+                 let issue = repo.new_issue().unwrap();
+         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+-        let state = issue.reduce_with_reducer(DuktapeReducer::new(&repo).unwrap()).unwrap();
++        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+ 
+         assert!(state.get("errors").is_some());
+         let errors = state.get("errors").unwrap().as_array().unwrap();
+@@ -377,4 +392,47 @@ mod tests {
+         assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(repo.path().join(".reducers").join("reducer.js").to_str().unwrap().into()));
+     }
+ 
++    #[test]
++    fn resetting_state() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        f.write(b"function() {\
++         if (this.counter == undefined) { \
++           this.counter = 1;   \
++         } else { \
++           this.counter++;
++         } \
++         return {\"hello\": this.counter}; \
++         }").unwrap();
++
++        let issue = repo.new_issue().unwrap();
++
++        // create two records
++        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
++        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
++        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
++
++        let reducer = DuktapeReducer::new(&repo).unwrap();
++
++        use serde_json::Number;
++
++        let state = issue.reduce_with_reducer(&reducer).unwrap();
++        assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(3)));
++
++        // run it again without touching the state
++        let state = issue.reduce_with_reducer(&reducer).unwrap();
++        assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(6)));
++
++        // now, reset state
++        reducer.reset_state();
++
++        let state = issue.reduce_with_reducer(&reducer).unwrap();
++        assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(3)));
++    }
++
+ }
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 514ee99..a6d030c 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -330,9 +330,9 @@ fn main() {
+             let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
+             let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+ 
++            let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+             for issue in issues {
+-                let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+-                let result = issue.reduce_with_reducer(reducer).expect("can't reduce issue");
++                let result = issue.reduce_with_reducer(&reducer).expect("can't reduce issue");
+                 let json = sit_core::serde_json::to_string(&result).unwrap();
+                 let data = jmespath::Variable::from_json(&json).unwrap();
+                 let result = filter.search(&data).unwrap();
+@@ -344,6 +344,7 @@ fn main() {
+                         println!("{}", serde_json::to_string_pretty(&view).unwrap());
+                     }
+                 }
++                reducer.reset_state();
+             }
+         }
+ 
+@@ -589,7 +590,7 @@ fn main() {
+                     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+ 
+                     let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+-                    let result = issue.reduce_with_reducer(reducer).expect("can't reduce issue");
++                    let result = issue.reduce_with_reducer(&reducer).expect("can't reduce issue");
+                     let json = sit_core::serde_json::to_string(&result).unwrap();
+                     let data = jmespath::Variable::from_json(&json).unwrap();
+                     let view = query.search(&data).unwrap();
+-- 
+2.15.0
+
