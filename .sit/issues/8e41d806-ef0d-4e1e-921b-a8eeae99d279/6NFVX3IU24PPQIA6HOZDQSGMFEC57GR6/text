@@ -1,0 +1,17 @@
+Keeps failing "couldn't read e:\...\...\" errors
+
+Solution: use a fork of include_dir
+
+The problem was there because backslashes are not escaped
+properly in upstream include_dir.
+
+The fork uses raw strings and therefore prevents the issue.
+
+Problem: test fails on Windows
+
+This is because creating path in it uses a hard-coded forward slash.
+
+Solution: use platform-indepenent `Path#join()`
+instead to avoid the issue altogether.
+
+

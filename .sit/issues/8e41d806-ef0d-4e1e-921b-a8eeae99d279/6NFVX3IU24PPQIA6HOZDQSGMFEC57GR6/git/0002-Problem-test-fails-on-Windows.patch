@@ -1,0 +1,38 @@
+From 3792c25e8194558b412e74056b74f94e32441d2d Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 9 Feb 2018 08:29:42 +0700
+Subject: [PATCH 2/2] Problem: test fails on Windows
+
+This is because creating path in it uses a hard-coded forward slash.
+
+Solution: use platform-indepenent `Path#join()`
+instead to avoid the issue altogether.
+---
+ sit-core/src/reducers/duktape.rs | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index b8d214d..871684a 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -332,7 +332,7 @@ mod tests {
+         use std::fs;
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        let mut f = fs::File::create(repo.path().join(".reducers").join("reducer.js")).unwrap();
+         f.write(b"function(state) { return Object.assign({\"hello\": record.a}, state); }").unwrap();
+ 
+                 let issue = repo.new_issue().unwrap();
+@@ -342,7 +342,7 @@ mod tests {
+         assert!(state.get("errors").is_some());
+         let errors = state.get("errors").unwrap().as_array().unwrap();
+         assert_eq!(errors[0].as_object().unwrap().get("error").unwrap(), &JsonValue::String("ReferenceError: identifier \'record\' undefined".into()));
+-        assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(format!("{}/.reducers/reducer.js", repo.path().to_str().unwrap())));
++        assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(repo.path().join(".reducers").join("reducer.js").to_str().unwrap().into()));
+     }
+ 
+ }
+-- 
+2.15.0
+
