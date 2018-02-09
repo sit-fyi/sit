@@ -19,7 +19,7 @@ if [ -z ${sit} ]; then
 fi
 
 git format-patch "${range}"  -o "${tmpdir}/git" || exit 2
-git log --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/text" || exit 2
+git log --reverse --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/text" || exit 2
 $editor "${tmpdir}/text" || exit 2
 
 issue=$(${sit} issue)
