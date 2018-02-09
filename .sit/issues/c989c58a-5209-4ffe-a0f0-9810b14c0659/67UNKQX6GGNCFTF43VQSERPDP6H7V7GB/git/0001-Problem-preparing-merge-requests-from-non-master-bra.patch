@@ -1,0 +1,32 @@
+From b67c1b0a382c3ef991fbe016c685c46a2cc1180f Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 9 Feb 2018 10:42:07 +0700
+Subject: [PATCH] Problem: preparing merge requests from non-master branch
+
+If script/prepare-merge-request is called not from master,
+the issue branch will created off the current branch, which
+might include other things that can't (and shouldn't) be included
+and will be ultimately rejected by the inbox hook.
+
+Solution: always branch off master. Keep your master up to date, too
+(but I didn't want to fetch it without user's permission)
+---
+ scripts/prepare-merge-request | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/prepare-merge-request b/scripts/prepare-merge-request
+index c2119bf..b8d148d 100755
+--- a/scripts/prepare-merge-request
++++ b/scripts/prepare-merge-request
+@@ -24,7 +24,7 @@ $editor "${tmpdir}/text" || exit 2
+ 
+ issue=$(${sit} issue)
+ 
+-git checkout -b ${issue} || exit 2
++git checkout -b ${issue} master || exit 2
+ 
+ pushd $(pwd) >/dev/null
+ cd "${tmpdir}"
+-- 
+2.15.0
+

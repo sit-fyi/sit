@@ -1,0 +1,7 @@
+If script/prepare-merge-request is called not from master,
+the issue branch will created off the current branch, which
+might include other things that can't (and shouldn't) be included
+and will be ultimately rejected by the inbox hook.
+
+Solution: always branch off master. Keep your master up to date, too
+(but I didn't want to fetch it without user's permission)
