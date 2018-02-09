@@ -1,0 +1,34 @@
+From 5488a81a021ad150c40902b538a580987df7494d Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 9 Feb 2018 08:34:27 +0700
+Subject: [PATCH] Problem: preparing multi-commit merge requests
+
+When using scripts/prepare-merge-request on branches
+that have more than one commit, the pre-defined issue
+details will dump git log in a descending order (last
+commit first). This order makes a lot of sense
+when viewing history but makes much less sense when
+describing what changed (as it doesn't look "step-by-step"
+anymore)
+
+Solution: use `git log --reverse` to reverse the order
+---
+ scripts/prepare-merge-request | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/prepare-merge-request b/scripts/prepare-merge-request
+index ea63282..c2119bf 100755
+--- a/scripts/prepare-merge-request
++++ b/scripts/prepare-merge-request
+@@ -19,7 +19,7 @@ if [ -z ${sit} ]; then
+ fi
+ 
+ git format-patch "${range}"  -o "${tmpdir}/git" || exit 2
+-git log --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/text" || exit 2
++git log --reverse --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/text" || exit 2
+ $editor "${tmpdir}/text" || exit 2
+ 
+ issue=$(${sit} issue)
+-- 
+2.15.0
+

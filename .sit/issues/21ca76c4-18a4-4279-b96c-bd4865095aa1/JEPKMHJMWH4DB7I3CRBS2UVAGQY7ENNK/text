@@ -1,0 +1,9 @@
+When using scripts/prepare-merge-request on branches
+that have more than one commit, the pre-defined issue
+details will dump git log in a descending order (last
+commit first). This order makes a lot of sense
+when viewing history but makes much less sense when
+describing what changed (as it doesn't look "step-by-step"
+anymore)
+
+Solution: use `git log --reverse` to reverse the order
