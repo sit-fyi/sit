@@ -1,0 +1,249 @@
+From 17a5b4507f2b752e5b1435922056a53fb97c47d7 Mon Sep 17 00:00:00 2001
+From: Yevhenii Kurtov <yevhenii.kurtov@non.agilent.com>
+Date: Fri, 9 Feb 2018 15:05:13 +0700
+Subject: [PATCH] Problem: Orientation is hard for a newbies
+
+Solution: reorganize some written materials
+
+* Documentation is reorginzed in more logical order: `Repository -> Issue -> Record -> Reducers`
+* Issue-related materials are grouped as an sub-entries in Issue section
+* Emphasize that title and description should be added to the temporary `text` file step by step
+* Typo is fixed in CONTRIBUTING.md
+* Added angular brackets to clarify that `BRANCH` should be substituted CONTRIBUTING.md
+
+This is not perfect in two respects:
+
+* Initial illustration is still intimidating and is more related to developers
+  than to the users, but I can't think of a better place for it.
+
+* Subsections in Issues are also related to contributing, since are build up on
+  SIT-specific process but I don't think that it's a problem since they
+  encourage good practices and can be a good default for a lot of projects out
+  there.
+---
+ CONTRIBUTING.md |   6 +--
+ README.md       | 129 +++++++++++++++++++++++++++++---------------------------
+ 2 files changed, 69 insertions(+), 66 deletions(-)
+
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index bd4ff7f..68f7bbf 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -6,7 +6,7 @@ own merge request procedure (see below).
+ Our goal is to encourage frictionless contributions to the project. In order to
+ achieve that, we use Unprotocols' [C4 process](https://rfc.unprotocols.org/spec:1/C4)
+ as an inspiration. Please read it, it will answer a lot of questions. Our goal is to
+-merge patches as quickly as possible and make new stable releases regularly. 
++merge patches as quickly as possible and make new stable releases regularly.
+ 
+ In a nutshell, this means:
+ 
+@@ -23,7 +23,7 @@ matter](https://www.gitbook.com/book/hintjens/social-architecture/details).
+ 
+ According to C4's [development process](https://rfc.unprotocols.org/spec:1/C4#24-development-process),
+ the issue should describe a documented and provable. What this means is that an
+-issue should trive to have a clear, understandable problem statement. Just like
++issue should strive to have a clear, understandable problem statement. Just like
+ a patch, it SHOULD be titled "Problem: ..." and have a detailed description
+ describing evidence behind it, be it a bug or a feature request, or a longer
+ term "exploratory" issue.
+@@ -56,7 +56,7 @@ be longer than one line.
+ Once you have a branch (BRANCH) with your patch ready:
+ 
+ 1. Create a new issue: `sit issue` and take a note of the generated ID.
+-2. Generate patches: `rm -rf git && git format-patch $(git merge-base --fork-point master BRANCH)..BRANCH -o git` (cleaning `git` assures there are no leftover patches)
++2. Generate patches: `rm -rf git && git format-patch $(git merge-base --fork-point master <BRANCH>)..<BRANCH> -o git` (cleaning `git` assures there are no leftover patches)
+ 2. Edit temporary `text` file to supply the one-line summary (such as `Problem: ...`).
+    It is important to name the file `text` and not something else
+ 3. Take ID from the first step and run `sit record -t SummaryChanged ID text`
+diff --git a/README.md b/README.md
+index b0901af..4ec722b 100644
+--- a/README.md
++++ b/README.md
+@@ -66,14 +66,13 @@ cargo build --release
+ The resulting binary can be found at `./target/release/sit`. Put it in your
+ `PATH` to be able to access it in your environment.
+ 
+-## Got questions, bug reports, etc?
+-
+-SIT's is using SIT for tracking issues (duh!) and because of this, GitHub
+-issues are turned off. It's a good excuse to try out SIT if you have an
+-issue to file!
++## Overview
+ 
+-The user experience is very barebones at the moment (until we'll get something
+-better) but it does the job (more or less).
++<center>
++<p align="center">
++<img src="doc/overview.png" width="266" height="543">
++</p>
++</center>
+ 
+ ### Preparation
+ 
+@@ -102,7 +101,41 @@ to your config file:
+ }
+ ```
+ 
+-### Listing issues
++
++### Repository
++
++Repository is a collection of issues. By default, such directory is called
++`.sit` and is found by the tooling by scanning the working directory and upwards
++until such directory is found.
++
++Each repository has `config.json` file which contains its configuration.
++The convention for this file is to contain all configurable items to avoid
++potential breakage of behaviour if some defaults are to be changed going
++forward.
++
++One can initialize a SIT repository in their working directory using `sit init`
++command. It will create `.sit` directory.
++
++### Issue
++
++Issue is a topic or a problem for debate, discussion and resolution (aka "ticket")
++and is represented by a uniquely named directory within a repository. While some
++issues might be named manually (might be a great way to establish some
++conventions), it is generally recommended that a globally unique identifier is
++generated for every new issue (such as UUID, which is the default employed by
++SIT)
++
++Because of SIT's extensible nature, issue can be also be used to represent a
++wild variety of entities. For example, a Kanban board with its records
++representing movement of other issues into, across and out of the board.
++
++Each issue is comprised of zero or more records (although issues with zero
++records aren't very practical).
++
++You can create a new issue using `sit issue` command and you can list IDs
++of all issues using `sit issues`.
++
++#### Listing issues
+ 
+ By default, `sit issues` will list all issues by their IDs. However,
+ this is hardly practical if you just want to see a list of issues you want to be able
+@@ -160,16 +193,16 @@ specify them in `issues.filters` and `issues.queries` properties:
+        "not-closed": "state != 'closed'"
+     }
+  }
+-} 
++}
+ ```
+ 
+ These queries can be used with the `--named-query/-Q` flag and filters
+ with `--named-filter/-F` flag.
+ 
+-### Open an issue
++#### Open an issue
+ 
+ 1. Run `sit issue`, note the ID generated by it
+-2. Edit temporary `text` file to prepare a one-line summary (title).
++2. Edit temporary `text` file to prepare a **one-line summary (title) only**.
+    It is important to name the file `text` and not something else.
+    Within SIT project we kindly request to use the "problem statement"
+    summary as in: `Problem: something doesn't work` whenever possible.
+@@ -180,14 +213,14 @@ with `--named-filter/-F` flag.
+ 5. Take ID from the first step and run `sit record -t DetailsChanged <id> text`
+ 6. You can check if everything is correct by running `sit reduce <id>`.
+    It will show the current state of the issue as a JSON.
+-   
+-### Comment on an issue
++
++#### Comment on an issue
+ 
+ 1. Edit a temporary `text` file to prepare your comment.
+    It is important to name the file `text` and not something else.
+ 2. Take ID of your issue and run `sit record -t Commented <id> text`
+ 
+-### Send it to upstream
++#### Send it to upstream
+ 
+ Now that your issue is recorded locally, you can send it to this repository:
+ 
+@@ -212,55 +245,6 @@ host git.sit-it.org
+ 
+ This way, pushing out, will be as nice as `git push issues <branch>`
+ 
+-### Getting updates
+-
+-You will get all issue updates when you fetch this git repository.
+-
+-### Preparing a merge request
+-
+-Please refer to [CONTRIBUTING](https://github.com/sit-it/sit/blob/master/CONTRIBUTING.md#preparing-a-merge-request) for the instruction.
+-
+-## Overview
+-
+-<center>
+-<p align="center">
+-<img src="doc/overview.png" width="266" height="543">
+-</p>
+-</center>
+-
+-### Repository
+-
+-Repository is a collection of issues. By default, such directory is called
+-`.sit` and is found by the tooling by scanning the working directory and upwards
+-until such directory is found.
+-
+-Each repository has `config.json` file which contains its configuration.
+-The convention for this file is to contain all configurable items to avoid
+-potential breakage of behaviour if some defaults are to be changed going
+-forward.
+-
+-One can initialize a SIT repository in their working directory using `sit init`
+-command. It will create `.sit` directory.
+-
+-### Issue
+-
+-Issue is a topic or a problem for debate, discussion and resolution (aka "ticket")
+-and is represented by a uniquely named directory within a repository. While some
+-issues might be named manually (might be a great way to establish some
+-conventions), it is generally recommended that a globally unique identifier is
+-generated for every new issue (such as UUID, which is the default employed by
+-SIT)
+-
+-Because of SIT's extensible nature, issue can be also be used to represent a
+-wild variety of entities. For example, a Kanban board with its records
+-representing movement of other issues into, across and out of the board.
+-
+-Each issue is comprised of zero or more records (although issues with zero
+-records aren't very practical).
+-
+-You can create a new issue using `sit issue` command and you can list IDs
+-of all issues using `sit issues`.
+-
+ ### Record
+ 
+ Record is an immutable collection of files. Record is identified by a
+@@ -365,6 +349,25 @@ function(state, record) {
+ This function will be invoked with an object bound to `this` so that the state can be saved
+ across invocations, per issue.
+ 
++## Got questions, bug reports, etc?
++
++SIT's is using SIT for tracking issues (duh!) and because of this, GitHub
++issues are turned off. It's a good excuse to try out SIT if you have an
++issue to file!
++
++The user experience is very barebones at the moment (until we'll get something
++better) but it does the job (more or less).
++
++
++
++### Getting updates
++
++You will get all issue updates when you fetch this git repository.
++
++### Preparing a merge request
++
++Please refer to [CONTRIBUTING](https://github.com/sit-it/sit/blob/master/CONTRIBUTING.md#preparing-a-merge-request) for the instruction.
++
+ ## License
+ 
+ SIT is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
+-- 
+2.11.1
+

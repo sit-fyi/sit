@@ -1,0 +1,17 @@
+Solution: reorganize some written materials
+
+* Documentation is reorginzed in more logical order: `Repository -> Issue -> Record -> Reducers`
+* Issue-related materials are grouped as an sub-entries in Issue section
+* Emphasize that title and description should be added to the temporary `text` file step by step
+* Typo is fixed in CONTRIBUTING.md
+* Added angular brackets to clarify that `BRANCH` should be substituted CONTRIBUTING.md
+
+This is not perfect in two respects:
+
+* Initial illustration is still intimidating and is more related to developers
+  than to the users, but I can't think of a better place for it.
+
+* Subsections in Issues are also related to contributing, since are build up on
+  SIT-specific process but I don't think that it's a problem since they
+  encourage good practices and can be a good default for a lot of projects out
+  there.
