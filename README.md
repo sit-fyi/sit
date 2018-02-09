@@ -152,7 +152,7 @@ specify them in `issues.filters` and `issues.queries` properties:
 ```json
 
 {
- "isues": {
+ "issues": {
     "queries": {
        "overview": "join(' | ', [id, summary])"
     },
