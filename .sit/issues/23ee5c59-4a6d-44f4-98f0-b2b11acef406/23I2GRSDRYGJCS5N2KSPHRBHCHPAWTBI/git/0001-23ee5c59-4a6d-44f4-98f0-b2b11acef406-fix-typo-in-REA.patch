@@ -1,0 +1,25 @@
+From f28dff114be8f0d86740d756e39f4aab33848288 Mon Sep 17 00:00:00 2001
+From: Tim Dysinger <tim@dysinger.net>
+Date: Thu, 8 Feb 2018 20:50:27 +0700
+Subject: [PATCH 1/2] 23ee5c59-4a6d-44f4-98f0-b2b11acef406 fix typo in README
+
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 33c2555..5ac95c0 100644
+--- a/README.md
++++ b/README.md
+@@ -152,7 +152,7 @@ specify them in `issues.filters` and `issues.queries` properties:
+ ```json
+ 
+ {
+- "isues": {
++ "issues": {
+     "queries": {
+        "overview": "join(' | ', [id, summary])"
+     },
+-- 
+2.14.3 (Apple Git-98)
+

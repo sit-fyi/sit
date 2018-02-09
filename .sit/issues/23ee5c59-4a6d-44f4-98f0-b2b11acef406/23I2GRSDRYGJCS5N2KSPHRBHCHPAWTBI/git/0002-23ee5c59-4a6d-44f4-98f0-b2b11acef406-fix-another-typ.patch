@@ -1,0 +1,26 @@
+From fb290c71fdb238e982c24906d6d3c67a1e78d358 Mon Sep 17 00:00:00 2001
+From: Tim Dysinger <tim@dysinger.net>
+Date: Thu, 8 Feb 2018 21:01:54 +0700
+Subject: [PATCH 2/2] 23ee5c59-4a6d-44f4-98f0-b2b11acef406 fix (another) typo
+ in README
+
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 5ac95c0..facd5fe 100644
+--- a/README.md
++++ b/README.md
+@@ -157,7 +157,7 @@ specify them in `issues.filters` and `issues.queries` properties:
+        "overview": "join(' | ', [id, summary])"
+     },
+     "filters": {
+-       "not-closed": "state != 'closed!"
++       "not-closed": "state != 'closed!'"
+     }
+  }
+ } 
+-- 
+2.14.3 (Apple Git-98)
+
