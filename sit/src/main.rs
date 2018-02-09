@@ -330,9 +330,9 @@ fn main() {
             let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
             let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
+            let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
             for issue in issues {
-                let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-                let result = issue.reduce_with_reducer(reducer).expect("can't reduce issue");
+                let result = issue.reduce_with_reducer(&reducer).expect("can't reduce issue");
                 let json = sit_core::serde_json::to_string(&result).unwrap();
                 let data = jmespath::Variable::from_json(&json).unwrap();
                 let result = filter.search(&data).unwrap();
@@ -344,6 +344,7 @@ fn main() {
                         println!("{}", serde_json::to_string_pretty(&view).unwrap());
                     }
                 }
+                reducer.reset_state();
             }
         }
 
@@ -589,7 +590,7 @@ fn main() {
                     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
                     let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-                    let result = issue.reduce_with_reducer(reducer).expect("can't reduce issue");
+                    let result = issue.reduce_with_reducer(&reducer).expect("can't reduce issue");
                     let json = sit_core::serde_json::to_string(&result).unwrap();
                     let data = jmespath::Variable::from_json(&json).unwrap();
                     let view = query.search(&data).unwrap();
