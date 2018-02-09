@@ -6,7 +6,7 @@ own merge request procedure (see below).
 Our goal is to encourage frictionless contributions to the project. In order to
 achieve that, we use Unprotocols' [C4 process](https://rfc.unprotocols.org/spec:1/C4)
 as an inspiration. Please read it, it will answer a lot of questions. Our goal is to
-merge patches as quickly as possible and make new stable releases regularly. 
+merge patches as quickly as possible and make new stable releases regularly.
 
 In a nutshell, this means:
 
@@ -23,7 +23,7 @@ matter](https://www.gitbook.com/book/hintjens/social-architecture/details).
 
 According to C4's [development process](https://rfc.unprotocols.org/spec:1/C4#24-development-process),
 the issue should describe a documented and provable. What this means is that an
-issue should trive to have a clear, understandable problem statement. Just like
+issue should strive to have a clear, understandable problem statement. Just like
 a patch, it SHOULD be titled "Problem: ..." and have a detailed description
 describing evidence behind it, be it a bug or a feature request, or a longer
 term "exploratory" issue.
@@ -56,7 +56,7 @@ be longer than one line.
 Once you have a branch (BRANCH) with your patch ready:
 
 1. Create a new issue: `sit issue` and take a note of the generated ID.
-2. Generate patches: `rm -rf git && git format-patch $(git merge-base --fork-point master BRANCH)..BRANCH -o git` (cleaning `git` assures there are no leftover patches)
+2. Generate patches: `rm -rf git && git format-patch $(git merge-base --fork-point master <BRANCH>)..<BRANCH> -o git` (cleaning `git` assures there are no leftover patches)
 2. Edit temporary `text` file to supply the one-line summary (such as `Problem: ...`).
    It is important to name the file `text` and not something else
 3. Take ID from the first step and run `sit record -t SummaryChanged ID text`
