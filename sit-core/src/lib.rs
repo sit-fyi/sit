@@ -27,6 +27,8 @@ extern crate digest;
 
 #[cfg(feature = "uuid")] extern crate uuid;
 
+#[cfg(feature = "memmap")] extern crate memmap;
+
 // Crates necessary for testing
 #[cfg(test)] #[macro_use] extern crate assert_matches;
 

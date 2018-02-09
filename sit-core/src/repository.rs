@@ -521,6 +521,10 @@ impl<'a, T: RecordTrait<Str=String, Hash=Vec<u8>> + RepositoryProvider + 'a> Rec
     fn file_iter(&self) -> Self::Iter {
         self.0.file_iter()
     }
+
+    fn issue_id(&self) -> Self::Str {
+        self.0.issue_id()
+    }
 }
 
 #[derive(Debug)]
@@ -544,6 +548,10 @@ impl<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvi
 
     fn file_iter(&self) -> Self::Iter {
         self.0.file_iter().filter(self.1)
+    }
+
+    fn issue_id(&self) -> Self::Str {
+        self.0.issue_id()
     }
 }
 
@@ -621,7 +629,9 @@ impl<'a> RecordTrait for Record<'a> {
             record: self.encoded_hash(),
         }
     }
-
+    fn issue_id(&self) -> Self::Str {
+        self.issue.clone().into_string().unwrap()
+    }
 }
 
 /// An iterator over files in a record

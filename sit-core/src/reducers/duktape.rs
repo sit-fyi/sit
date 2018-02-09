@@ -8,10 +8,13 @@ use duktape;
 use std::ptr;
 use std::ffi::CString;
 use std::path::PathBuf;
+use std::fs;
+
+#[cfg(feature = "duktape-mmap")]
+use memmap;
 
 #[derive(Debug)]
 pub struct DuktapeReducer<'a, R: Record> {
-    #[allow(dead_code)]
     repository: &'a ::Repository,
     context: *mut duktape::duk_context,
     reducers: usize,
@@ -47,7 +50,6 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
         };
         use glob;
-        use std::fs;
         let paths = glob::glob(repository.path().join(".reducers/*.js").to_str().unwrap()).unwrap();
         let mut reducers = 0;
         let mut filenames = vec![];
@@ -114,7 +116,7 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
             let ctx = self.context;
             let cstring = CString::new(json).unwrap();
 
-            // Item (record) TODO: complete
+            // Item (record)
             duktape::duk_push_object(ctx);
             // item.hash
             let hash = CString::new(item.encoded_hash().as_ref()).unwrap();
@@ -123,15 +125,45 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
             duktape::duk_put_prop_string(ctx, -2, hash_prop.as_ptr());
             // item.files
             duktape::duk_push_object(ctx);
+            #[cfg(feature = "duktape-mmap")]
+            let mut mmaps = vec![];
             for (name, mut reader) in item.file_iter() {
                 let filename = CString::new(name.as_ref()).unwrap();
-                use std::io::Read;
-                // INEFFICIENT BUT WORKS FOR NOW {
-                let mut buf = vec![];
-                let sz = reader.read_to_end(&mut buf).unwrap();
-                let ptr = duktape::duk_push_buffer_raw(ctx,sz, 0);
-                ptr::copy_nonoverlapping(buf.as_ptr(), ptr.offset(0) as *mut _, sz);
-                // }
+                #[cfg(feature = "duktape-mmap")] {
+                    // avoid unused warning
+                    let _ = reader;
+                    #[cfg(windows)] // replace slashes with backslashes
+                    let name = name.as_ref().replace("/", "\\");
+                    #[cfg(not(windows))]
+                    let name = name.as_ref();
+
+                    let path = self.repository.issues_path()
+                        .join(item.issue_id().as_ref())
+                        .join(item.encoded_hash().as_ref())
+                        .join(name);
+
+                    if fs::metadata(&path).unwrap().len() == 0 {
+                        // if the file is empty, it can't be mmapped
+                        // (also, no reason to do so anyway)
+                        duktape::duk_push_buffer_raw(ctx, 0, duktape::DUK_BUF_MODE_FIXED);
+                    } else {
+                        let file = fs::File::open(&path).unwrap();
+                        let mmap = memmap::MmapOptions::new().map(&file).unwrap();
+                        duktape::duk_push_buffer_raw(ctx, 0, duktape::DUK_BUF_FLAG_DYNAMIC | duktape::DUK_BUF_FLAG_EXTERNAL);
+                        mmaps.push(mmap);
+                        let mmap_ref = &mmaps[mmaps.len() - 1];
+                        duktape::duk_config_buffer(ctx, -1, mmap_ref.as_ptr() as *mut _, mmap_ref.len());
+                    }
+                }
+                #[cfg(not(feature = "duktape-mmap"))] {
+                    use std::io::Read;
+                    // INEFFICIENT BUT WORKS FOR NOW {
+                    let mut buf = vec![];
+                    let sz = reader.read_to_end(&mut buf).unwrap();
+                    let ptr = duktape::duk_push_buffer_raw(ctx,sz, 0);
+                    ptr::copy_nonoverlapping(buf.as_ptr(), ptr.offset(0) as *mut _, sz);
+                    // }
+                }
                 duktape::duk_put_prop_string(ctx, -2, filename.as_ptr());
             }
             let files_prop = CString::new("files").unwrap();
