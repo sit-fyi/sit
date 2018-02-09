@@ -332,7 +332,7 @@ mod tests {
         use std::fs;
         use std::io::Write;
         fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        let mut f = fs::File::create(repo.path().join(".reducers").join("reducer.js")).unwrap();
         f.write(b"function(state) { return Object.assign({\"hello\": record.a}, state); }").unwrap();
 
                 let issue = repo.new_issue().unwrap();
@@ -342,7 +342,7 @@ mod tests {
         assert!(state.get("errors").is_some());
         let errors = state.get("errors").unwrap().as_array().unwrap();
         assert_eq!(errors[0].as_object().unwrap().get("error").unwrap(), &JsonValue::String("ReferenceError: identifier \'record\' undefined".into()));
-        assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(format!("{}/.reducers/reducer.js", repo.path().to_str().unwrap())));
+        assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(repo.path().join(".reducers").join("reducer.js").to_str().unwrap().into()));
     }
 
 }

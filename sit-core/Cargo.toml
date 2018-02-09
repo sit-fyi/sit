@@ -26,7 +26,7 @@ assert_matches = "1.1"
 
 [build-dependencies]
 cc = "1.0"
-include_dir = "0.1"
+include_dir = { git = "https://github.com/yrashk/include_dir", branch="include_files_backslashes", version = "0.1" }
 
 [features]
 default = ["blake2", "sha-1", "uuid", "duktape-reducers"]
