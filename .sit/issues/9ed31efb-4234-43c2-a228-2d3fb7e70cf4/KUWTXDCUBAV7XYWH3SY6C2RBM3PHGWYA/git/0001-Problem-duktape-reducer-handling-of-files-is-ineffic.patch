@@ -1,0 +1,234 @@
+From 852c7d7aeeb75535ef447898a61aa0344269bf1c Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 9 Feb 2018 10:34:09 +0700
+Subject: [PATCH] Problem: duktape reducer handling of files is inefficient
+
+The problem is whether the file is needed or not,
+it'll be read and saved in memory.
+
+Solution: use memory mapping (mmap) to avoid this cost
+
+This can be turned off by disabling `duktape-mmap` feature.
+---
+ Cargo.lock                       | 11 +++++++++
+ sit-core/Cargo.toml              |  4 +++-
+ sit-core/src/lib.rs              |  2 ++
+ sit-core/src/record.rs           |  4 ++++
+ sit-core/src/reducers/duktape.rs | 52 ++++++++++++++++++++++++++++++++--------
+ sit-core/src/repository.rs       | 12 +++++++++-
+ 6 files changed, 73 insertions(+), 12 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 4a2aa2e..6f33a33 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -299,6 +299,15 @@ dependencies = [
+  "libc 0.2.36 (registry+https://github.com/rust-lang/crates.io-index)",
+ ]
+ 
++[[package]]
++name = "memmap"
++version = "0.6.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "libc 0.2.36 (registry+https://github.com/rust-lang/crates.io-index)",
++ "winapi 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
++]
++
+ [[package]]
+ name = "nom"
+ version = "3.2.1"
+@@ -504,6 +513,7 @@ dependencies = [
+  "glob 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
+  "include_dir 0.1.5 (git+https://github.com/yrashk/include_dir?branch=include_files_backslashes)",
+  "lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
++ "memmap 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde_derive 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde_json 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
+@@ -753,6 +763,7 @@ dependencies = [
+ "checksum linked-hash-map 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2d2aab0478615bb586559b0114d94dd8eca4fdbb73b443adcb0d00b61692b4bf"
+ "checksum memchr 0.1.11 (registry+https://github.com/rust-lang/crates.io-index)" = "d8b629fb514376c675b98c1421e80b151d3817ac42d7c667717d282761418d20"
+ "checksum memchr 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "148fab2e51b4f1cfc66da2a7c32981d1d3c083a803978268bb11fe4b86925e7a"
++"checksum memmap 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "e2ffa2c986de11a9df78620c01eeaaf27d94d3ff02bf81bfcca953102dd0c6ff"
+ "checksum nom 3.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "05aec50c70fd288702bcd93284a8444607f3292dbdf2a30de5ea5dcdbe72287b"
+ "checksum num 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)" = "cc4083e14b542ea3eb9b5f33ff48bd373a92d78687e74f4cc0a30caeb754f0ca"
+ "checksum num-integer 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)" = "d1452e8b06e448a07f0e6ebb0bb1d92b8890eea63288c0b627331d53514d0fba"
+diff --git a/sit-core/Cargo.toml b/sit-core/Cargo.toml
+index c1bcac4..632738e 100644
+--- a/sit-core/Cargo.toml
++++ b/sit-core/Cargo.toml
+@@ -20,6 +20,7 @@ lazy_static = "1.0"
+ blake2 = { version = "0.7", optional = true }
+ sha-1 = { version = "0.7", optional = true }
+ uuid = { version = "0.5", features = ["v4"], optional = true }
++memmap = { version = "0.6", optional = true}
+ 
+ [dev-dependencies]
+ assert_matches = "1.1"
+@@ -29,6 +30,7 @@ cc = "1.0"
+ include_dir = { git = "https://github.com/yrashk/include_dir", branch="include_files_backslashes", version = "0.1" }
+ 
+ [features]
+-default = ["blake2", "sha-1", "uuid", "duktape-reducers"]
++default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap"]
+ duktape-reducers = ["duktape"]
+ duktape = []
++duktape-mmap = ["memmap"]
+diff --git a/sit-core/src/lib.rs b/sit-core/src/lib.rs
+index d97263f..684cd41 100644
+--- a/sit-core/src/lib.rs
++++ b/sit-core/src/lib.rs
+@@ -27,6 +27,8 @@ extern crate digest;
+ 
+ #[cfg(feature = "uuid")] extern crate uuid;
+ 
++#[cfg(feature = "memmap")] extern crate memmap;
++
+ // Crates necessary for testing
+ #[cfg(test)] #[macro_use] extern crate assert_matches;
+ 
+diff --git a/sit-core/src/record.rs b/sit-core/src/record.rs
+index d3fc8d1..4594570 100644
+--- a/sit-core/src/record.rs
++++ b/sit-core/src/record.rs
+@@ -20,6 +20,10 @@ pub trait Record {
+    ///
+    /// [`hash`]: struct.Record.html#hash
+    fn encoded_hash(&self) -> Self::Str;
++
++   /// Returns parent issue's ID
++   fn issue_id(&self) -> Self::Str;
++
+    /// Returns an iterator over files in the record
+    fn file_iter(&self) -> Self::Iter;
+ }
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index 871684a..8b96c9c 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -8,10 +8,13 @@ use duktape;
+ use std::ptr;
+ use std::ffi::CString;
+ use std::path::PathBuf;
++use std::fs;
++
++#[cfg(feature = "duktape-mmap")]
++use memmap;
+ 
+ #[derive(Debug)]
+ pub struct DuktapeReducer<'a, R: Record> {
+-    #[allow(dead_code)]
+     repository: &'a ::Repository,
+     context: *mut duktape::duk_context,
+     reducers: usize,
+@@ -47,7 +50,6 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
+         };
+         use glob;
+-        use std::fs;
+         let paths = glob::glob(repository.path().join(".reducers/*.js").to_str().unwrap()).unwrap();
+         let mut reducers = 0;
+         let mut filenames = vec![];
+@@ -114,7 +116,7 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+             let ctx = self.context;
+             let cstring = CString::new(json).unwrap();
+ 
+-            // Item (record) TODO: complete
++            // Item (record)
+             duktape::duk_push_object(ctx);
+             // item.hash
+             let hash = CString::new(item.encoded_hash().as_ref()).unwrap();
+@@ -123,15 +125,45 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+             duktape::duk_put_prop_string(ctx, -2, hash_prop.as_ptr());
+             // item.files
+             duktape::duk_push_object(ctx);
++            #[cfg(feature = "duktape-mmap")]
++            let mut mmaps = vec![];
+             for (name, mut reader) in item.file_iter() {
+                 let filename = CString::new(name.as_ref()).unwrap();
+-                use std::io::Read;
+-                // INEFFICIENT BUT WORKS FOR NOW {
+-                let mut buf = vec![];
+-                let sz = reader.read_to_end(&mut buf).unwrap();
+-                let ptr = duktape::duk_push_buffer_raw(ctx,sz, 0);
+-                ptr::copy_nonoverlapping(buf.as_ptr(), ptr.offset(0) as *mut _, sz);
+-                // }
++                #[cfg(feature = "duktape-mmap")] {
++                    // avoid unused warning
++                    let _ = reader;
++                    #[cfg(windows)] // replace slashes with backslashes
++                    let name = name.as_ref().replace("/", "\\");
++                    #[cfg(not(windows))]
++                    let name = name.as_ref();
++
++                    let path = self.repository.issues_path()
++                        .join(item.issue_id().as_ref())
++                        .join(item.encoded_hash().as_ref())
++                        .join(name);
++
++                    if fs::metadata(&path).unwrap().len() == 0 {
++                        // if the file is empty, it can't be mmapped
++                        // (also, no reason to do so anyway)
++                        duktape::duk_push_buffer_raw(ctx, 0, duktape::DUK_BUF_MODE_FIXED);
++                    } else {
++                        let file = fs::File::open(&path).unwrap();
++                        let mmap = memmap::MmapOptions::new().map(&file).unwrap();
++                        duktape::duk_push_buffer_raw(ctx, 0, duktape::DUK_BUF_FLAG_DYNAMIC | duktape::DUK_BUF_FLAG_EXTERNAL);
++                        mmaps.push(mmap);
++                        let mmap_ref = &mmaps[mmaps.len() - 1];
++                        duktape::duk_config_buffer(ctx, -1, mmap_ref.as_ptr() as *mut _, mmap_ref.len());
++                    }
++                }
++                #[cfg(not(feature = "duktape-mmap"))] {
++                    use std::io::Read;
++                    // INEFFICIENT BUT WORKS FOR NOW {
++                    let mut buf = vec![];
++                    let sz = reader.read_to_end(&mut buf).unwrap();
++                    let ptr = duktape::duk_push_buffer_raw(ctx,sz, 0);
++                    ptr::copy_nonoverlapping(buf.as_ptr(), ptr.offset(0) as *mut _, sz);
++                    // }
++                }
+                 duktape::duk_put_prop_string(ctx, -2, filename.as_ptr());
+             }
+             let files_prop = CString::new("files").unwrap();
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index fcff60b..e682abd 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -521,6 +521,10 @@ impl<'a, T: RecordTrait<Str=String, Hash=Vec<u8>> + RepositoryProvider + 'a> Rec
+     fn file_iter(&self) -> Self::Iter {
+         self.0.file_iter()
+     }
++
++    fn issue_id(&self) -> Self::Str {
++        self.0.issue_id()
++    }
+ }
+ 
+ #[derive(Debug)]
+@@ -545,6 +549,10 @@ impl<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvi
+     fn file_iter(&self) -> Self::Iter {
+         self.0.file_iter().filter(self.1)
+     }
++
++    fn issue_id(&self) -> Self::Str {
++        self.0.issue_id()
++    }
+ }
+ 
+ impl <'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvider + 'a, F: Copy + Fn(&(S, R)) -> bool> RepositoryProvider for FilteredRecord<'a, S, R, T, F> {
+@@ -621,7 +629,9 @@ impl<'a> RecordTrait for Record<'a> {
+             record: self.encoded_hash(),
+         }
+     }
+-
++    fn issue_id(&self) -> Self::Str {
++        self.issue.clone().into_string().unwrap()
++    }
+ }
+ 
+ /// An iterator over files in a record
+-- 
+2.15.0
+

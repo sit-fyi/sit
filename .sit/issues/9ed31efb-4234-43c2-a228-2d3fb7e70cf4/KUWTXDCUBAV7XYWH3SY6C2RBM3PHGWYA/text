@@ -1,0 +1,6 @@
+The problem is whether the file is needed or not,
+it'll be read and saved in memory.
+
+Solution: use memory mapping (mmap) to avoid this cost
+
+This can be turned off by disabling `duktape-mmap` feature.
