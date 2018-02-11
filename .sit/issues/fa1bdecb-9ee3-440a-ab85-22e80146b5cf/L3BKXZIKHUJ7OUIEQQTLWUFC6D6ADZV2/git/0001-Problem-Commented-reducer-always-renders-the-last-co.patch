@@ -1,0 +1,53 @@
+From 98296791e630d50bc1c4ef584f47fb0632cb7364 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sun, 11 Feb 2018 12:39:29 +0700
+Subject: [PATCH] Problem: Commented reducer always renders the last comment
+
+Solution: persist the list of comments in the state
+(it wasn't persisted, it was a bug)
+---
+ .sit/.reducers/Commented.js                   | 3 ++-
+ sit-core/default-files/.reducers/Commented.js | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/.sit/.reducers/Commented.js b/.sit/.reducers/Commented.js
+index 92d7a77..b3a1f46 100644
+--- a/.sit/.reducers/Commented.js
++++ b/.sit/.reducers/Commented.js
+@@ -1,12 +1,13 @@
+ function(state, record) {
+     if (typeof record.files[".type/Commented"] !== 'undefined') {
+-        var comments = record.comments || [];
++        var comments = this.comments || [];
+         var decoder = new TextDecoder("utf-8");
+         comments.push({
+             text: decoder.decode(record.files.text),
+             authors: decoder.decode(record.files[".authors"]),
+             timestamp: decoder.decode(record.files[".timestamp"])
+         });
++        this.comments = comments;
+         return Object.assign(state, {comments: comments});
+     }
+     return state;
+diff --git a/sit-core/default-files/.reducers/Commented.js b/sit-core/default-files/.reducers/Commented.js
+index 92d7a77..b3a1f46 100644
+--- a/sit-core/default-files/.reducers/Commented.js
++++ b/sit-core/default-files/.reducers/Commented.js
+@@ -1,12 +1,13 @@
+ function(state, record) {
+     if (typeof record.files[".type/Commented"] !== 'undefined') {
+-        var comments = record.comments || [];
++        var comments = this.comments || [];
+         var decoder = new TextDecoder("utf-8");
+         comments.push({
+             text: decoder.decode(record.files.text),
+             authors: decoder.decode(record.files[".authors"]),
+             timestamp: decoder.decode(record.files[".timestamp"])
+         });
++        this.comments = comments;
+         return Object.assign(state, {comments: comments});
+     }
+     return state;
+-- 
+2.15.0
+
