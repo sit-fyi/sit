@@ -49,7 +49,7 @@ pub trait IssueReduction: Issue {
     /// Will insert issue's `id` into the initial state
     ///
     /// [`Reducer`]: ../reducers/trait.Reducer.html
-    fn reduce_with_reducer<R: Reducer<State=Map<String, Value>, Item=Self::Record>>(&self, reducer: &R) -> Result<Map<String, Value>, ReductionError<Self::Error>> {
+    fn reduce_with_reducer<R: Reducer<State=Map<String, Value>, Item=Self::Record>>(&self, reducer: &mut R) -> Result<Map<String, Value>, ReductionError<Self::Error>> {
         let records = self.record_iter()?;
         let mut state: Map<String, Value> = Default::default();
         state.insert("id".into(), Value::String(self.id().into()));

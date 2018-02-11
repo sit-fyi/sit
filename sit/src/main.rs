@@ -36,6 +36,9 @@ extern crate pbr;
 extern crate tempdir;
 extern crate glob;
 
+extern crate rayon;
+use rayon::prelude::*;
+
 use std::collections::HashMap;
 fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
@@ -313,7 +316,7 @@ fn main() {
         }
 
         if let Some(matches) = matches.subcommand_matches("issues") {
-            let issues = repo.issue_iter().expect("can't list issues");
+            let issues: Vec<_> = repo.issue_iter().expect("can't list issues").collect();
 
             let filter_expr = matches.value_of("named-filter")
                 .and_then(|name|
@@ -326,25 +329,31 @@ fn main() {
                 .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
                 .unwrap();
 
-            let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
-            let query = jmespath::compile(&query_expr).expect("can't compile query expression");
-
-            let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-            for issue in issues {
-                let result = issue.reduce_with_reducer(&reducer).expect("can't reduce issue");
-                let json = sit_core::serde_json::to_string(&result).unwrap();
-                let data = jmespath::Variable::from_json(&json).unwrap();
-                let result = filter.search(&data).unwrap();
-                if result.as_boolean().unwrap() {
-                    let view = query.search(&data).unwrap();
-                    if view.is_string() {
-                        println!("{}", view.as_string().unwrap());
+            let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+            let issues_with_reducers: Vec<_> =  issues.into_iter().map(|i| (i, reducer.clone())) .collect();
+            issues_with_reducers.into_par_iter()
+                .map(|(issue, mut reducer)| {
+                    let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
+                    let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+                    let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
+                    let json = sit_core::serde_json::to_string(&result).unwrap();
+                    let data = jmespath::Variable::from_json(&json).unwrap();
+                    let result = filter.search(&data).unwrap();
+                    if result.as_boolean().unwrap() {
+                        let view = query.search(&data).unwrap();
+                        if view.is_string() {
+                            Some(view.as_string().unwrap().clone())
+                        } else {
+                            Some(serde_json::to_string_pretty(&view).unwrap())
+                        }
                     } else {
-                        println!("{}", serde_json::to_string_pretty(&view).unwrap());
+                        None
                     }
-                }
-                reducer.reset_state();
-            }
+                })
+                .filter(Option::is_some).map(Option::unwrap)
+                .for_each(|view| {
+                    println!("{}", view);
+                });
         }
 
         if let Some(matches) = matches.subcommand_matches("record") {
@@ -588,8 +597,8 @@ fn main() {
 
                     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
-                    let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-                    let result = issue.reduce_with_reducer(&reducer).expect("can't reduce issue");
+                    let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+                    let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
                     let json = sit_core::serde_json::to_string(&result).unwrap();
                     let data = jmespath::Variable::from_json(&json).unwrap();
                     let view = query.search(&data).unwrap();

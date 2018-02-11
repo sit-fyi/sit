@@ -9,7 +9,7 @@ pub trait Reducer: Sized {
     type Item;
 
     /// Takes current state, item and returns new state
-    fn reduce(&self, state: Self::State, item: &Self::Item) -> Self::State;
+    fn reduce(&mut self, state: Self::State, item: &Self::Item) -> Self::State;
     /// Chains two reducers together sequentially
     fn chain<R: Reducer<State=Self::State, Item=Self::Item>>(self, other: R) -> ChainedReducer<Self, R> {
        ChainedReducer::new(self, other)
@@ -37,7 +37,7 @@ impl<T, I, R1: Reducer<State=T, Item=I>, R2: Reducer<State=T, Item=I>> Reducer f
     type State = R1::State;
     type Item = R1::Item;
 
-    fn reduce(&self, state: Self::State, item: &Self::Item) -> Self::State {
+    fn reduce(&mut self, state: Self::State, item: &Self::Item) -> Self::State {
         self.1.reduce(self.0.reduce(state, item), item)
     }
 }
@@ -53,7 +53,7 @@ mod tests {
         type State = T;
         type Item = T;
 
-        fn reduce(&self, _state: Self::State, _item: &Self::Item) -> Self::State {
+        fn reduce(&mut self, _state: Self::State, _item: &Self::Item) -> Self::State {
             self.0.clone()
         }
     }

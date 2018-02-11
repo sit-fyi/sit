@@ -63,6 +63,8 @@ use mime_guess::get_mime_type_str;
 
 use std::ffi::OsString;
 
+use rayon::prelude::*;
+
 fn path_to_response<P: Into<PathBuf>>(path: P) -> Response {
     let path: PathBuf = path.into();
     match get_mime_type_str(path.extension().unwrap_or(&OsString::new()).to_str().unwrap()) {
@@ -94,35 +96,38 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
         (GET) (/api/issues/{filter_expr: String}/{query_expr: String}) => {
             use jmespath;
             use sit_core::issue::IssueReduction;
-            let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
-            let query = jmespath::compile(&query_expr).expect("can't compile query expression");
             let issues = repo.issue_iter().expect("can't list issues");
-            let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+            let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+            let issues_with_reducers: Vec<_> =  issues.into_iter().map(|i| (i, reducer.clone())) .collect();
             let result: Vec<_> =
-            issues.map(|issue| {
-                     reducer.reset_state();
-                     issue.reduce_with_reducer(&reducer).unwrap()
+            issues_with_reducers.into_par_iter()
+                  .map(|(issue, mut reducer)| {
+                     issue.reduce_with_reducer(&mut reducer).unwrap()
                   })
                   .map(|reduced| {
-                     let json = sit_core::serde_json::to_string(&reduced).unwrap();
-                      jmespath::Variable::from_json(&json).unwrap()
-                  }).filter(|data| {
+                     sit_core::serde_json::to_string(&reduced).unwrap()
+                  }).map(|json| {
+                     let data = jmespath::Variable::from_json(&json).unwrap();
+                     let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
                      let result = filter.search(&data).unwrap();
-                     result.as_boolean().unwrap()
+                     if result.as_boolean().unwrap() {
+                        let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+                        Some(query.search(&data).unwrap())
+                     } else {
+                        None
+                     }
                   })
-                  .map(|data| {
-                    query.search(&data).unwrap()
-                  }).collect();
+                 .filter(Option::is_some).collect();
             Response::json(&result)
         },
         (GET) (/api/issue/{id: String}/{query_expr: String}) => {
             use jmespath;
             use sit_core::issue::IssueReduction;
             use sit_core::Issue;
-            let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+            let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
             let query = jmespath::compile(&query_expr).expect("can't compile query expression");
             let issue = repo.issue_iter().unwrap().find(|i| i.id() == id).unwrap();
-            let reduced = issue.reduce_with_reducer(&reducer).unwrap();
+            let reduced = issue.reduce_with_reducer(&mut reducer).unwrap();
             let json = sit_core::serde_json::to_string(&reduced).unwrap();
             let data = jmespath::Variable::from_json(&json).unwrap();
             let result = query.search(&data).unwrap();
