@@ -9,6 +9,7 @@ fn main() {
     let dest_path = Path::new(&outdir).join("assets.rs");
     include_dir(Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()).join("webapp").to_str().unwrap())
         .as_variable("FILES")
+        .ignore("node_modules")
         .to_file(dest_path)
         .unwrap();
 }

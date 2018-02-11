@@ -128,6 +128,13 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             let result = query.search(&data).unwrap();
             Response::json(&result)
         },
+        (GET) (/api/issue/{id: String}/{record: String}/files) => {
+            use sit_core::{Record, Issue};
+            let issue = repo.issue_iter().unwrap().find(|i| i.id() == id).unwrap();
+            let record = issue.record_iter().unwrap().flatten().find(|r| r.encoded_hash() == record).unwrap();
+            let files: Vec<_> = record.file_iter().map(|(name, _)| name).collect();
+            Response::json(&files)
+        },
         (POST) (/api/issue) => {
            use sit_core::Issue;
            let issue = repo.new_issue().expect("can't create issue");

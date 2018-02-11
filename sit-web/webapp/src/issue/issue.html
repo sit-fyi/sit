@@ -4,6 +4,7 @@
 <link rel="import" href="comment.html">
 <link rel="import" href="new-comment.html">
 <link rel="import" href="rendered-text.html">
+<link rel="import" href="../merge-request/merge-request.html">
 
 <dom-module id="issue-view">
    <template>
@@ -26,10 +27,12 @@
            <rendered-text text="{{ view.details }}"></rendered-text>
        </div>
 
+       <merge-request issue="[[ id ]]" record="[[ view.merge_request ]]"></merge-request>
+
        <h4>Comments</h4>
 
        <template is="dom-repeat" items="{{ view.comments }}">
-           <issue-comment comment="{{item}}"></issue-comment>
+           <issue-comment issue="[[ id ]]" comment="{{item}}"></issue-comment>
        </template>
 
        <issue-new-comment on-new-comment="reload" issue="{{ id }}"></issue-new-comment>
@@ -42,12 +45,25 @@
                 return {
                     id: {
                         type: String
+                    },
+                    files: {
+                        type: Array
+                    },
+                    mergeFiles: {
+                        type: Array,
+                        computed: 'filterMergeFiles(files)'
                     }
                 }
             }
             constructor() {
                 super();
                 this.query = "@";
+            }
+
+            filterMergeFiles(files) {
+                return files.filter(function(f) {
+                   return f.startsWith("git/") || f.startsWith("patch/")
+                });
             }
 
             reload() {

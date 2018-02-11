@@ -71,6 +71,5 @@
   },
   "_source": "https://github.com/PolymerElements/app-route.git",
   "_target": "^2.0.3",
-  "_originalSource": "PolymerElements/app-route",
-  "_direct": true
+  "_originalSource": "PolymerElements/app-route"
 }

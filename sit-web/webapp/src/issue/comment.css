@@ -4,7 +4,12 @@
 div {
     padding-bottom: 20pt;
 }
+
 rendered-text {
     padding: 5pt;
     background-color: #f0f0f0;
+}
+
+merge-request {
+    padding-left: 10pt;
 }

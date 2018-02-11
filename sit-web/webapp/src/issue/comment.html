@@ -1,5 +1,6 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
 <link rel="import" href="rendered-text.html">
+<link rel="import" href="../merge-request/merge-request.html">
 
 <dom-module id="issue-comment">
     <template>
@@ -8,6 +9,7 @@
 
         <div>
             <rendered-text text="{{ comment.text }}"></rendered-text>
+            <merge-request issue="[[ issue ]]" record="[[ comment.merge_request ]]"></merge-request>
             <div>By: {{ comment.authors }}</div>
         </div>
     </template>

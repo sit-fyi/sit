@@ -32,24 +32,32 @@ declare namespace Polymer {
    *   <template>
    *
    *     <div> Employee list: </div>
-   *     <template is="dom-repeat" items="{{employees}}">
+   *     <dom-repeat items="{{employees}}">
+   *       <template>
    *         <div>First name: <span>{{item.first}}</span></div>
    *         <div>Last name: <span>{{item.last}}</span></div>
-   *     </template>
+   *       </template>
+   *     </dom-repeat>
    *
    *   </template>
    *
    *   <script>
-   *     Polymer({
-   *       is: 'employee-list',
-   *       ready: function() {
-   *         this.employees = [
-   *             {first: 'Bob', last: 'Smith'},
-   *             {first: 'Sally', last: 'Johnson'},
-   *             ...
-   *         ];
+   *     class EmployeeList extends Polymer.Element {
+   *       static get is() { return 'employee-list'; }
+   *       static get properties() {
+   *         return {
+   *           employees: {
+   *             value() {
+   *               return [
+   *                 {first: 'Bob', last: 'Smith'},
+   *                 {first: 'Sally', last: 'Johnson'},
+   *                 ...
+   *               ];
+   *             }
+   *           }
+   *         };
    *       }
-   *     });
+   *     }
    *   < /script>
    *
    * </dom-module>
@@ -91,16 +99,15 @@ declare namespace Polymer {
    * For example, for an `dom-repeat` with a filter of the following:
    *
    * ```js
-   * isEngineer: function(item) {
-   *     return item.type == 'engineer' || item.manager.type == 'engineer';
+   * isEngineer(item) {
+   *   return item.type == 'engineer' || item.manager.type == 'engineer';
    * }
    * ```
    *
    * Then the `observe` property should be configured as follows:
    *
    * ```html
-   * <template is="dom-repeat" items="{{employees}}"
-   *           filter="isEngineer" observe="type manager.type">
+   * <dom-repeat items="{{employees}}" filter="isEngineer" observe="type manager.type">
    * ```
    */
   class DomRepeat extends

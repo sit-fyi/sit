@@ -1,0 +1,44 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="../syntax-highlighting/syntax-highlighting.html">
+
+<dom-module id="merge-patch">
+   <template>
+
+       <link rel="stylesheet" href="/src/merge-request/patch.css">
+       <link rel="stylesheet" href="/bower_components/prism/themes/prism.css">
+
+       <a target="_blank" href="/repo/issues/[[ issue ]]/[[ record ]]/[[file]]">[[ file ]]</a>
+       <iron-ajax auto url="/repo/issues/[[ issue ]]/[[ record ]]/[[file]]"
+                  handle-as="text" last-response="{{ patch }}"></iron-ajax>
+
+       <syntax-highlighting code="[[ patch ]]" lang="diff"></syntax-highlighting>
+    </template>
+
+    <script>
+        class Patch extends Polymer.Element {
+            static get is() {
+                return 'merge-patch';
+            }
+
+            static get properties() {
+                return {
+                    id: {
+                        type: String
+                    },
+                    record: {
+                        type: String
+                    },
+                    file: {
+                        type: String
+                    },
+                    patch: {
+                        type: String
+                    },
+                }
+            }
+        }
+
+        customElements.define(Patch.is, Patch);
+    </script>
+</dom-module>
