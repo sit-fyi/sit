@@ -1,0 +1,34 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
+
+<link rel="import" href="issue.html">
+
+<dom-module id="dashboard-page">
+   <template>
+       <link rel="stylesheet" href="/src/dashboard-page/dashboard-page.css">
+
+       Filter: <input id="filter" value="{{filter.value::change}}">
+       <a id="newIssue" href="/new">New Issue</a>
+
+       <h1>Matching issues</h1>
+        <iron-ajax auto url="/api/issues/{{ filter.value }}/{{ query }}" handle-as="json"
+                   last-response="{{ issues }}"></iron-ajax>
+        <template is="dom-repeat" items="{{ issues }}">
+            <sit-issue issue="{{item}}"></sit-issue>
+        </template>
+    </template>
+
+    <script>
+        class DashboardPage extends Polymer.Element {
+            static get is() { return 'dashboard-page'; }
+            constructor() {
+                super();
+                this.query = "{id: id, summary: summary}";
+                this.filter = {value: "`true`", name: "all"}
+            }
+        }
+        customElements.define(DashboardPage.is, DashboardPage);
+    </script>
+</dom-module>
+

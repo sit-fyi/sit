@@ -1,0 +1,26 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+
+<dom-module id="sit-issue">
+    <template>
+        <link rel="stylesheet" href="/src/dashboard-page/issue.css">
+        <div>
+          {{ issue.id }}
+          <a href="/issue/{{ issue.id }}">{{ issue.summary }}</a>
+        </div>
+    </template>
+
+    <script>
+        class IssueSummary extends Polymer.Element {
+            static get is() { return 'sit-issue'; }
+            static get properties() {
+                return {
+                    issue: {
+                        type: Object
+                    },
+                }
+            }
+
+        }
+        customElements.define(IssueSummary.is, IssueSummary);
+    </script>
+</dom-module>

@@ -19,6 +19,7 @@ extern crate tempdir;
 extern crate glob;
 extern crate data_encoding;
 #[macro_use] extern crate lazy_static;
+extern crate tini;
 
 // Hashing
 extern crate digest;
@@ -46,3 +47,4 @@ pub mod reducers;
 pub use reducers::Reducer;
 #[cfg(feature = "duktape")]
 pub mod duktape;
+pub mod cfg;

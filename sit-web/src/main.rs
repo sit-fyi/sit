@@ -1,0 +1,93 @@
+extern crate sit_core;
+
+extern crate chrono;
+extern crate tempfile;
+#[macro_use] extern crate clap;
+
+use std::env;
+use std::path::PathBuf;
+use std::fs;
+use std::process::exit;
+
+use clap::{Arg, App};
+
+extern crate serde;
+extern crate serde_json;
+
+extern crate config;
+use sit_core::cfg;
+
+#[cfg(unix)]
+extern crate xdg;
+
+extern crate jmespath;
+
+extern crate itertools;
+
+#[macro_use] extern crate lazy_static;
+#[macro_use] extern crate rouille;
+extern crate mime_guess;
+mod webapp;
+
+fn main() {
+    #[cfg(unix)]
+    let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
+
+    let cwd = env::current_dir().expect("can't get current working directory");
+    let matches = App::new("SIT Web Interface")
+        .version(crate_version!())
+        .about(crate_description!())
+        .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+        .arg(Arg::with_name("working_directory")
+            .short("d")
+            .default_value(cwd.to_str().unwrap())
+            .help("Working directory"))
+        .arg(Arg::with_name("verbosity")
+            .short("v")
+            .multiple(true)
+            .help("Sets the level of verbosity"))
+        .arg(Arg::with_name("config")
+            .short("c")
+            .long("config")
+            .takes_value(true)
+            .help("Config file (overrides default)"))
+        .arg(Arg::with_name("listen")
+            .default_value("127.0.0.1:8080")
+            .help("Listen on IP:PORT"))
+        .get_matches();
+
+
+    #[cfg(unix)]
+    let default_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
+    #[cfg(windows)]
+    let default_config = env::home_dir().expect("can't identify home directory").join("sit_config.json");
+
+    let config_path = matches.value_of("config").unwrap_or(default_config.to_str().unwrap());
+
+    let mut settings = config::Config::default();
+    settings
+        .merge(config::File::with_name(config_path).required(false)).unwrap();
+
+    let mut config: cfg::Configuration = settings.try_into().expect("can't load config");
+
+    let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
+    let canonical_working_dir = fs::canonicalize(&working_dir).expect("can't canonicalize working directory");
+
+    if config.author.is_none() {
+        if let Some(author) = cfg::Author::from_gitconfig(canonical_working_dir.join(".git/config")) {
+            config.author = Some(author);
+        } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
+            config.author = Some(author);
+        } else {
+            eprintln!("Authorship hasn't been configured. Update your {} config file\n\
+            to include `author` object with `name` and `email` properties specified", config_path);
+            exit(1);
+        }
+    }
+
+    let repo = sit_core::Repository::find_in_or_above(".sit",&working_dir).expect("can't open repository");
+
+    let listen = matches.value_of("listen").unwrap();
+    println!("Serving on {}", listen);
+    webapp::start(listen, config, repo);
+}

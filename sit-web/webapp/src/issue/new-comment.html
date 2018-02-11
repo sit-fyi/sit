@@ -1,0 +1,72 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+
+<dom-module id="issue-new-comment">
+    <template>
+
+        <link rel="stylesheet" href="/src/issue/new-comment.css">
+
+        <div>
+            <div>
+              <textarea on-keypress="handleChange" on-change="handleChange" on-input="handleChange" id="comment" cols="80" rows="5"></textarea>
+            </div>
+            <div>
+                <button on-click="handleComment">Comment</button>
+            </div>
+        </div>
+
+        <iron-ajax auto
+                   url="/user/config"
+                   handle-as="json"
+                   last-response="{{ config }}"></iron-ajax>
+
+        <iron-ajax
+                id="postRequest"
+                url="/api/issue/{{ issue }}/records"
+                body="{{ formdata }}"
+                handle-as="json"
+                method="POST"
+                on-response="handleResponse"
+        ></iron-ajax>
+    </template>
+
+    <script>
+        class IssueNewComment extends Polymer.Element {
+            static get is() { return 'issue-new-comment'; }
+            static get properties() {
+                return {
+                    issue: {
+                        type: String
+                    },
+                    config: {
+                        type: Object
+                    }
+                }
+            }
+            authorship() {
+                var author = this.config.author.name;
+                if (typeof this.config.author.email === 'string') {
+                    author += " <" + this.config.author.email + ">";
+                }
+                return author;
+            }
+            handleChange() {
+                let timestamp = (new Date()).toISOString();
+                let formdata = new FormData();
+                formdata.append("text", new Blob([this.$.comment.value], {type: "text/plain"}), "text");
+                formdata.append(".type/Commented", new Blob([""], {type: "text/plain"}), ".type/Commented");
+                formdata.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
+                formdata.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
+                this.set("formdata", formdata);
+            }
+            handleComment() {
+                this.$.postRequest.generateRequest();
+            }
+            handleResponse() {
+                this.$.comment.value = "";
+                this.dispatchEvent(new CustomEvent('new-comment', {detail: {}}));
+            }
+        }
+        customElements.define(IssueNewComment.is, IssueNewComment);
+    </script>
+</dom-module>

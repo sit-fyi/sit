@@ -1,0 +1,17 @@
+{
+  "name": "@polymer/iron-ajax",
+  "private": true,
+  "description": "Makes it easy to make ajax calls and parse the response",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/PolymerElements/iron-ajax.git"
+  },
+  "license": "http://polymer.github.io/LICENSE.txt",
+  "devDependencies": {
+    "@polymer/gen-typescript-declarations": "^1.0.1",
+    "bower": "^1.8.0"
+  },
+  "scripts": {
+    "update-types": "rm -f *.d.ts **/*.d.ts && bower install && gen-typescript-declarations --outDir ."
+  }
+}

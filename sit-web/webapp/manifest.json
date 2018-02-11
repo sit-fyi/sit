@@ -1,0 +1,7 @@
+{
+  "name": "SIT",
+  "short_name": "SIT",
+  "description": "SIT's an Issue Tracker",
+  "start_url": "/",
+  "display": "standalone"
+}

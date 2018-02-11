@@ -17,6 +17,7 @@ tempdir = "0.3"
 data-encoding = "2.1"
 glob = "0.2"
 lazy_static = "1.0"
+tini = "0.2.0"
 blake2 = { version = "0.7", optional = true }
 sha-1 = { version = "0.7", optional = true }
 uuid = { version = "0.5", features = ["v4"], optional = true }

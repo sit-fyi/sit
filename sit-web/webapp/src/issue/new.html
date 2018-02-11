@@ -1,0 +1,101 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+
+<dom-module id="issue-new">
+    <template>
+
+        <link rel="stylesheet" href="/src/issue/new.css">
+
+        <div>
+            <input id="summary" size="80" placeholder="Summary" on-keypress="handleChange" on-change="handleChange" on-input="handleChange">
+
+            <div>
+                <textarea placeholder="Details of the issue" on-keypress="handleChange" on-change="handleChange" on-input="handleChange" id="details" cols="80" rows="5"></textarea>
+            </div>
+            <div>
+                <button on-click="handleCreate">Create</button>
+            </div>
+        </div>
+
+        <iron-ajax auto
+                   url="/user/config"
+                   handle-as="json"
+                   last-response="{{ config }}"></iron-ajax>
+
+        <iron-ajax
+                id="createIssue"
+                url="/api/issue"
+                handle-as="json"
+                method="POST"
+                last-response="{{ issue }}"
+                on-response="handleCreated"
+        ></iron-ajax>
+
+        <iron-ajax
+                id="postSummary"
+                url="/api/issue/{{ issue }}/records"
+                body="{{ summaryFormdata }}"
+                handle-as="json"
+                method="POST"
+        ></iron-ajax>
+
+        <iron-ajax
+                id="postDetails"
+                url="/api/issue/{{ issue }}/records"
+                body="{{ detailsFormdata }}"
+                handle-as="json"
+                method="POST"
+        ></iron-ajax>
+
+
+    </template>
+
+    <script>
+        class IssueNew extends Polymer.Element {
+            static get is() { return 'issue-new'; }
+            static get properties() {
+                return {
+                    config: {
+                        type: Object
+                    }
+                }
+            }
+            authorship() {
+                var author = this.config.author.name;
+                if (typeof this.config.author.email === 'string') {
+                    author += " <" + this.config.author.email + ">";
+                }
+                return author;
+            }
+            handleChange() {
+                let timestamp = (new Date()).toISOString();
+                let summary = new FormData();
+                summary.append("text", new Blob([this.$.summary.value], {type: "text/plain"}), "text");
+                summary.append(".type/SummaryChanged", new Blob([""], {type: "text/plain"}), ".type/SummaryChanged");
+                summary.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
+                summary.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
+                this.set("summaryFormdata", summary);
+                let details = new FormData();
+                details.append("text", new Blob([this.$.details.value], {type: "text/plain"}), "text");
+                details.append(".type/DetailsChanged", new Blob([""], {type: "text/plain"}), ".type/DetailsChanged");
+                details.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
+                details.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
+                this.set("detailsFormdata", details);
+            }
+            handleCreate() {
+                this.$.createIssue.generateRequest();
+            }
+            handleCreated() {
+                let req1 = this.$.postSummary.generateRequest();
+                let req2 = this.$.postDetails.generateRequest();
+                let issue = this.issue;
+
+                Promise.all([req1.completes, req2.completes]).then(function() {
+                    window.history.pushState({}, null, `/issue/${issue}`);
+                    window.dispatchEvent(new CustomEvent('location-changed'));
+                });
+            }
+        }
+        customElements.define(IssueNew.is, IssueNew);
+    </script>
+</dom-module>

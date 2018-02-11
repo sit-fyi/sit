@@ -17,10 +17,9 @@ use sit_core::issue::IssueReduction;
 
 extern crate serde;
 extern crate serde_json;
-#[macro_use] extern crate serde_derive;
 
 extern crate config;
-mod cfg;
+use sit_core::cfg;
 
 mod rebuild;
 use rebuild::rebuild_repository;

@@ -1,0 +1,15 @@
+{
+  "name": "sit",
+  "description": "SIT's an Issue Tracker",
+  "main": "index.html",
+  "dependencies": {
+    "polymer": "Polymer/polymer#^2.0.0",
+    "iron-ajax": "^2.1.0",
+    "app-route": "PolymerElements/app-route#^2.0.3",
+    "marked-element": "^2.3.3"
+  },
+  "devDependencies": {
+    "web-component-tester": "Polymer/web-component-tester#^6.0.0",
+    "webcomponentsjs": "webcomponents/webcomponentsjs#^1.0.0"
+  }
+}
