@@ -1,2 +1,3 @@
 target
 .idea
+.sit/issues/*/.lock
