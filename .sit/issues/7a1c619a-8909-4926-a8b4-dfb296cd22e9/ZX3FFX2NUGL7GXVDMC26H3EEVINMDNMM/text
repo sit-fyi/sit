@@ -1,0 +1,4 @@
+This is because they are not visible in sit-web,
+and one has to dig into records to read the patches
+
+Solution: make sit-web render merge requests
