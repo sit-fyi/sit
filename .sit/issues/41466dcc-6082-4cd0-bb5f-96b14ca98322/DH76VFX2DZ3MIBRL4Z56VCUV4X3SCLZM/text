@@ -1,0 +1,15 @@
+With either growing number of issues or introduction
+of more complex reducers, the performance starts going
+down significantly.
+
+Solution: enable parallel reduction of issues
+
+Since issues are independent trees of records, there's
+not much reason to process each issue sequentially.
+
+As a part of this solution, we needed to avoid re-compiling
+reducer functions for every individual instance of `DuktapeReducer`
+as that is often cost-prohibitive. This is accomplished
+by allowing cloning `DuktapeReducer` in which it'll copy
+saved bytecode for functions as well as the state these functions
+had.
