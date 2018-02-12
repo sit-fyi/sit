@@ -1,0 +1,11 @@
+This happens in cases like current implementation of
+signing, where a record directory is renamed in-place
+after the content has been signed.
+
+However, if any other process is attempting to add
+another record exactly at the same time, they chance
+getting a wrong parent record's hash, making it
+unresolvable.
+
+Solution: allow explicit locking of an issue
+especially where it is known that such things might happen.
