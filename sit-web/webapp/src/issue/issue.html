@@ -19,8 +19,24 @@
 
        <h1>{{ view.summary }}</rendered-text></h1>
 
+       <iron-ajax auto
+                  url="/user/config"
+                  handle-as="json"
+                  last-response="{{ config }}"></iron-ajax>
+
+       <iron-ajax
+               id="postRequest"
+               url="/api/issue/{{ id }}/records"
+               body="{{ formdata }}"
+               handle-as="json"
+               method="POST"
+               on-response="reload"></iron-ajax>
+
        <div>
            {{ view.state }}
+           <template is="dom-if" if="[[ isClosed ]]">
+               <button on-click="handleReopen">Re-open</button>
+          </template>
        </div>
 
        <div>
@@ -52,6 +68,14 @@
                     mergeFiles: {
                         type: Array,
                         computed: 'filterMergeFiles(files)'
+                    },
+                    view: {
+                        type: Object,
+                        value: {},
+                    },
+                    isClosed: {
+                        type: Boolean,
+                        computed: 'checkIfClosed(view)'
                     }
                 }
             }
@@ -60,10 +84,32 @@
                 this.query = "@";
             }
 
+            checkIfClosed(view) {
+                return view.state === 'closed';
+            }
+
             filterMergeFiles(files) {
                 return files.filter(function(f) {
                    return f.startsWith("git/") || f.startsWith("patch/")
                 });
+            }
+
+            authorship() {
+                var author = this.config.author.name;
+                if (typeof this.config.author.email === 'string') {
+                    author += " <" + this.config.author.email + ">";
+                }
+                return author;
+            }
+
+            handleReopen() {
+                let timestamp = (new Date()).toISOString();
+                let formdata = new FormData();
+                formdata.append(".type/Reopened", new Blob([""], {type: "text/plain"}), ".type/Reopened");
+                formdata.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
+                formdata.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
+                this.set("formdata", formdata);
+                this.$.postRequest.generateRequest();
             }
 
             reload() {
