@@ -1,0 +1,92 @@
+From ce3f6511b6cf19d83567efda7721d5f9def5367b Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 12 Feb 2018 18:51:18 +0700
+Subject: [PATCH] Problem: can't reopen an issue in sit-web
+
+Solution: allow reopening closed issues
+---
+ sit-web/webapp/src/issue/issue.html | 46 +++++++++++++++++++++++++++++++++++++
+ 1 file changed, 46 insertions(+)
+
+diff --git a/sit-web/webapp/src/issue/issue.html b/sit-web/webapp/src/issue/issue.html
+index 8c2f7d1..8af8d1d 100644
+--- a/sit-web/webapp/src/issue/issue.html
++++ b/sit-web/webapp/src/issue/issue.html
+@@ -19,8 +19,24 @@
+ 
+        <h1>{{ view.summary }}</rendered-text></h1>
+ 
++       <iron-ajax auto
++                  url="/user/config"
++                  handle-as="json"
++                  last-response="{{ config }}"></iron-ajax>
++
++       <iron-ajax
++               id="postRequest"
++               url="/api/issue/{{ id }}/records"
++               body="{{ formdata }}"
++               handle-as="json"
++               method="POST"
++               on-response="reload"></iron-ajax>
++
+        <div>
+            {{ view.state }}
++           <template is="dom-if" if="[[ isClosed ]]">
++               <button on-click="handleReopen">Re-open</button>
++          </template>
+        </div>
+ 
+        <div>
+@@ -52,6 +68,14 @@
+                     mergeFiles: {
+                         type: Array,
+                         computed: 'filterMergeFiles(files)'
++                    },
++                    view: {
++                        type: Object,
++                        value: {},
++                    },
++                    isClosed: {
++                        type: Boolean,
++                        computed: 'checkIfClosed(view)'
+                     }
+                 }
+             }
+@@ -60,12 +84,34 @@
+                 this.query = "@";
+             }
+ 
++            checkIfClosed(view) {
++                return view.state === 'closed';
++            }
++
+             filterMergeFiles(files) {
+                 return files.filter(function(f) {
+                    return f.startsWith("git/") || f.startsWith("patch/")
+                 });
+             }
+ 
++            authorship() {
++                var author = this.config.author.name;
++                if (typeof this.config.author.email === 'string') {
++                    author += " <" + this.config.author.email + ">";
++                }
++                return author;
++            }
++
++            handleReopen() {
++                let timestamp = (new Date()).toISOString();
++                let formdata = new FormData();
++                formdata.append(".type/Reopened", new Blob([""], {type: "text/plain"}), ".type/Reopened");
++                formdata.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
++                formdata.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
++                this.set("formdata", formdata);
++                this.$.postRequest.generateRequest();
++            }
++
+             reload() {
+                 this.$.request.generateRequest();
+             }
+-- 
+2.15.0
+
