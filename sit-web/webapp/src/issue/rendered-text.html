@@ -1,11 +1,18 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
 <link rel="import" href="/bower_components/marked-element/marked-element.html">
+<link rel="import" href="/bower_components/prism-element/prism-highlighter.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
 
 <dom-module id="rendered-text">
    <template>
 
        <link rel="stylesheet" href="/src/issue/rendered-text.css">
+       <link rel="stylesheet" href="/bower_components/prism/themes/prism.css">
 
+       <iron-ajax auto url="/bower_components/prism/components/prism-[[lang]].js"
+                  handle-as="text" on-response="loadSyntax"></iron-ajax>
+
+       <prism-highlighter></prism-highlighter>
        <marked-element markdown="{{ text }}">
            <div slot="markdown-html"></div>
        </marked-element>
@@ -18,8 +25,27 @@
                 return {
                     text: {
                         type: String
+                    },
+                    lang: {
+                        type: String
                     }
                 }
+            }
+            constructor() {
+                super();
+                this.lang = "markdown";
+            }
+            loadSyntax(evt, req) {
+                eval(req.response);
+                // New String is allocated so that an
+                // update is triggered
+                this.set("text", new String(this.text));
+            }
+            ready() {
+                this.addEventListener('syntax-highlight', function(e) {
+                   this.set("lang", e.detail.lang);
+                });
+                super.ready();
             }
         }
         customElements.define(RenderedText.is, RenderedText);
