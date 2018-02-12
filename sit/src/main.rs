@@ -364,7 +364,8 @@ fn main() {
                     println!("Issue {} not found", id);
                     exit(1);
                 },
-                Some(issue) => {
+                Some(mut issue) => {
+                    let _lock = issue.lock_exclusively().expect("can't lock issue");
                     let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
                     let types: Vec<_> = matches.value_of("type").unwrap().split(",").collect();
 

@@ -355,6 +355,12 @@ impl<'a> IssueTrait for Issue<'a> {
             repository: self.repository,
         })
     }
+    type Lock = super::FileLock;
+    type LockError = ::std::io::Error;
+
+    fn lock_exclusively(&mut self) -> Result<Self::Lock, Self::LockError> {
+        super::FileLock::new(self.repository.issues_path().join(self.id()).join(".lock"))
+    }
 }
 
 /// An iterator over records in an issue

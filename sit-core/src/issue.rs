@@ -2,7 +2,7 @@
 
 use serde_json::{Map, Value};
 
-use super::Reducer;
+use super::{Lock, Reducer};
 
 #[derive(Debug, Error)]
 pub enum ReductionError<Err: ::std::error::Error + ::std::fmt::Debug> {
@@ -25,6 +25,10 @@ pub trait Issue: Sized {
     type Records : IntoIterator<Item=Self::Record>;
     /// Iterator over lists of records
     type RecordIter : Iterator<Item=Self::Records>;
+    /// Lock type
+    type Lock : Lock;
+    /// Lock error
+    type LockError : ::std::error::Error + ::std::fmt::Debug;
     /// Issue must have an ID, ideally human-readable
     fn id(&self) -> &str;
     /// Iterates through the tree of records
@@ -36,7 +40,15 @@ pub trait Issue: Sized {
     fn new_record<S: AsRef<str>, R: ::std::io::Read,
                   I: Iterator<Item=(S, R)>>(&self, iter: I, link_parents: bool)
        -> Result<Self::Record, Self::Error>;
-
+    /// Creates and returns an exclusive lock.
+    ///
+    /// Blocks if there's already a lock in place.
+    ///
+    /// This is particularly useful for some elaborate
+    /// scenarios where records can be renamed at place (signing), and, therefore,
+    /// further addition of records can be erro-prone (picking up a parent
+    /// hash that is not going to be valid anymore)
+    fn lock_exclusively(&mut self) -> Result<Self::Lock, Self::LockError>;
 }
 
 /// [`Issue`] trait extension that defines and implements default reduction algorithms
