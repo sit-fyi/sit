@@ -1,0 +1,10 @@
+This creates an uncertainty in the interface (there's no "Loading"
+indication) and extremely large code blocks (such as big patches)
+hang browser for awhile.
+
+Proposed ways to mitigate issues (choose some or all?):
+
+1. Adding a "Loading" indicator
+2. Using Web Workers to highlight
+3. Limiting the size of a code block that we can show
+4. Showing plain (non-highlighted) code first⏎
