@@ -17,10 +17,13 @@ use memmap;
 pub struct DuktapeReducer<'a, R: Record> {
     repository: &'a ::Repository,
     context: *mut duktape::duk_context,
-    reducers: usize,
+    reducers: i32,
     filenames: Vec<PathBuf>,
     phantom_data: PhantomData<R>,
+    functions: Vec<Vec<u8>>,
 }
+
+unsafe impl<'a, R: Record> Send for DuktapeReducer<'a, R> {}
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -53,6 +56,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
         let paths = glob::glob(repository.path().join(".reducers/*.js").to_str().unwrap()).unwrap();
         let mut reducers = 0;
         let mut filenames = vec![];
+        let mut functions = vec![];
         for file in paths.filter(Result::is_ok).map(Result::unwrap) {
             reducers += 1;
             unsafe {
@@ -86,6 +90,16 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
                     duktape::duk_pop_2(context);
                     // f
                     duktape::duk_require_function(context, -1);
+                    // save bytecode
+                    duktape::duk_push_null(context);
+                    duktape::duk_copy(context, -2, -1);
+                    duktape::duk_dump_function(context);
+                    let mut sz = 0;
+                    let data = duktape::duk_get_buffer(context, -1, &mut sz);
+                    let mut func = vec![0; sz];
+                    ptr::copy_nonoverlapping(data, func.as_mut_ptr() as *mut _, sz);
+                    functions.push(func);
+                    duktape::duk_pop(context);
                 }
 
                 // create reducer's state
@@ -99,6 +113,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
             context,
             reducers,
             filenames,
+            functions,
             phantom_data: PhantomData,
         })
     }
@@ -112,18 +127,54 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
         for i in 0..self.reducers {
             unsafe {
                 duktape::duk_push_object(self.context);
-                duktape::duk_swap_top(self.context,(i * 2 + 1) as i32);
+                duktape::duk_swap_top(self.context,i * 2 + 1);
                 duktape::duk_pop(self.context);
             }
         }
     }
+
+
 }
+
+impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
+    fn clone(&self) -> Self {
+        let context = unsafe {
+            duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
+        };
+
+        unsafe {
+            for (i, func) in self.functions.iter().enumerate() {
+                // load bytecode
+                duktape::duk_push_buffer_raw(context, 0, duktape::DUK_BUF_FLAG_DYNAMIC | duktape::DUK_BUF_FLAG_EXTERNAL);
+                duktape::duk_config_buffer(context, -1, func.as_ptr() as *mut _, func.len());
+                duktape::duk_load_function(context);
+                // transfer state
+                duktape::duk_push_null(self.context);
+                duktape::duk_copy(self.context, (i * 2 + 1) as i32, -1);
+                duktape::duk_json_encode(self.context, -1);
+                let state = duktape::duk_get_string(self.context, -1);
+                duktape::duk_pop(self.context);
+                duktape::duk_push_string(context, state);
+                duktape::duk_json_decode(context, -1);
+            }
+        }
+        DuktapeReducer {
+            repository: self.repository,
+            context,
+            reducers: self.reducers,
+            filenames: self.filenames.clone(),
+            functions: self.functions.clone(),
+            phantom_data: PhantomData,
+        }
+    }
+}
+
 
 impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
     type State = Map<String, JsonValue>;
     type Item = R;
 
-    fn reduce(&self, mut state: Self::State, item: &Self::Item) -> Self::State {
+    fn reduce(&mut self, mut state: Self::State, item: &Self::Item) -> Self::State {
         use serde_json;
 
         let json = serde_json::to_string(&JsonValue::Object(state.clone())).unwrap();
@@ -191,11 +242,11 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
 
             for i in 0..self.reducers {
                 // function
-                duktape::duk_require_function(ctx, (i * 2) as i32);
-                duktape::duk_dup(ctx, (i * 2) as i32);
+                duktape::duk_require_function(ctx, i * 2);
+                duktape::duk_dup(ctx, i * 2);
                 // reducer's state
-                duktape::duk_require_object(ctx,(i * 2 + 1) as i32);
-                duktape::duk_dup(ctx, (i * 2 + 1) as i32);
+                duktape::duk_require_object(ctx,i * 2 + 1);
+                duktape::duk_dup(ctx, i * 2 + 1);
                 // issue state
                 duktape::duk_push_null(ctx);
                 duktape::duk_swap_top(ctx, -4);
@@ -220,7 +271,7 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
                     {
                         let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
                         let mut error = Map::new();
-                        error.insert("file".into(), JsonValue::String(self.filenames[i].to_str().unwrap().into()));
+                        error.insert("file".into(), JsonValue::String(self.filenames[i as usize].to_str().unwrap().into()));
                         error.insert("error".into(), JsonValue::String(err.to_str().unwrap().into()));
                         arr.as_array_mut().unwrap().push(JsonValue::Object(error));
                     }
@@ -268,7 +319,7 @@ mod tests {
 
         let issue = repo.new_issue().unwrap();
         let record = issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
-        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
 
         assert_eq!(state.get("hello").unwrap(), &JsonValue::String(record.encoded_hash()));
     }
@@ -287,7 +338,7 @@ mod tests {
 
         let issue = repo.new_issue().unwrap();
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
-        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
 
         assert_eq!(state.get("hello").unwrap(), &JsonValue::String("Title".into()));
     }
@@ -318,7 +369,7 @@ mod tests {
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
 
-        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
 
         use serde_json::Number;
         assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(3)));
@@ -339,7 +390,7 @@ mod tests {
 
         let issue = repo.new_issue().unwrap();
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
-        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
 
         use serde_json::Number;
         assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(1)));
@@ -384,7 +435,7 @@ mod tests {
 
                 let issue = repo.new_issue().unwrap();
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
-        let state = issue.reduce_with_reducer(&DuktapeReducer::new(&repo).unwrap()).unwrap();
+        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
 
         assert!(state.get("errors").is_some());
         let errors = state.get("errors").unwrap().as_array().unwrap();
@@ -417,22 +468,65 @@ mod tests {
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
 
-        let reducer = DuktapeReducer::new(&repo).unwrap();
+        let mut reducer = DuktapeReducer::new(&repo).unwrap();
 
         use serde_json::Number;
 
-        let state = issue.reduce_with_reducer(&reducer).unwrap();
+        let state = issue.reduce_with_reducer(&mut reducer).unwrap();
         assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(3)));
 
         // run it again without touching the state
-        let state = issue.reduce_with_reducer(&reducer).unwrap();
+        let state = issue.reduce_with_reducer(&mut reducer).unwrap();
         assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(6)));
 
         // now, reset state
         reducer.reset_state();
 
-        let state = issue.reduce_with_reducer(&reducer).unwrap();
+        let state = issue.reduce_with_reducer(&mut reducer).unwrap();
         assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(3)));
+    }
+
+    #[test]
+    fn cloned() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        f.write(b"function() {\
+         if (this.counter == undefined) { \
+           this.counter = 1;   \
+         } else { \
+           this.counter++;
+         } \
+         return {\"hello\": this.counter}; \
+         }").unwrap();
+
+        let issue1 = repo.new_issue().unwrap();
+        issue1.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+
+        let issue2 = repo.new_issue().unwrap();
+        issue2.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+        issue2.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title 1"[..])].into_iter(), true).unwrap();
+
+
+        let reducer = DuktapeReducer::new(&repo).unwrap();
+        let mut reducer1 = reducer.clone();
+        let mut reducer2 = reducer.clone();
+
+        let state1 = issue1.reduce_with_reducer(&mut reducer1).unwrap();
+        let state2 = issue2.reduce_with_reducer(&mut reducer2).unwrap();
+
+        use serde_json::Number;
+        assert_eq!(state1.get("hello").unwrap(), &JsonValue::Number(Number::from(1)));
+        assert_eq!(state2.get("hello").unwrap(), &JsonValue::Number(Number::from(2)));
+
+        // Now, make sure state gets copied from where it is, and not the original value:
+        let mut reducer3 = reducer2.clone();
+        let state3 = issue1.reduce_with_reducer(&mut reducer3).unwrap();
+        assert_eq!(state3.get("hello").unwrap(), &JsonValue::Number(Number::from(3)));
     }
 
 }

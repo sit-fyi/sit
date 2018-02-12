@@ -24,6 +24,8 @@ extern crate jmespath;
 
 extern crate itertools;
 
+extern crate rayon;
+
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate rouille;
 extern crate mime_guess;
