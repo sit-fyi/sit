@@ -365,7 +365,6 @@ fn main() {
                     exit(1);
                 },
                 Some(mut issue) => {
-                    let _lock = issue.lock_exclusively().expect("can't lock issue");
                     let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
                     let types: Vec<_> = matches.value_of("type").unwrap().split(",").collect();
 
@@ -409,14 +408,17 @@ fn main() {
                         vec![].into_iter()
                     };
 
+                    let tmp = tempdir::TempDir::new_in(repo.path(), "sit").unwrap();
+                    let record_path = tmp.path();
+
                     let record = if !matches.is_present("no-timestamp") {
                         let mut f = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.timestamp)");
                         let utc: DateTime<Utc> = Utc::now();
                         f.write(format!("{:?}", utc).as_bytes()).expect("can't write to a temporary file (.timestamp)");
                         f.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.timestamp)");
-                        issue.new_record(files.chain(type_files).chain(authorship_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
+                        issue.new_record_in(record_path, files.chain(type_files).chain(authorship_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
                     } else {
-                        issue.new_record(files.chain(type_files).chain(authorship_files), true)
+                        issue.new_record_in(record_path, files.chain(type_files).chain(authorship_files), true)
                     }.expect("can't create a record");
 
 
@@ -463,7 +465,7 @@ fn main() {
                         } else {
                             use sit_core::repository::DynamicallyHashable;
                             let dynamically_hashed_record = record.dynamically_hashed();
-                            let mut file = fs::File::create(record.path().join(".signature"))
+                            let mut file = fs::File::create(record.actual_path().join(".signature"))
                                 .expect("can't open signature file");
                             file.write(&output.stdout).expect("can't write signature file");
                             drop(file);
@@ -471,7 +473,7 @@ fn main() {
                             let mut new_path = record.path();
                             new_path.pop();
                             new_path.push(&new_hash);
-                            fs::rename(record.path(), new_path).expect("can't rename record");
+                            fs::rename(record.actual_path(), new_path).expect("can't rename record");
                             println!("{}", new_hash);
                             exit(0);
                         }

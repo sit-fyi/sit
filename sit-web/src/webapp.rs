@@ -65,6 +65,8 @@ use std::ffi::OsString;
 
 use rayon::prelude::*;
 
+use tempdir;
+
 fn path_to_response<P: Into<PathBuf>>(path: P) -> Response {
     let path: PathBuf = path.into();
     match get_mime_type_str(path.extension().unwrap_or(&OsString::new()).to_str().unwrap()) {
@@ -177,8 +179,12 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
 
            use sit_core::{Issue, Record};
            let mut issue = repo.issue_iter().unwrap().find(|i| i.id() == id).unwrap();
-           let _lock = issue.lock_exclusively().expect("can't lock issue");
-           let record = issue.new_record(files.into_iter(), link).expect("can't create record");
+
+           let tmp = tempdir::TempDir::new_in(repo.path(), "sit").unwrap();
+           let record_path = tmp.path();
+
+           let record = issue.new_record_in(record_path, files.into_iter(), link).expect("can't create record");
+
            for file in used_files {
              fs::remove_file(file).expect("can't remove file");
            }
@@ -224,7 +230,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
               } else {
                   use sit_core::repository::DynamicallyHashable;
                   let dynamically_hashed_record = record.dynamically_hashed();
-                  let mut file = fs::File::create(record.path().join(".signature"))
+                  let mut file = fs::File::create(record.actual_path().join(".signature"))
                                .expect("can't open signature file");
                  file.write(&output.stdout).expect("can't write signature file");
                  drop(file);
@@ -232,7 +238,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                  let mut new_path = record.path();
                  new_path.pop();
                  new_path.push(&new_hash);
-                 fs::rename(record.path(), new_path).expect("can't rename record");
+                 fs::rename(record.actual_path(), new_path).expect("can't rename record");
                  return Response::json(&new_hash);
              }
 

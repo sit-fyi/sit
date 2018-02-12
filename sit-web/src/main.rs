@@ -26,6 +26,8 @@ extern crate itertools;
 
 extern crate rayon;
 
+extern crate tempdir;
+
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate rouille;
 extern crate mime_guess;
