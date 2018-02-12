@@ -176,7 +176,8 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
            }
 
            use sit_core::{Issue, Record};
-           let issue = repo.issue_iter().unwrap().find(|i| i.id() == id).unwrap();
+           let mut issue = repo.issue_iter().unwrap().find(|i| i.id() == id).unwrap();
+           let _lock = issue.lock_exclusively().expect("can't lock issue");
            let record = issue.new_record(files.into_iter(), link).expect("can't create record");
            for file in used_files {
              fs::remove_file(file).expect("can't remove file");
