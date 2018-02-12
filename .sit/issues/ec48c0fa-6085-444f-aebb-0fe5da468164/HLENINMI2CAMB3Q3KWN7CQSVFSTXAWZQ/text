@@ -1,0 +1,7 @@
+Every time we reduce an issue, we run the entire tree of records through the reducers.
+
+While functionally this is not a big deal, it's definitely contributing
+to eventually decreasing performance.
+
+Proposed solution: if the reducer set can be identified as idempotent (i.e. it'll produce the same results given the same input and will not produce any external changes), we can cache reducing results and resume reducing from the "latest known" records up to the end. For JavaScript reducers, we can perhaps
+use some magic JSDoc-like markers to identify if the reducer is not idempotent. We can use trait's implementation to figure that out about Rust reducers.
