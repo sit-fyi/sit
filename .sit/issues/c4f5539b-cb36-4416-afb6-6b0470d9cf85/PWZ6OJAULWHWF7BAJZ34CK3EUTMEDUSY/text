@@ -1,0 +1,40 @@
+Basically what happens (and what I tried to fight
+with locks) is that when we want to sign a record,
+we first create a record without a signature, get
+its hash, and sign it, putting file inside; then, we
+rename the directory holding the record with the value
+of the deterministic hash of the updated record.
+
+Perhaps not the best way to do it, but it kind of worked
+so far. Anyway, the issue is that concurrent processes
+or threads can see this "record in the making" and use
+it as a parent, only for it's hash to be changed in
+a moment, rendering the new record unreachable.
+
+Firstly, locking issues to write a record is not
+going to work very well over networked file systems
+or file synchronizers such as Dropbox. Because of
+timing issues, "the other side" might see records
+that will ultimately change their hash during signing
+(yeah, that happens!) and depend on a wrong parent.
+
+Secondly, the lock implementation we have sometimes
+leaves lock files behind. Not sure why, but I had to
+delete some mistakenly committed lock files.
+
+Solution: never create "temporary" or "temporarily hashed"
+records where they can be found by record iterators.
+
+Allow creating them elsewhere and then [atomically] move
+them when they're ready.
+
+The claims of atomicity are a little bit tricky across
+platforms. On Unix, `rename(3)` (used by Rust's `std::fs::rename`)
+is required to be atomic by the specification.
+
+On Windows, Rust uses `MoveFileEx` function with the
+`MOVEFILE_REPLACE_EXISTING`, which does not provide such
+guarantee, at least explicitly. The general sentiment online
+that I can find so far can be summarized as "this is
+as atomic as it gets on Windows", but I am no expert on
+Windows, so if anyone can improve this, please do.
