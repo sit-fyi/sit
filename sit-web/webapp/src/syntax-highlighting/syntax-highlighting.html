@@ -1,0 +1,54 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
+<link rel="import" href="/bower_components/prism-element/prism-highlighter.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+
+<dom-module id="syntax-highlighting">
+   <template>
+
+       <link rel="stylesheet" href="/src/syntax-highlighting/syntax-highlighting.css">
+       <link rel="stylesheet" href="/bower_components/prism/themes/prism.css">
+
+       <iron-ajax auto url="/bower_components/prism/components/prism-[[lang]].js"
+                  handle-as="text" last-response="{{ syntax }}"></iron-ajax>
+
+       <prism-highlighter></prism-highlighter>
+       <pre id="code"></pre>
+
+    </template>
+
+    <script>
+        class SyntaxHighlighting extends Polymer.Element {
+            static get is() {
+                return 'syntax-highlighting';
+            }
+
+            static get properties() {
+               return {
+                   code: {
+                       type: String,
+                   },
+                   lang: {
+                       type: String,
+                   },
+                   syntax: {
+                       type: String,
+                   }
+               }
+            }
+
+            static get observers() {
+                return ['codeChanged(syntax, code,lang)']
+            }
+
+            codeChanged(syntax, code, lang) {
+                eval(syntax);
+                let ev = new CustomEvent('syntax-highlight', {detail: {code: code, lang: lang}});
+                this.dispatchEvent(ev);
+                this.$.code.innerHTML = ev.detail.code;
+            }
+        }
+
+        customElements.define(SyntaxHighlighting.is, SyntaxHighlighting);
+    </script>
+</dom-module>

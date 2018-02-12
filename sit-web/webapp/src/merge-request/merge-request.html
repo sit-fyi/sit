@@ -1,0 +1,56 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
+<link rel="import" href="patch.html">
+
+<dom-module id="merge-request">
+   <template>
+
+       <link rel="stylesheet" href="/src/merge-request/merge-request.css">
+
+       <template is="dom-if" if="[[ record ]]">
+           <iron-ajax id="files"
+                 auto url="/api/issue/{{ issue }}/{{ record }}/files"
+                 handle-as="json"
+                 last-response="{{ files }}"></iron-ajax>
+           <div id="mergeRequest">
+               <h4>Merge Request</h4>
+                   <template is="dom-repeat" items="[[ mergeFiles ]]">
+                       <merge-patch issue="[[ issue ]]" record="[[ record ]]" file="[[ item ]]"></merge-patch>
+                   </template>
+           </div>
+       </template>
+
+    </template>
+
+    <script>
+        class MergeRequest extends Polymer.Element {
+            static get is() { return 'merge-request'; }
+            static get properties() {
+                return {
+                    id: {
+                        type: String
+                    },
+                    record: {
+                        type: String
+                    },
+                    files: {
+                        type: Array
+                    },
+                    mergeFiles: {
+                        type: Array,
+                        computed: 'filterMergeFiles(files)'
+                    }
+                }
+            }
+
+            filterMergeFiles(files) {
+                return files.filter(function(f) {
+                   return f.startsWith("git/") || f.startsWith("patch/")
+                });
+            }
+
+        }
+        customElements.define(MergeRequest.is, MergeRequest);
+    </script>
+</dom-module>

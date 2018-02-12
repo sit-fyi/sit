@@ -62,6 +62,5 @@
   },
   "_source": "https://github.com/PolymerElements/marked-element.git",
   "_target": "^2.3.3",
-  "_originalSource": "marked-element",
-  "_direct": true
+  "_originalSource": "marked-element"
 }

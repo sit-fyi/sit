@@ -4,7 +4,8 @@
     "externs/**",
     "gulpfile.js",
     "test/**",
-    "util/**"
+    "util/**",
+    "index.html"
   ],
   "removeReferences": [
     "../shadycss/apply-shim.d.ts",
@@ -16,6 +17,7 @@
     ]
   },
   "renameTypes": {
-    "Polymer_PropertyEffects": "Polymer.PropertyEffects"
+    "Polymer_PropertyEffects": "Polymer.PropertyEffects",
+    "Element": "_Element"
   }
 }

@@ -138,7 +138,7 @@ declare namespace Polymer {
     rootPath: string;
     importPath: string;
     root: StampedTemplate|HTMLElement|ShadowRoot|null;
-    $: {[key: string]: Element};
+    $: {[key: string]: _Element};
 
     /**
      * Stamps the element template.
@@ -208,6 +208,10 @@ declare namespace Polymer {
      * the original location of the document containing the `dom-module` for
      * this element. This method will return the same URL before and after
      * bundling.
+     *
+     * Note that this function performs no resolution for URLs that start
+     * with `/` (absolute URLs) or `#` (hash identifiers).  For general purpose
+     * URL resolution, use `window.URL`.
      *
      * @param url URL to resolve.
      * @param base Optional base URL to resolve against, defaults
