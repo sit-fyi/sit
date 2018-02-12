@@ -20,6 +20,8 @@ use super::hash::{HashingAlgorithm, Hasher};
 use super::encoding::Encoding;
 use super::id::IdGenerator;
 
+use std::marker::PhantomData;
+
 /// Current repository format version
 const VERSION: &str = "1";
 /// Repository's config file name
@@ -279,40 +281,9 @@ fn process_file<S: AsRef<str>, R: ::std::io::Read>(hasher: &mut Hasher, name: S,
     }
     Ok(())
 }
-
-impl<'a> IssueTrait for Issue<'a> {
-
-    type Error = Error;
-    type Record = Record<'a>;
-    type Records = Vec<Record<'a>>;
-    type RecordIter = IssueRecordIter<'a>;
-
-    fn id(&self) -> &str {
-        self.id.to_str().unwrap()
-    }
-
-    fn record_iter(&self) -> Result<Self::RecordIter, Self::Error> {
-        let path = self.repository.issues_path.join(PathBuf::from(&self.id()));
-        let glob_pattern = format!("{}/**/*", path.to_str().unwrap());
-        let dir = fs::read_dir(&path)?.filter(|r| r.is_ok())
-            .map(|e| e.unwrap())
-            .collect();
-        let files: Vec<_> = glob::glob(&glob_pattern).expect("invalid glob pattern")
-            .filter(|r| r.is_ok())
-            .map(|r| r.unwrap())
-            .map(|f| f.strip_prefix(&path).unwrap().into())
-            .collect();
-        Ok(IssueRecordIter {
-            issue: self.id.clone(),
-            repository: self.repository,
-            dir,
-            files,
-            parents: vec![],
-        })
-    }
-
-    fn new_record<S: AsRef<str>, R: ::std::io::Read,
-        I: Iterator<Item=(S, R)>>(&self, iter: I, link_parents: bool) -> Result<Self::Record, Self::Error> {
+impl<'a> Issue<'a> {
+    pub fn new_record_in<P: AsRef<Path>, S: AsRef<str>, R: ::std::io::Read,
+        I: Iterator<Item=(S, R)>>(&self, path: P, iter: I, link_parents: bool) -> Result<<Issue<'a> as IssueTrait>::Record, <Issue<'a> as IssueTrait>::Error> {
         let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
         let mut hasher = self.repository.config.hashing_algorithm.hasher();
         let mut buf = vec![0; 4096];
@@ -347,20 +318,53 @@ impl<'a> IssueTrait for Issue<'a> {
         }
 
         let hash = hasher.result_box();
-        fs::rename(tempdir.into_path(), self.repository.issues_path.join(PathBuf::from(self.id()))
-            .join(PathBuf::from(self.repository.config.encoding.encode(&hash))))?;
+        let actual_path = path.as_ref().join(PathBuf::from(self.repository.config.encoding.encode(&hash)));
+        fs::rename(tempdir.into_path(), &actual_path)?;
         Ok(Record {
             hash,
             issue: self.id.clone(),
             repository: self.repository,
+            actual_path,
         })
     }
-    type Lock = super::FileLock;
-    type LockError = ::std::io::Error;
 
-    fn lock_exclusively(&mut self) -> Result<Self::Lock, Self::LockError> {
-        super::FileLock::new(self.repository.issues_path().join(self.id()).join(".lock"))
+}
+impl<'a> IssueTrait for Issue<'a> {
+
+    type Error = Error;
+    type Record = Record<'a>;
+    type Records = Vec<Record<'a>>;
+    type RecordIter = IssueRecordIter<'a>;
+
+    fn id(&self) -> &str {
+        self.id.to_str().unwrap()
     }
+
+    fn record_iter(&self) -> Result<Self::RecordIter, Self::Error> {
+        let path = self.repository.issues_path.join(PathBuf::from(&self.id()));
+        let glob_pattern = format!("{}/**/*", path.to_str().unwrap());
+        let dir = fs::read_dir(&path)?.filter(|r| r.is_ok())
+            .map(|e| e.unwrap())
+            .collect();
+        let files: Vec<_> = glob::glob(&glob_pattern).expect("invalid glob pattern")
+            .filter(|r| r.is_ok())
+            .map(|r| r.unwrap())
+            .map(|f| f.strip_prefix(&path).unwrap().into())
+            .collect();
+        Ok(IssueRecordIter {
+            issue: self.id.clone(),
+            repository: self.repository,
+            dir,
+            files,
+            parents: vec![],
+        })
+    }
+
+    fn new_record<S: AsRef<str>, R: ::std::io::Read,
+        I: Iterator<Item=(S, R)>>(&self, iter: I, link_parents: bool) -> Result<Self::Record, Self::Error> {
+       self.new_record_in(self.repository.issues_path.join(PathBuf::from(self.id())), iter, link_parents)
+    }
+
 }
 
 /// An iterator over records in an issue
@@ -391,6 +395,7 @@ impl<'a> Iterator for IssueRecordIter<'a> {
                     hash: self.repository.config.encoding.decode(f.to_str().unwrap().as_bytes()).unwrap(),
                     issue: self.issue.clone(),
                     repository: self.repository,
+                    actual_path: self.repository.issues_path().join(&self.issue).join(f.to_str().unwrap()),
                 })
                 .collect();
             if result.len() == 0 {
@@ -419,6 +424,7 @@ impl<'a> Iterator for IssueRecordIter<'a> {
                     hash: self.repository.config.encoding.decode(r.file_name().to_str().unwrap().as_bytes()).unwrap(),
                     issue: self.issue.clone(),
                     repository: self.repository,
+                    actual_path: self.repository.issues_path().join(&self.issue).join(r.file_name()),
                 })
                 .collect();
             if result.len() == 0 {
@@ -474,6 +480,7 @@ pub struct Record<'a> {
     hash: Vec<u8>,
     issue: OsString,
     repository: &'a Repository,
+    actual_path: PathBuf,
 }
 
 /// Somethiing that can provide access to its underlying repository
@@ -580,9 +587,17 @@ impl<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvi
 
 impl<'a> Record<'a> {
 
-    /// Returns path to the record
+    /// Returns path to the record, as it should be per repository's naming scheme
+    ///
+    /// The record MIGHT not be at this path as this is the path where
+    /// it SHOULD BE. The actual path can be retrieved using `actual_path()`
     pub fn path(&self) -> PathBuf {
         self.repository.issues_path.join(PathBuf::from(&self.issue)).join(self.encoded_hash())
+    }
+
+    /// Returns an actual path to the record directory
+    pub fn actual_path(&self) -> &Path {
+        self.actual_path.as_path()
     }
 
 
@@ -626,13 +641,12 @@ impl<'a> RecordTrait for Record<'a> {
     }
 
     fn file_iter(&self) -> Self::Iter {
-        let path = self.path();
+        let path = self.actual_path();
         let glob_pattern = format!("{}/**/*", path.to_str().unwrap());
         RecordFileIterator {
             glob: glob::glob(&glob_pattern).expect("invalid glob pattern"),
-            repository: self.repository,
-            issue: self.issue.clone(),
-            record: self.encoded_hash(),
+            prefix: self.actual_path().into(),
+            phantom: PhantomData,
         }
     }
     fn issue_id(&self) -> Self::Str {
@@ -643,16 +657,14 @@ impl<'a> RecordTrait for Record<'a> {
 /// An iterator over files in a record
 pub struct RecordFileIterator<'a> {
     glob: glob::Paths,
-    repository: &'a Repository,
-    issue: OsString,
-    record: String,
+    prefix: PathBuf,
+    phantom: PhantomData<&'a ()>,
 }
 
 impl<'a> Iterator for RecordFileIterator<'a> {
     type Item = (String, fs::File);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let prefix = self.repository.issues_path.join(PathBuf::from(&self.issue)).join(PathBuf::from(&self.record));
         loop {
             match self.glob.next() {
                 None => return None,
@@ -660,7 +672,7 @@ impl<'a> Iterator for RecordFileIterator<'a> {
                 Some(Err(_)) => continue,
                 Some(Ok(name)) => {
                     if name.is_file() {
-                        let stripped = String::from(name.strip_prefix(&prefix).unwrap().to_str().unwrap());
+                        let stripped = String::from(name.strip_prefix(&self.prefix).unwrap().to_str().unwrap());
                         #[cfg(windows)] // replace backslashes with slashes
                         let stripped = stripped.replace("\\", "/");
                         return Some((stripped, fs::File::open(name).unwrap()))
@@ -910,6 +922,38 @@ mod tests {
         // But doing it dynamically does
         assert_ne!(filtered.dynamically_hashed().hash(), record.hash());
         assert_ne!(filtered.dynamically_hashed().encoded_hash(), record.encoded_hash());
+    }
+
+    #[test]
+    fn record_outside_naming_scheme() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let mut tmp1 = tmp.clone();
+        tmp1.pop();
+
+        let repo = Repository::new(&tmp).unwrap();
+        let issue = repo.new_issue().unwrap();
+        let _record1 = issue.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
+        let record2 = issue.new_record_in(&tmp1, vec![("a", &[2u8][..])].into_iter(), true).unwrap();
+
+        // lets test that record2 can iterate over correct files
+        let files: Vec<_> = record2.file_iter().collect();
+        assert_eq!(files.len(), 2); // a and .prev/...
+
+
+        // record2 can't be found as it is outside of the standard naming scheme
+        let records: Vec<Vec<_>> = issue.record_iter().unwrap().collect();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].len(), 1);
+
+        ::std::fs::rename(record2.actual_path(), record2.path()).unwrap();
+
+        // and now it can be
+        let records: Vec<Vec<_>> = issue.record_iter().unwrap().collect();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].len(), 1);
+        assert_eq!(records[0].len(), 1);
+
     }
 
 }
