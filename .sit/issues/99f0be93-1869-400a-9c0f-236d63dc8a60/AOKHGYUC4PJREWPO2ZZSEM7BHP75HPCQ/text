@@ -1,0 +1,7 @@
+Solution: use parameter substitution  that will handle scenario
+when variable is declared but not set.
+
+* Use `${parameter:-default}` substitution
+* Wrap script body in the `run` function so it will be easier
+to extend later on.
+

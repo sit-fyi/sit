@@ -1,0 +1,106 @@
+From 39e2be2a39bc0640c5beeafc30c41b8f7e5b1d05 Mon Sep 17 00:00:00 2001
+From: lessless <yevhenii.kurtov@gmail.com>
+Date: Mon, 12 Feb 2018 12:09:21 +0700
+Subject: [PATCH] Problem: Default editor substitution doesn't work
+
+Solution: use parameter substitution  that will handle scenario
+when variable is declared but not set.
+
+* Use `${parameter:-default}` substitution
+* Wrap script body in the `run` function so it will be easier
+to extend later on.
+---
+ scripts/prepare-merge-request | 66 +++++++++++++++++++++++--------------------
+ 1 file changed, 35 insertions(+), 31 deletions(-)
+
+diff --git a/scripts/prepare-merge-request b/scripts/prepare-merge-request
+index b8d148d..1c57bc1 100755
+--- a/scripts/prepare-merge-request
++++ b/scripts/prepare-merge-request
+@@ -3,48 +3,52 @@
+ branch=$1
+ tmpdir="$(mktemp -d)"
+ curdir=$(pwd)
+-editor=${EDITOR:nano}
+-range=$(git merge-base --fork-point master $branch)..$branch
++editor=${EDITOR:-nano}
++range=$(git merge-base --fork-point master "${branch}").."${branch}"
+ curbranch=$(git rev-parse --abbrev-ref HEAD)
+ sit=$(which sit)
+ 
+-if [ -z ${branch} ]; then
+-        echo "Usage: prepare-merge-request <branch>"
+-        exit 1
+-fi
++run() {
++  if [ -z "${branch}" ]; then
++    echo "Usage: prepare-merge-request <branch>"
++    exit 1
++  fi
+ 
+-if [ -z ${sit} ]; then
+-        echo "sit not found"
+-        exit 1
+-fi
++  if [ -z "${sit}" ]; then
++    echo "sit not found"
++    exit 1
++  fi
+ 
+-git format-patch "${range}"  -o "${tmpdir}/git" || exit 2
+-git log --reverse --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/text" || exit 2
+-$editor "${tmpdir}/text" || exit 2
++  git format-patch "${range}"  -o "${tmpdir}/git" || exit 2
++  git log --reverse --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/text" || exit 2
++  $editor "${tmpdir}/text" || exit 2
+ 
+-issue=$(${sit} issue)
++  issue=$(${sit} issue)
+ 
+-git checkout -b ${issue} master || exit 2
++  git checkout -b "${issue}" master || exit 2
+ 
+-pushd $(pwd) >/dev/null
+-cd "${tmpdir}"
++  pushd "$(pwd)" >/dev/null || exit 2
++  cd "${tmpdir}" || exit 2
+ 
+-tail -n +3 text > details
+-head -n 1 text > text1
+-mv text1 text
+-${sit} -d ${curdir} record -t SummaryChanged ${issue} text || exit 2
++  tail -n +3 text > details
++  head -n 1 text > text1
++  mv text1 text
++  "${sit}" -d "${curdir}" record -t SummaryChanged "${issue}" text || exit 2
+ 
+-mv -f details text
+-${sit} -d ${curdir} record -t DetailsChanged,MergeRequested ${issue} text git/*.patch || exit 2
++  mv -f details text
++  "${sit}" -d "${curdir}" record -t DetailsChanged,MergeRequested "${issue}" text git/*.patch || exit 2
+ 
+-popd >/dev/null
++  popd >/dev/null || exit 2
+ 
+-rm -rf "${tmpdir}"
++  rm -rf "${tmpdir}"
+ 
+-git add .sit/issues/${issue} || exit 2
+-git commit -m "Added merge request ${issue}" || exit 2
+-git checkout ${curbranch} || exit 2
++  git add .sit/issues/"${issue}" || exit 2
++  git commit -m "Added merge request ${issue}" || exit 2
++  git checkout "${curbranch}" || exit 2
+ 
+-echo You can push the merge request:
+-echo
+-echo git push git@git.sit-it.org:sit-it/sit-inbox.git ${issue}
++  echo You can push the merge request:
++  echo
++  echo git push git@git.sit-it.org:sit-it/sit-inbox.git "${issue}"
++}
++
++run
+-- 
+2.16.0
+
