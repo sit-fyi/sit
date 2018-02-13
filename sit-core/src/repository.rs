@@ -946,6 +946,13 @@ mod tests {
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].len(), 1);
 
+        // On Windows, if a file within a directory that is being
+        // moved is open (even for reading), this will prevent
+        // this said directory from being moved, returning "Access Denied"
+        // Therefore, we drop `files` here to release the `File` readers
+        #[cfg(windows)]
+        drop(files);
+
         ::std::fs::rename(record2.actual_path(), record2.path()).unwrap();
 
         // and now it can be
