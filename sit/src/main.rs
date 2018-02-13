@@ -478,6 +478,8 @@ fn main() {
                             exit(0);
                         }
 
+                    } else {
+                        fs::rename(record.actual_path(), record.path()).expect("can't rename record");
                     }
 
                     println!("{}", record.encoded_hash());

@@ -242,6 +242,8 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                  return Response::json(&new_hash);
              }
 
+          } else {
+                 fs::rename(record.actual_path(), record.path()).expect("can't rename record");
           }
 
           Response::json(&record.encoded_hash())
