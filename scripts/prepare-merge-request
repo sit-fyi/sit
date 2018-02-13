@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 branch=$1
+issue=$2
+attach=${issue}
 tmpdir="$(mktemp -d)"
 curdir=$(pwd)
 editor=${EDITOR:-nano}
@@ -10,7 +12,7 @@ sit=$(which sit)
 
 run() {
   if [ -z "${branch}" ]; then
-    echo "Usage: prepare-merge-request <branch>"
+    echo "Usage: prepare-merge-request <branch> [<issue>]"
     exit 1
   fi
 
@@ -20,35 +22,47 @@ run() {
   fi
 
   git format-patch "${range}"  -o "${tmpdir}/git" || exit 2
-  git log --reverse --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/text" || exit 2
-  $editor "${tmpdir}/text" || exit 2
+  git log --reverse --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/log" || exit 2
+  $editor "${tmpdir}/log" || exit 2
 
-  issue=$(${sit} issue)
+  if [ -z "${attach}" ]; then
+          issue=$(${sit} issue)
+          issue_branch=${issue}
+  else
+          last_record=$(${sit} records ${issue} | tail -1)
+          issue_branch="${issue}-${last_record}-$(date +%s)"
+  fi
 
-  git checkout -b "${issue}" master || exit 2
+  git checkout -b "${issue_branch}" master || exit 2
 
   pushd "$(pwd)" >/dev/null || exit 2
   cd "${tmpdir}" || exit 2
 
-  tail -n +3 text > details
-  head -n 1 text > text1
-  mv text1 text
-  "${sit}" -d "${curdir}" record -t SummaryChanged "${issue}" text || exit 2
+  if [ -z "${attach}" ]; then
+          tail -n +3 log > details
+          head -n 1 log > text
+          rm log
 
-  mv -f details text
-  "${sit}" -d "${curdir}" record -t DetailsChanged,MergeRequested "${issue}" text git/*.patch || exit 2
+          "${sit}" -d "${curdir}" record -t SummaryChanged "${issue}" text || exit 2
+
+          mv -f details text
+          "${sit}" -d "${curdir}" record -t DetailsChanged,MergeRequested "${issue}" text git/*.patch || exit 2
+  else
+          mv log text
+          "${sit}" -d "${curdir}" record -t Commented,MergeRequested "${issue}" text git/*.patch || exit 2
+  fi
 
   popd >/dev/null || exit 2
 
   rm -rf "${tmpdir}"
 
   git add .sit/issues/"${issue}" || exit 2
-  git commit -m "Added merge request ${issue}" || exit 2
+  git commit -m "Added merge request: ${issue}" || exit 2
   git checkout "${curbranch}" || exit 2
 
   echo You can push the merge request:
   echo
-  echo git push git@git.sit-it.org:sit-it/sit-inbox.git "${issue}"
+  echo git push git@git.sit-it.org:sit-it/sit-inbox.git "${issue_branch}"
 }
 
 run
