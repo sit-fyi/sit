@@ -19,6 +19,10 @@
 
        <h1>{{ view.summary }}</rendered-text></h1>
 
+       <p>
+           By [[ view.authors ]]
+       </p>
+
        <iron-ajax auto
                   url="/user/config"
                   handle-as="json"
