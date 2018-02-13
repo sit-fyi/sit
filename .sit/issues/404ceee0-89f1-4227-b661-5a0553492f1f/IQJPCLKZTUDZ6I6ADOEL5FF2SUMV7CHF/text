@@ -1,0 +1,8 @@
+An example emoji: 0xF0 0x9F 0xA4 0x94
+But we'll receive 0xED 0xA0 0xBE 0xED 0xB4 0x94 back
+
+Solution: turns out, we need to convert CESU-8 to UTF-8
+
+CESU-8 is a [discouraged] standard that's used by some
+internal implementations, and it appears Duktape is using
+it as well.

@@ -1,0 +1,144 @@
+From 15cf64188159ca1b360e3262fc0276c578b66e42 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 13 Feb 2018 15:23:05 +0700
+Subject: [PATCH] Problem: Duktape reducers produce invalid Unicode on some
+ emojis
+
+An example emoji: 0xF0 0x9F 0xA4 0x94
+But we'll receive 0xED 0xA0 0xBE 0xED 0xB4 0x94 back
+
+Solution: turns out, we need to convert CESU-8 to UTF-8
+
+CESU-8 is a [discouraged] standard that's used by some
+internal implementations, and it appears Duktape is using
+it as well.
+---
+ Cargo.lock                       |  7 +++++++
+ sit-core/Cargo.toml              |  3 ++-
+ sit-core/src/lib.rs              |  2 ++
+ sit-core/src/reducers/duktape.rs | 32 ++++++++++++++++++++++++++++++++
+ 4 files changed, 43 insertions(+), 1 deletion(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index c06fc70..8e607db 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -137,6 +137,11 @@ name = "cc"
+ version = "1.0.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ 
++[[package]]
++name = "cesu8"
++version = "1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
+ [[package]]
+ name = "cfg-if"
+ version = "0.1.2"
+@@ -904,6 +909,7 @@ dependencies = [
+  "assert_matches 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "blake2 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "cc 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
++ "cesu8 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "data-encoding 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+  "derive-error 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
+  "digest 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+@@ -1255,6 +1261,7 @@ dependencies = [
+ "checksum byteorder 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "652805b7e73fada9d85e9a6682a4abd490cb52d96aeecc12e33a0de34dfd0d23"
+ "checksum case 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e88b166b48e29667f5443df64df3c61dc07dc2b1a0b0d231800e07f09a33ecc1"
+ "checksum cc 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "deaf9ec656256bb25b404c51ef50097207b9cbb29c933d31f92cae5a8a0ffee0"
++"checksum cesu8 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6d43a04d8753f35258c91f8ec639f792891f748a1edbd759cf1dcea3382ad83c"
+ "checksum cfg-if 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d4c819a1287eb618df47cc647173c5c4c66ba19d888a6e50d605672aed3140de"
+ "checksum chrono 0.2.25 (registry+https://github.com/rust-lang/crates.io-index)" = "9213f7cd7c27e95c2b57c49f0e69b1ea65b27138da84a170133fd21b07659c00"
+ "checksum chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7c20ebe0b2b08b0aeddba49c609fe7957ba2e33449882cb186a180bc60682fa9"
+diff --git a/sit-core/Cargo.toml b/sit-core/Cargo.toml
+index 98d9a1c..661b134 100644
+--- a/sit-core/Cargo.toml
++++ b/sit-core/Cargo.toml
+@@ -22,6 +22,7 @@ blake2 = { version = "0.7", optional = true }
+ sha-1 = { version = "0.7", optional = true }
+ uuid = { version = "0.5", features = ["v4"], optional = true }
+ memmap = { version = "0.6", optional = true}
++cesu8 = { version = "1.1", optional = true }
+ 
+ [dev-dependencies]
+ assert_matches = "1.1"
+@@ -32,6 +33,6 @@ include_dir = "0.1.5"
+ 
+ [features]
+ default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap"]
+-duktape-reducers = ["duktape"]
++duktape-reducers = ["duktape", "cesu8"]
+ duktape = []
+ duktape-mmap = ["memmap"]
+diff --git a/sit-core/src/lib.rs b/sit-core/src/lib.rs
+index 486aa8a..a49dde1 100644
+--- a/sit-core/src/lib.rs
++++ b/sit-core/src/lib.rs
+@@ -30,6 +30,8 @@ extern crate digest;
+ 
+ #[cfg(feature = "memmap")] extern crate memmap;
+ 
++#[cfg(feature = "cesu8")] extern crate cesu8;
++
+ // Crates necessary for testing
+ #[cfg(test)] #[macro_use] extern crate assert_matches;
+ 
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index 397ec66..d795026 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -13,6 +13,9 @@ use std::fs;
+ #[cfg(feature = "duktape-mmap")]
+ use memmap;
+ 
++#[cfg(feature = "cesu8")]
++use cesu8;
++
+ #[derive(Debug)]
+ pub struct DuktapeReducer<'a, R: Record> {
+     repository: &'a ::Repository,
+@@ -289,6 +292,12 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+             let json = duktape::duk_get_string(ctx, -1);
+ 
+             let json = ::std::ffi::CStr::from_ptr(json);
++            #[cfg(feature = "cesu8")]
++            let map: Map<String, JsonValue> = match cesu8::from_cesu8(json.to_bytes()) {
++                Ok(s) => serde_json::from_str(&s),
++                Err(_) => serde_json::from_slice(json.to_bytes()),
++            }.unwrap();
++            #[cfg(not(feature = "cesu8"))]
+             let map: Map<String, JsonValue> = serde_json::from_slice(json.to_bytes()).unwrap();
+ 
+             // drop the json
+@@ -529,4 +538,27 @@ mod tests {
+         assert_eq!(state3.get("hello").unwrap(), &JsonValue::Number(Number::from(3)));
+     }
+ 
++
++    // Duktape uses CESU-8 internally, which is not the standard UTF-8
++    // encoding. Make sure we convert whatever is produced by Duktape.
++    #[cfg(feature = "cesu8")]
++    #[test]
++    fn cesu8() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        f.write(b"function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
++
++        let issue = repo.new_issue().unwrap();
++        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &"😵😾🤔"[..].as_bytes())].into_iter(), true).unwrap();
++        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
++
++        assert_eq!(state.get("hello").unwrap(), &JsonValue::String("😵😾🤔".into()));
++    }
++
++
+ }
+-- 
+2.15.0
+
