@@ -1,0 +1,12 @@
+`repository::tests::record_outside_naming_scheme` is failing
+with "Access is denied" attempting to do the final `fs::rename`
+
+Solution: ensure no files are open during the move
+
+On Windows, if a file within a directory that is being
+moved is open (even for reading), this will prevent
+this said directory from being moved, returning "Access
+Denied"
+
+Therefore, we have to drop `files` variable to release the `File`
+readers that keep files open.

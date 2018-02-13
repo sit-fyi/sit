@@ -1,0 +1,42 @@
+From 6da3afd6ab37a15703c1044f5125daa69c83f0bd Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 13 Feb 2018 07:55:03 +0700
+Subject: [PATCH] Problem: a test failing on Windows
+
+`repository::tests::record_outside_naming_scheme` is failing
+with "Access is denied" attempting to do the final `fs::rename`
+
+Solution: ensure no files are open during the move
+
+On Windows, if a file within a directory that is being
+moved is open (even for reading), this will prevent
+this said directory from being moved, returning "Access
+Denied"
+
+Therefore, we have to drop `files` variable to release the `File`
+readers that keep files open.
+---
+ sit-core/src/repository.rs | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index fc4b07d..668be1e 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -946,6 +946,13 @@ mod tests {
+         assert_eq!(records.len(), 1);
+         assert_eq!(records[0].len(), 1);
+ 
++        // On Windows, if a file within a directory that is being
++        // moved is open (even for reading), this will prevent
++        // this said directory from being moved, returning "Access Denied"
++        // Therefore, we drop `files` here to release the `File` readers
++        #[cfg(windows)]
++        drop(files);
++
+         ::std::fs::rename(record2.actual_path(), record2.path()).unwrap();
+ 
+         // and now it can be
+-- 
+2.15.0
+
