@@ -1,0 +1,47 @@
+From fe366d09e208c71bf9f2a53f3477074b086db4ba Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 13 Feb 2018 10:14:58 +0700
+Subject: [PATCH] Problem: issue record doesn't record anything
+
+This happens when signing is disabled.
+
+Solution: make sure the record gets moved to where
+it should be when signing is disabled as well.
+
+(facepalm)
+
+Sorry!
+---
+ sit-web/src/webapp.rs | 2 ++
+ sit/src/main.rs       | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 29916b2..150b8ba 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -242,6 +242,8 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+                  return Response::json(&new_hash);
+              }
+ 
++          } else {
++                 fs::rename(record.actual_path(), record.path()).expect("can't rename record");
+           }
+ 
+           Response::json(&record.encoded_hash())
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 33c4659..783087e 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -478,6 +478,8 @@ fn main() {
+                             exit(0);
+                         }
+ 
++                    } else {
++                        fs::rename(record.actual_path(), record.path()).expect("can't rename record");
+                     }
+ 
+                     println!("{}", record.encoded_hash());
+-- 
+2.15.0
+
