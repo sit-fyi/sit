@@ -8,11 +8,11 @@
    <template>
        <link rel="stylesheet" href="/src/dashboard-page/dashboard-page.css">
 
-       Filter: <input id="filter" value="{{filter.value::change}}">
+       Filter: <input id="filter" on-change="handleFilter" value="{{filter::change}}">
        <a id="newIssue" href="/new">New Issue</a>
 
        <h1>Matching issues</h1>
-        <iron-ajax auto url="/api/issues/{{ filter.value }}/{{ query }}" handle-as="json"
+        <iron-ajax auto url="/api/issues/{{ filter }}/{{ query }}" handle-as="json"
                    last-response="{{ issues }}"></iron-ajax>
         <template is="dom-repeat" items="{{ issues }}">
             <sit-issue issue="{{item}}"></sit-issue>
@@ -22,10 +22,22 @@
     <script>
         class DashboardPage extends Polymer.Element {
             static get is() { return 'dashboard-page'; }
+            static get properties() {
+                return {
+                    filter: {
+                        type: String,
+                        value: "`true`"
+                    }
+                }
+            }
+
+            handleFilter() {
+                window.history.pushState({}, null, `/search/${this.$.filter.value}`);
+            }
+
             constructor() {
                 super();
                 this.query = "{id: id, summary: summary}";
-                this.filter = {value: "`true`", name: "all"}
             }
         }
         customElements.define(DashboardPage.is, DashboardPage);
