@@ -13,6 +13,9 @@ use std::fs;
 #[cfg(feature = "duktape-mmap")]
 use memmap;
 
+#[cfg(feature = "cesu8")]
+use cesu8;
+
 #[derive(Debug)]
 pub struct DuktapeReducer<'a, R: Record> {
     repository: &'a ::Repository,
@@ -289,6 +292,12 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
             let json = duktape::duk_get_string(ctx, -1);
 
             let json = ::std::ffi::CStr::from_ptr(json);
+            #[cfg(feature = "cesu8")]
+            let map: Map<String, JsonValue> = match cesu8::from_cesu8(json.to_bytes()) {
+                Ok(s) => serde_json::from_str(&s),
+                Err(_) => serde_json::from_slice(json.to_bytes()),
+            }.unwrap();
+            #[cfg(not(feature = "cesu8"))]
             let map: Map<String, JsonValue> = serde_json::from_slice(json.to_bytes()).unwrap();
 
             // drop the json
@@ -528,5 +537,28 @@ mod tests {
         let state3 = issue1.reduce_with_reducer(&mut reducer3).unwrap();
         assert_eq!(state3.get("hello").unwrap(), &JsonValue::Number(Number::from(3)));
     }
+
+
+    // Duktape uses CESU-8 internally, which is not the standard UTF-8
+    // encoding. Make sure we convert whatever is produced by Duktape.
+    #[cfg(feature = "cesu8")]
+    #[test]
+    fn cesu8() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        f.write(b"function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
+
+        let issue = repo.new_issue().unwrap();
+        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &"😵😾🤔"[..].as_bytes())].into_iter(), true).unwrap();
+        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
+
+        assert_eq!(state.get("hello").unwrap(), &JsonValue::String("😵😾🤔".into()));
+    }
+
 
 }
