@@ -1,0 +1,107 @@
+From 9df8f5e2c76f5ae62ddbe05dd9483cbe891f2b63 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 13 Feb 2018 13:39:40 +0700
+Subject: [PATCH] Problem: reloading web-ui with filter set resets it
+
+This is very annoying, especially when experimenting with
+a complex filter.
+
+Solution: retain the filter in the URL
+
+As a consequence of that, sharing such link with others
+will show them the intended result as well.
+---
+ sit-web/webapp/src/dashboard-page/dashboard-page.html | 18 +++++++++++++++---
+ sit-web/webapp/src/sit-app/sit-app.html               | 15 ++++++++++++---
+ 2 files changed, 27 insertions(+), 6 deletions(-)
+
+diff --git a/sit-web/webapp/src/dashboard-page/dashboard-page.html b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+index b7cd546..d83ff00 100644
+--- a/sit-web/webapp/src/dashboard-page/dashboard-page.html
++++ b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+@@ -8,11 +8,11 @@
+    <template>
+        <link rel="stylesheet" href="/src/dashboard-page/dashboard-page.css">
+ 
+-       Filter: <input id="filter" value="{{filter.value::change}}">
++       Filter: <input id="filter" on-change="handleFilter" value="{{filter::change}}">
+        <a id="newIssue" href="/new">New Issue</a>
+ 
+        <h1>Matching issues</h1>
+-        <iron-ajax auto url="/api/issues/{{ filter.value }}/{{ query }}" handle-as="json"
++        <iron-ajax auto url="/api/issues/{{ filter }}/{{ query }}" handle-as="json"
+                    last-response="{{ issues }}"></iron-ajax>
+         <template is="dom-repeat" items="{{ issues }}">
+             <sit-issue issue="{{item}}"></sit-issue>
+@@ -22,10 +22,22 @@
+     <script>
+         class DashboardPage extends Polymer.Element {
+             static get is() { return 'dashboard-page'; }
++            static get properties() {
++                return {
++                    filter: {
++                        type: String,
++                        value: "`true`"
++                    }
++                }
++            }
++
++            handleFilter() {
++                window.history.pushState({}, null, `/search/${this.$.filter.value}`);
++            }
++
+             constructor() {
+                 super();
+                 this.query = "{id: id, summary: summary}";
+-                this.filter = {value: "`true`", name: "all"}
+             }
+         }
+         customElements.define(DashboardPage.is, DashboardPage);
+diff --git a/sit-web/webapp/src/sit-app/sit-app.html b/sit-web/webapp/src/sit-app/sit-app.html
+index 8e80320..59e21c5 100644
+--- a/sit-web/webapp/src/sit-app/sit-app.html
++++ b/sit-web/webapp/src/sit-app/sit-app.html
+@@ -13,6 +13,7 @@
+ 
+     <app-route route="{{route}}" pattern="/issue/:id" data="{{issue}}" active="{{issueActive}}"> </app-route>
+     <app-route route="{{route}}" pattern="/new" active="{{newIssueActive}}"> </app-route>
++    <app-route route="{{route}}" pattern="/search/:filter" data="{{search}}" active="{{searchActive}}"> </app-route>
+     <app-route route="{{route}}" pattern="/" active="{{homeActive}}"> </app-route>
+ 
+     <template is="dom-if" if="{{ issueActive }}">
+@@ -27,6 +28,11 @@
+       <dashboard-page></dashboard-page>
+     </template>
+ 
++    <template is="dom-if" if="{{ searchActive }}">
++      <dashboard-page filter="[[ search.filter ]]"></dashboard-page>
++    </template>
++
++
+     <template is="dom-if" if="{{ noRouteMatched }}">
+       <error-page message="Not found"></error-page>
+     </template>
+@@ -47,14 +53,17 @@
+               issueActive: {
+                   type: Boolean,
+               },
++              searchActive: {
++                  type: Boolean,
++              },
+               noRouteMatched: {
+                   type: Boolean,
+-                  computed: 'computeNoRouteMatched(homeActive, newIssueActive, issueActive)'
++                  computed: 'computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive)'
+               }
+           }
+       }
+-      computeNoRouteMatched(homeActive, newIssueActive, issueActive) {
+-          return !homeActive && !newIssueActive && !issueActive;
++      computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive) {
++          return !homeActive && !newIssueActive && !issueActive && !searchActive;
+       }
+     }
+ 
+-- 
+2.15.0
+
