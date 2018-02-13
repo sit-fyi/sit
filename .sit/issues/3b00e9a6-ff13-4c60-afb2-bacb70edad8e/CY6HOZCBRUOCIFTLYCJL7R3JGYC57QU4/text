@@ -1,0 +1,8 @@
+For example, http://localhost:8080/repo// (notice the last
+slash) allowed to list to the root of the disk and, thus,
+lets reads anything.
+
+Solution: make sure the path after `/repo/` resolves to
+a directory *within* the actual SIT repository.
+
+Otherwise, return 404
