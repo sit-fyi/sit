@@ -1,0 +1,5 @@
+Currently, the web ui (or any other tooling) should rely on reducers code to figure out what kind of JSON document will they produce.
+
+This is not great because it is error-prone.
+
+Proposed solution: establish JSON schema(s) and declare which reducers produce what so that the tooling that consumes these documents can be reasonably sure about the documents they are receiving and processing.
