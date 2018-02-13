@@ -1,0 +1,30 @@
+From 08e7948470acdb5240f905ec01e9dd0863787db4 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 13 Feb 2018 13:21:57 +0700
+Subject: [PATCH] Problem: merge-merge-request fails if EDITOR is empty
+
+This is the same problem that prepare-merge-request
+had.
+
+Solution: use correct ${variable:-default} variable
+substitution syntax
+---
+ scripts/merge-merge-request | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/merge-merge-request b/scripts/merge-merge-request
+index d7d94b4..ab23842 100755
+--- a/scripts/merge-merge-request
++++ b/scripts/merge-merge-request
+@@ -4,7 +4,7 @@ issue=$1
+ mr=$2
+ tmpdir="$(mktemp -d)"
+ curdir=$(pwd)
+-editor=${EDITOR:nano}
++editor=${EDITOR:-nano}
+ range=$(git merge-base --fork-point master $branch)..$branch
+ curbranch=$(git rev-parse --abbrev-ref HEAD)
+ sit=$(which sit)
+-- 
+2.15.0
+

@@ -1,0 +1,5 @@
+This is the same problem that prepare-merge-request
+had.
+
+Solution: use correct ${variable:-default} variable
+substitution syntax
