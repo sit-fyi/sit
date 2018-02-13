@@ -1,0 +1,100 @@
+From 6c914fcd99eb7fc055eac58db9b24ad89d713602 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 13 Feb 2018 08:27:13 +0700
+Subject: [PATCH] Problem: issue after default reduction has no authorship
+
+Solution: determine authorship based on first summary/detail record
+---
+ .sit/.reducers/DetailsChanges.js                   | 7 ++++++-
+ .sit/.reducers/SummaryChanged.js                   | 6 +++++-
+ sit-core/default-files/.reducers/DetailsChanges.js | 7 ++++++-
+ sit-core/default-files/.reducers/SummaryChanged.js | 6 +++++-
+ sit-web/webapp/src/issue/issue.html                | 4 ++++
+ 5 files changed, 26 insertions(+), 4 deletions(-)
+
+diff --git a/.sit/.reducers/DetailsChanges.js b/.sit/.reducers/DetailsChanges.js
+index 5824510..6ef2533 100644
+--- a/.sit/.reducers/DetailsChanges.js
++++ b/.sit/.reducers/DetailsChanges.js
+@@ -1,7 +1,12 @@
+ function(state, record) {
+     if (typeof record.files[".type/DetailsChanged"] !== 'undefined') {
+         var merge_request = !!record.files[".type/MergeRequested"] ? record.hash : null ;
+-        return Object.assign(state, {merge_request: merge_request, details: new TextDecoder("utf-8").decode(record.files.text).trim()});
++        var decoder = new TextDecoder("utf-8");
++        return Object.assign(state, {
++            authors: state.authors || decoder.decode(record.files[".authors"]),
++            merge_request: merge_request,
++            details: decoder.decode(record.files.text).trim()
++        });
+     } else {
+         return state;
+     }
+diff --git a/.sit/.reducers/SummaryChanged.js b/.sit/.reducers/SummaryChanged.js
+index 071afac..c3e3633 100644
+--- a/.sit/.reducers/SummaryChanged.js
++++ b/.sit/.reducers/SummaryChanged.js
+@@ -1,6 +1,10 @@
+ function(state, record) {
+     if (typeof record.files[".type/SummaryChanged"] !== 'undefined') {
+-        return Object.assign(state, {summary: new TextDecoder("utf-8").decode(record.files.text).trim()});
++        var decoder = new TextDecoder("utf-8");
++        return Object.assign(state, {
++            authors: state.authors || decoder.decode(record.files[".authors"]),
++            summary: decoder.decode(record.files.text).trim()
++        });
+     } else {
+         return state;
+     }
+diff --git a/sit-core/default-files/.reducers/DetailsChanges.js b/sit-core/default-files/.reducers/DetailsChanges.js
+index 5824510..6ef2533 100644
+--- a/sit-core/default-files/.reducers/DetailsChanges.js
++++ b/sit-core/default-files/.reducers/DetailsChanges.js
+@@ -1,7 +1,12 @@
+ function(state, record) {
+     if (typeof record.files[".type/DetailsChanged"] !== 'undefined') {
+         var merge_request = !!record.files[".type/MergeRequested"] ? record.hash : null ;
+-        return Object.assign(state, {merge_request: merge_request, details: new TextDecoder("utf-8").decode(record.files.text).trim()});
++        var decoder = new TextDecoder("utf-8");
++        return Object.assign(state, {
++            authors: state.authors || decoder.decode(record.files[".authors"]),
++            merge_request: merge_request,
++            details: decoder.decode(record.files.text).trim()
++        });
+     } else {
+         return state;
+     }
+diff --git a/sit-core/default-files/.reducers/SummaryChanged.js b/sit-core/default-files/.reducers/SummaryChanged.js
+index 071afac..c3e3633 100644
+--- a/sit-core/default-files/.reducers/SummaryChanged.js
++++ b/sit-core/default-files/.reducers/SummaryChanged.js
+@@ -1,6 +1,10 @@
+ function(state, record) {
+     if (typeof record.files[".type/SummaryChanged"] !== 'undefined') {
+-        return Object.assign(state, {summary: new TextDecoder("utf-8").decode(record.files.text).trim()});
++        var decoder = new TextDecoder("utf-8");
++        return Object.assign(state, {
++            authors: state.authors || decoder.decode(record.files[".authors"]),
++            summary: decoder.decode(record.files.text).trim()
++        });
+     } else {
+         return state;
+     }
+diff --git a/sit-web/webapp/src/issue/issue.html b/sit-web/webapp/src/issue/issue.html
+index 8af8d1d..cbdc668 100644
+--- a/sit-web/webapp/src/issue/issue.html
++++ b/sit-web/webapp/src/issue/issue.html
+@@ -19,6 +19,10 @@
+ 
+        <h1>{{ view.summary }}</rendered-text></h1>
+ 
++       <p>
++           By [[ view.authors ]]
++       </p>
++
+        <iron-ajax auto
+                   url="/user/config"
+                   handle-as="json"
+-- 
+2.15.0
+
