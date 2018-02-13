@@ -250,6 +250,9 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
         // Serve repository content
         if request.url().starts_with("/repo/") {
             let file = repo.path().join(&request.url()[6..]);
+            if file.strip_prefix(repo.path()).is_err() {
+               return Response::empty_404();
+            }
             if file.is_file() {
                 return path_to_response(file)
             } else if file.is_dir() {
