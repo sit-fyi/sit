@@ -1,6 +1,10 @@
 function(state, record) {
     if (typeof record.files[".type/SummaryChanged"] !== 'undefined') {
-        return Object.assign(state, {summary: new TextDecoder("utf-8").decode(record.files.text).trim()});
+        var decoder = new TextDecoder("utf-8");
+        return Object.assign(state, {
+            authors: state.authors || decoder.decode(record.files[".authors"]),
+            summary: decoder.decode(record.files.text).trim()
+        });
     } else {
         return state;
     }
