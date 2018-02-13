@@ -1,0 +1,17 @@
+Problem: attaching merge requests to existing issues
+
+Currently, scripts/prepare-merge-request will only create a new issue
+for a merge request. However, this is not always the best way to do
+this.
+
+There are a few cases where it would be better to attach MergeRequests
+to existing issues:
+
+1. Updates to existing merge request issues.
+2. Fixes for a reported bug/issue within that same issue (to avoid having
+two issues on the same matter)
+
+Solution: let scripts/prepare-merge-request take an optional issue
+argument. If one is supplied, it should record a
+Commented,MergeRequested record for that issue, instead of creating a
+completely new one.
