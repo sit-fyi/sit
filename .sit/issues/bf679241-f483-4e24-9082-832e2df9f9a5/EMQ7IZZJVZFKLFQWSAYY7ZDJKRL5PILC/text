@@ -1,0 +1,6 @@
+This means they can't verify the "legitimacy" of the record, which might be particularly
+important when updating the issue (say, `SummaryChanged` or `DetailsChanged`)
+
+Proposed solution: expose `verified()` function to the `state`/`record` argument of the
+reducer function that will do the verification on demand and (if possible) return the
+signing key information.

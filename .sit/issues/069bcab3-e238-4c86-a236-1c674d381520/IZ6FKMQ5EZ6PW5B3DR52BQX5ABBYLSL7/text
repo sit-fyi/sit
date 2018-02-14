@@ -1,0 +1,7 @@
+Notes from a discussion with @lessless_ua:
+
+Let's separate prompt notifications with filtering newly updated issues with regards to "what's in there for me". Narrowing the problem down to filtering allows us to focus on the most challenging issue ("how do I know what to read?").
+
+The idea is to develop a `sup` module that will basically store a list of what records in what issues were already processed (per-user) and run JavaScript functions supplied by the user that will only be invoked on issues that were updated with the reduced issue, the list of new records, access to records and access to some per-function storage (immutable as well). These functions can produce some JSON that will highlight anything of interest in the processed updates. 
+
+These functions should also be able to receive some "user-defined state" (could be a part of the aforementioned state) to drive their functionality. For example, if I want to watch some issue, I need to record its ID somewhere.

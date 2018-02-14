@@ -1,0 +1,6 @@
+There has been some reluctance to add this because there's still 
+no permissions management convention in SIT (who is allowed
+to override items like this?)
+
+If some reasonable rules as two who is allowed to update in
+absence of permissioning can be formalized, then this should be done.
