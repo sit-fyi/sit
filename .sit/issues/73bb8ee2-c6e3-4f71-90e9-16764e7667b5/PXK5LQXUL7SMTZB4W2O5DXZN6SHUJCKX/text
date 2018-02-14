@@ -1,0 +1,7 @@
+1. Issue listing is two compressed horizontally
+   (three issues per row)
+2. Syntax-highlighted code goes beyond
+   the boundary of the element
+
+Solution: adjust styling to make it friendlier
+for small screens.
