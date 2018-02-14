@@ -2,12 +2,18 @@
     <template>
         <style>
             paper-card {
-                width: 20vw;
+                width: 100%;
                 margin: 10pt;
                 --paper-card-header-text: {
                     font-size: 14pt;
                     height: 40pt;
                     text-overflow: ellipsis;
+                }
+            }
+
+            @media only screen and (min-width: 768px) {
+                paper-card {
+                    width: 20vw;
                 }
             }
 
