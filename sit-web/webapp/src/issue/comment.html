@@ -1,17 +1,21 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
 <link rel="import" href="rendered-text.html">
 <link rel="import" href="../merge-request/merge-request.html">
+<link rel="import" href="/bower_components/paper-card/paper-card.html">
+<link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="/bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="comment-style.html">
 
 <dom-module id="issue-comment">
     <template>
 
-        <link rel="stylesheet" href="/src/issue/comment.css" />
+        <style include="comment-style"></style>
 
-        <div>
+        <paper-card heading="[[ comment.authors ]] commented">
             <rendered-text text="{{ comment.text }}"></rendered-text>
             <merge-request issue="[[ issue ]]" record="[[ comment.merge_request ]]"></merge-request>
-            <div>By: {{ comment.authors }}</div>
-        </div>
+        </paper-card>
+
     </template>
 
     <script>

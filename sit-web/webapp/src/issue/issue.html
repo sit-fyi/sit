@@ -1,6 +1,13 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
 <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
 <link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
+<link rel="import" href="/bower_components/app-layout/app-layout.html">
+<link rel="import" href="/bower_components/paper-card/paper-card.html">
+<link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="/bower_components/iron-icons/iron-icons.html">
+
+<link rel="import" href="issue-style.html">
+
 <link rel="import" href="comment.html">
 <link rel="import" href="new-comment.html">
 <link rel="import" href="rendered-text.html">
@@ -9,19 +16,20 @@
 <dom-module id="issue-view">
    <template>
 
-       <link rel="stylesheet" href="/src/issue/issue.css">
+       <style include="issue-view-style"></style>
 
-       <a href="/">&lt;&lt; Back to issues</a>
+       <app-header reveals>
+           <app-toolbar>
+               <paper-icon-button icon="list" title="Issues" on-click="handleBack"></paper-icon-button>
+               <div main-title>[[ view.summary ]] <span class$="[[ view.state ]]">[[view.state]]</span></div>
+               <paper-icon-button icon="create" title="New issue" on-click="handleNew"></paper-icon-button>
+           </app-toolbar>
+       </app-header>
+
 
        <iron-ajax id="request"
                    auto url="/api/issue/{{ id }}/{{ query }}" handle-as="json"
                    last-response="{{ view }}"></iron-ajax>
-
-       <h1>{{ view.summary }}</rendered-text></h1>
-
-       <p>
-           By [[ view.authors ]]
-       </p>
 
        <iron-ajax auto
                   url="/user/config"
@@ -36,24 +44,33 @@
                method="POST"
                on-response="reload"></iron-ajax>
 
-       <div>
-           {{ view.state }}
-           <template is="dom-if" if="[[ isClosed ]]">
-               <button on-click="handleReopen">Re-open</button>
-          </template>
-       </div>
+       <paper-card>
+           <div class="card-content">
 
-       <div>
-           <rendered-text text="{{ view.details }}"></rendered-text>
-       </div>
+               <div>
+                   <rendered-text text="{{ view.details }}"></rendered-text>
+               </div>
+
+               <small>[[ view.authors ]]</small>
+           </div>
+
+           <div class="card-actions">
+               <div class="horizontal justified">
+                   <template is="dom-if" if="[[ isClosed ]]">
+                     <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"> </paper-icon-button>
+                   </template>
+                </div>
+
+           </div>
+       </paper-card>
+
 
        <merge-request issue="[[ id ]]" record="[[ view.merge_request ]]"></merge-request>
-
-       <h4>Comments</h4>
 
        <template is="dom-repeat" items="{{ view.comments }}">
            <issue-comment issue="[[ id ]]" comment="{{item}}"></issue-comment>
        </template>
+
 
        <issue-new-comment on-new-comment="reload" issue="{{ id }}"></issue-new-comment>
     </template>
@@ -80,7 +97,7 @@
                     isClosed: {
                         type: Boolean,
                         computed: 'checkIfClosed(view)'
-                    }
+                    },
                 }
             }
             constructor() {
@@ -115,6 +132,17 @@
                 this.set("formdata", formdata);
                 this.$.postRequest.generateRequest();
             }
+
+            handleBack() {
+                window.history.pushState({}, null, `/`);
+                window.dispatchEvent(new CustomEvent('location-changed'));
+            }
+
+            handleNew() {
+                window.history.pushState({}, null, "/new");
+                window.dispatchEvent(new CustomEvent('location-changed'));
+            }
+
 
             reload() {
                 this.$.request.generateRequest();

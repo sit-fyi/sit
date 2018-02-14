@@ -1,24 +1,29 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
 <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
 <link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
+<link rel="import" href="/bower_components/paper-card/paper-card.html">
+<link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="/bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="merge-request-style.html">
 <link rel="import" href="patch.html">
 
 <dom-module id="merge-request">
    <template>
 
-       <link rel="stylesheet" href="/src/merge-request/merge-request.css">
+       <style include="merge-request-style"></style>
 
        <template is="dom-if" if="[[ record ]]">
            <iron-ajax id="files"
                  auto url="/api/issue/{{ issue }}/{{ record }}/files"
                  handle-as="json"
                  last-response="{{ files }}"></iron-ajax>
-           <div id="mergeRequest">
-               <h4>Merge Request</h4>
+           <paper-card heading="Merge Request [[ record ]]">
+               <div class="card-content">
                    <template is="dom-repeat" items="[[ mergeFiles ]]">
                        <merge-patch issue="[[ issue ]]" record="[[ record ]]" file="[[ item ]]"></merge-patch>
                    </template>
-           </div>
+               </div>
+           </paper-card>
        </template>
 
     </template>

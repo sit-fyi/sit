@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Demo</title>
+		<script src="../../webcomponentsjs/webcomponents-loader.js"></script>
+		<link rel="import" href="../paper-search-bar.html">
+	</head>
+
+	<body>
+		<dom-bind>
+			<template>
+				<paper-search-bar
+					query="{{query}}"
+					placeholder="Enter search term"
+					nr-selected-filters="3"
+					on-paper-search-search="search"
+					on-paper-search-filter="filter">
+				</paper-search-bar>
+			</template>
+		</dom-bind>
+
+		<script>
+			var scope = document.querySelector("dom-bind");
+			scope.search = function() {
+				alert("Searching for " + scope.query);
+			};
+			scope.filter = function() {
+				alert("Filter dialog");
+			};
+		</script>
+	</body>
+</html>

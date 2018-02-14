@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+	<head>
+		<title>paper-search-panel</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+		<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+		<script src="../../web-component-tester/browser.js"></script>
+		<script src="../../test-fixture/test-fixture-mocha.js"></script>
+		<script src="../../iron-test-helpers/mock-interactions.js"></script>
+
+		<link rel="import" href="../paper-search-panel.html">
+		<link rel="import" href="../../test-fixture/test-fixture.html">
+	</head>
+	<body>
+
+		<test-fixture id="TrivialElement">
+			<template>
+				<paper-search-panel></paper-search-panel>
+			</template>
+		</test-fixture>
+
+		<script>
+			suite('<paper-search-panel>', function() {
+				suite('no results behavior', function() {
+					var element;
+
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+
+					test('shows no-result if there are no items and data is not loading', function() {
+						expect(element._showNoResults(false, false)).to.be.eql(true);
+					});
+					test('doesn\'t show no-result if there are items', function() {
+						expect(element._showNoResults(true, false)).to.be.eql(false);
+						expect(element._showNoResults(true, true)).to.be.eql(false);
+					});
+					test('doesn\'t show no-result if element is loading', function() {
+						expect(element._showNoResults(false, true)).to.be.eql(false);
+						expect(element._showNoResults(true, true)).to.be.eql(false);
+					});
+				});
+
+				suite('has-items behavior', function() {
+					var element;
+
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+
+					test('defaults to false', function() {
+						expect(element._hasItems).to.be.eql(false);
+					});
+					test('is false for empty items set', function() {
+						element.items = [];
+						expect(element._hasItems).to.be.eql(false);
+					});
+					test('is true for items set', function() {
+						element.items = [ {} ];
+						expect(element._hasItems).to.be.eql(true);
+					});
+				});
+
+				suite('nr-filters calculation', function() {
+					var element;
+
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+
+					test('return 0 for no filters', function() {
+						expect(element._getNrSelectedFilters({})).to.be.eql(0);
+					});
+					test('counts multiple values for a filter', function() {
+						expect(element._getNrSelectedFilters({ filter : [ 'value1', 'value2' ] })).to.be.eql(2);
+					});
+					test('counts multiple filters', function() {
+						expect(element._getNrSelectedFilters({
+							filter1 : [ 'value1', 'value2' ],
+							filter2 : [ 'value1', 'value2' ]
+						})).to.be.eql(4);
+					});
+				});
+
+				suite('paging behavior', function() {
+					var element;
+
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+
+					test('default to count 20', function() {
+						expect(element.count).to.be.eql(20);
+					});
+					test('load increases count by 20', function() {
+						element.count = 20;
+
+						element._loadMore();
+						expect(element.count).to.be.eql(40);
+
+						element._loadMore();
+						expect(element.count).to.be.eql(60);
+					});
+					test('resets count 20 after changing the search query (request parameter)', function() {
+						element.count = 99;
+
+						element.search = 'xxx';
+						expect(element.count).to.be.eql(20);
+					});
+					test('resets count 20 after changing the selected filters (request parameter)', function() {
+						element.count = 99;
+
+						element.selectedFilters = { filter: [ 'value' ] };
+						expect(element.count).to.be.eql(20);
+					});
+				});
+
+				suite('user experience', function() {
+					var element;
+
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+
+					test('disables filter button when no filters available', function() {
+						element.filters = [];
+						expect(element.getPaperSearchBarInstance().disableFilterButton).to.be.true;
+					});
+
+					test('enables filter button when filters available', function() {
+						element.filters = [ { id: 'test', name: 'Test', values: [ { id: 'value', count: 1 } ] } ];
+						expect(element.getPaperSearchBarInstance().disableFilterButton).to.be.false;						
+					});
+				});
+			});
+		</script>
+
+	</body>
+</html>

@@ -1,21 +1,32 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
 <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="/bower_components/app-layout/app-layout.html">
+<link rel="import" href="/bower_components/paper-input/paper-input.html">
+<link rel="import" href="/bower_components/paper-input/paper-textarea.html">
+<link rel="import" href="/bower_components/paper-button/paper-button.html">
+
+<link rel="import" href="new-issue-style.html">
 
 <dom-module id="issue-new">
     <template>
 
-        <link rel="stylesheet" href="/src/issue/new.css">
+        <style include="new-issue-style"></style>
 
-        <div>
-            <input id="summary" size="80" placeholder="Summary" on-keypress="handleChange" on-change="handleChange" on-input="handleChange">
+        <app-header reveals>
+           <app-toolbar>
+               <paper-icon-button icon="list" title="Issues" on-click="handleBack"></paper-icon-button>
+               <div main-title>New Issue</div>
+           </app-toolbar>
+       </app-header>
 
+        <form>
+            <paper-input id="summary" label="Summary" on-keypress="handleChange" on-change="handleChange" on-input="handleChange"></paper-input>
+
+            <paper-textarea id="details" rows="5" label="Details" on-keypress="handleChange" on-change="handleChange" on-input="handleChange"></paper-textarea>
             <div>
-                <textarea placeholder="Details of the issue" on-keypress="handleChange" on-change="handleChange" on-input="handleChange" id="details" cols="80" rows="5"></textarea>
+                <paper-button on-click="handleCreate" raised>Create</paper-button>
             </div>
-            <div>
-                <button on-click="handleCreate">Create</button>
-            </div>
-        </div>
+        </form>
 
         <iron-ajax auto
                    url="/user/config"
@@ -81,6 +92,7 @@
                 details.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
                 details.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
                 this.set("detailsFormdata", details);
+                console.log(this)
             }
             handleCreate() {
                 this.$.createIssue.generateRequest();
@@ -95,6 +107,11 @@
                     window.dispatchEvent(new CustomEvent('location-changed'));
                 });
             }
+            handleBack() {
+                window.history.pushState({}, null, `/`);
+                window.dispatchEvent(new CustomEvent('location-changed'));
+            }
+
         }
         customElements.define(IssueNew.is, IssueNew);
     </script>

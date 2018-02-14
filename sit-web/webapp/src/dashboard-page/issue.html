@@ -1,12 +1,37 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/paper-card/paper-card.html">
+<link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="/bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="/bower_components/iron-icons/communication-icons.html">
+<link rel="import" href="issue-style.html">
+
 
 <dom-module id="sit-issue">
     <template>
-        <link rel="stylesheet" href="/src/dashboard-page/issue.css">
-        <div>
-          {{ issue.id }}
-          <a href="/issue/{{ issue.id }}">{{ issue.summary }}</a>
-        </div>
+        <style include="issue-style"></style>
+        <style is="custom-style" include="iron-flex iron-flex-alignmen"></style>
+
+        <paper-card id="card" heading="[[ issue.summary ]]">
+            <div class="card-content">
+                <div class="horizontal">
+                    <span class$="[[ issue.state ]]">[[ issue.state ]]</span>
+                    <template is="dom-if" if="[[ isMergeRequest ]]">
+                        <span class="mr">MR</span>
+                    </template>
+               </div>
+            </div>
+            <div class="card-actions">
+                <span class="horizontal">
+                    <paper-icon-button on-click="handleOpen" title="Open" id="open" icon="open-in-browser" alt="open"> </paper-icon-button>
+                </span>
+                <span class="horizontal end-aligned">
+                    <paper-icon-button on-click="handleOpen" title="Comments" id="comments" icon="communication:comment" alt="inbox"> </paper-icon-button>
+                    <template is="dom-if" if="[[ hasComments ]]">
+                        <paper-badge for="comments" label="[[ commentCount  ]]"></paper-badge>
+                    </template>
+               </span>
+            </div>
+        </paper-card>
     </template>
 
     <script>
@@ -17,8 +42,38 @@
                     issue: {
                         type: Object
                     },
+                    commentCount: {
+                        type: Number,
+                        computed: 'computeCommentCount(issue)'
+                    },
+                    hasComments: {
+                        type: Boolean,
+                        computed: 'computeHasComments(issue)'
+                    },
+                    isMergeRequest: {
+                        type: Boolean,
+                        computed: 'computeIsMergeRequest(issue)'
+                    }
                 }
             }
+
+            computeCommentCount(issue) {
+                return issue.comments.length;
+            }
+
+            computeHasComments(issue) {
+                return issue.comments.length > 0;
+            }
+
+            computeIsMergeRequest(issue) {
+                return issue.merge_request;
+            }
+
+            handleOpen() {
+                window.history.pushState({}, null, `/issue/${this.issue.id}`);
+                window.dispatchEvent(new CustomEvent('location-changed'));
+            }
+
 
         }
         customElements.define(IssueSummary.is, IssueSummary);

@@ -2,11 +2,12 @@
 <link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
 <link rel="import" href="/bower_components/prism-element/prism-highlighter.html">
 <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="syntax-highlighting-style.html">
 
 <dom-module id="syntax-highlighting">
    <template>
 
-       <link rel="stylesheet" href="/src/syntax-highlighting/syntax-highlighting.css">
+       <style include="syntax-highlighting-style"></style>
        <link rel="stylesheet" href="/bower_components/prism/themes/prism.css">
 
        <iron-ajax auto url="/bower_components/prism/components/prism-[[lang]].js"

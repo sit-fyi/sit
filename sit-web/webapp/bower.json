@@ -7,7 +7,17 @@
     "iron-ajax": "^2.1.0",
     "app-route": "PolymerElements/app-route#^2.0.3",
     "marked-element": "^2.3.3",
-    "prism-element": "^2.0.1"
+    "prism-element": "^2.0.1",
+    "app-layout": "^2.0.5",
+    "paper-search": "^2.0.9",
+    "paper-card": "PolymerElements/paper-card#^2.0.0",
+    "iron-flex-layout": "^2.0.3",
+    "paper-icon-button": "^2.1.0",
+    "paper-input": "^2.1.1",
+    "paper-dropdown-menu": "^2.0.2",
+    "paper-listbox": "^2.0.0",
+    "neon-animation": "^2.1.0",
+    "web-animations-js": "^2.3.1"
   },
   "devDependencies": {
     "web-component-tester": "Polymer/web-component-tester#^6.0.0",

@@ -1,22 +1,52 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
 <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
 <link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
+<link rel="import" href="/bower_components/app-layout/app-layout.html">
+<link rel="import" href="/bower_components/paper-search/paper-search.html">
+<link rel="import" href="/bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
+<link rel="import" href="/bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="/bower_components/neon-animation/web-animations.html">
+<link rel="import" href="/bower_components/iron-flex-layout/iron-flex-layout-classes.html">
 
+
+<link rel="import" href="dashboard-page-style.html">
 <link rel="import" href="issue.html">
 
 <dom-module id="dashboard-page">
    <template>
-       <link rel="stylesheet" href="/src/dashboard-page/dashboard-page.css">
+       <style include="dashboard-page-style"></style>
+       <style is="custom-style" include="iron-flex iron-flex-alignment iron-flex-factors"></style>
 
-       Filter: <input id="filter" on-change="handleFilter" value="{{filter::change}}">
-       <a id="newIssue" href="/new">New Issue</a>
+       <app-header reveals>
+           <app-toolbar>
+               <div main-title>SIT</div>
+               <paper-icon-button icon="create" title="New issue" on-click="handleNew"></paper-icon-button>
+           </app-toolbar>
+       </app-header>
 
-       <h1>Matching issues</h1>
+       <iron-ajax auto url="/user/config" handle-as="json"
+                  last-response="{{ config }}">
+       </iron-ajax>
+
+       <div class="search layout center horizontal">
+       <paper-search-bar class="flex-4" query="{{ filterQuery }}" placeholder="Issue filter (JMESPath)" hide-filter-button on-paper-search-search="handleFilter"></paper-search-bar>
+
+       <paper-dropdown-menu id="namedFilter" no-label-float dynamic-align label="Named filters">
+           <paper-listbox slot="dropdown-content" >
+               <template is="dom-repeat" items="[[ namedFilters ]]">
+                   <paper-item>[[ item.name ]]</paper-item>
+               </template>
+           </paper-listbox>
+       </paper-dropdown-menu>
+       </div>
+
         <iron-ajax auto url="/api/issues/{{ filter }}/{{ query }}" handle-as="json"
                    last-response="{{ issues }}"></iron-ajax>
+       <div class="layout horizontal baseline wrap">
         <template is="dom-repeat" items="{{ issues }}">
             <sit-issue issue="{{item}}"></sit-issue>
         </template>
+       </div>
     </template>
 
     <script>
@@ -27,17 +57,56 @@
                     filter: {
                         type: String,
                         value: "`true`"
+                    },
+                    filterQuery: {
+                        type: String
+                    },
+                    config: {
+                        type: Object,
+                    },
+                    namedFilters: {
+                        type: Array,
+                        computed: 'computeNamedFilters(config)'
                     }
                 }
             }
 
+            computeNamedFilters(config) {
+                let filters = (config.issues || {}).filters || {};
+                return Object.keys(filters)
+                    .map(function(key) {
+                       return { name: key, value: filters[key] }
+                    });
+            }
+
             handleFilter() {
-                window.history.pushState({}, null, `/search/${this.$.filter.value}`);
+                this.set("filter", this.filterQuery || "`true`");
+                window.history.pushState({}, null, `/search/${this.filterQuery}`);
+            }
+
+            handleNew() {
+                window.history.pushState({}, null, "/new");
+                window.dispatchEvent(new CustomEvent('location-changed'));
+            }
+
+            handleNamedFilter() {
+                let filter = this.config.issues.filters[this.$.namedFilter.selectedItemLabel];
+                this.set("filter", filter);
+                this.set("filterQuery", filter);
+                window.history.pushState({}, null, `/search/${filter}`);
             }
 
             constructor() {
                 super();
-                this.query = "{id: id, summary: summary}";
+                this.query = "{id: id, summary: summary, state: state, comments: (comments || `[]`), merge_request: merge_request || false}";
+            }
+
+            ready() {
+                if (typeof this.filterQuery !== 'undefined') {
+                    this.set("filter", this.filterQuery);
+                }
+                window.addEventListener("iron-select", this.handleNamedFilter.bind(this));
+                super.ready();
             }
         }
         customElements.define(DashboardPage.is, DashboardPage);

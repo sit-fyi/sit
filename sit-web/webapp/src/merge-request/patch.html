@@ -2,11 +2,12 @@
 <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
 <link rel="import" href="../syntax-highlighting/syntax-highlighting.html">
 
+<link rel="import" href="patch-style.html">
+
 <dom-module id="merge-patch">
    <template>
-
-       <link rel="stylesheet" href="/src/merge-request/patch.css">
        <link rel="stylesheet" href="/bower_components/prism/themes/prism.css">
+       <style include="patch-style"></style>
 
        <a target="_blank" href="/repo/issues/[[ issue ]]/[[ record ]]/[[file]]">[[ file ]]</a>
        <iron-ajax auto url="/repo/issues/[[ issue ]]/[[ record ]]/[[file]]"

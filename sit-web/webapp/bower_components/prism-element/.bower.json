@@ -62,6 +62,5 @@
   },
   "_source": "https://github.com/PolymerElements/prism-element.git",
   "_target": "^2.0.1",
-  "_originalSource": "prism-element",
-  "_direct": true
+  "_originalSource": "prism-element"
 }

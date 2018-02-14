@@ -1,0 +1,152 @@
+<!doctype html>
+<html>
+	<head>
+		<title>paper-filter-dialog</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+		<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+		<script src="../../web-component-tester/browser.js"></script>
+		<script src="../../test-fixture/test-fixture-mocha.js"></script>
+		<script src="../../iron-test-helpers/mock-interactions.js"></script>
+
+		<link rel="import" href="../paper-filter-dialog.html">
+		<link rel="import" href="../../test-fixture/test-fixture.html">
+	</head>
+	<body>
+
+		<test-fixture id="TrivialElement">
+			<template>
+				<paper-filter-dialog></paper-filter-dialog>
+			</template>
+		</test-fixture>
+
+		<script>
+			suite('<paper-filter-dialog>', function() {
+				suite('selected-filters behavior', function() {
+					var element;
+
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+
+					test('selected filters are passed on open', function(done) {
+						// Pre-condition: no filters selected internally
+						element._selectedFilters = {};
+
+						element.selectedFilters = { age: [ 'adult'] };
+						element.open();
+
+						setTimeout(function() {
+							expect(Object.keys(element._selectedFilters).length).to.be.eql(1);
+							done();
+						}, 10);
+					});
+					test('reset clears all selected filters', function() {
+						// Pre-condition: age filter is selected
+						element.selectedFilters = { age: [ 'adult'] };
+						element.open();
+
+						element._tapReset();
+
+						expect(Object.keys(element._selectedFilters).length).to.be.eql(0);
+					});
+					test('apply exposes selected filters', function() {
+						// Pre-condition: no filter is selected
+						element.selectedFilters = {};
+						element._selectedFilters = { age: [ 'adult'] };
+
+						element._tapApply();
+
+						expect(Object.keys(element.selectedFilters).length).to.be.eql(1);
+					});
+					test('selected filters are not exposed before pressing apply', function() {
+						// Pre-condition: age filter is selected
+						element.selectedFilters = {};
+						element.open();
+
+						element._selectedFilters = { age: [ 'adult'] };
+
+						expect(Object.keys(element.selectedFilters).length).to.be.eql(0);
+					});
+				});
+
+				suite('selected values behavior', function() {
+					var element;
+
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+
+					test('pre-selects selected values', function() {
+						// Prepare: user selected filter 'age' with
+						element._selectedFilters.age = [ 'adult' ];
+
+						element._selectedFilter = { id: 'age', values: [ { id: 'adult' } ] };
+
+						// Pre-condition: no filters are selected
+						expect(element._selectedFilterValues).to.be.eql([]);
+
+						element._preselectFilterValues();
+
+						expect(element._selectedFilterValues[0].selected).to.be.true;
+					});
+					test('copies over selected values after confirming them', function() {
+						// Pre-condition: no filters are selected
+						element._selectedFilters = {};
+
+						// Prepare: user selected value 'adult' in the age filter
+						element._selectedFilter = { id: 'age', values: []};
+						element._selectedFilterValues = [
+							{ id: 'adult', selected: true },
+							{ id: 'teenager', selected: true },
+							{ id: 'child' }
+						];
+
+						element._tapSelectValues();
+						expect(element._selectedFilters.age).to.be.eql([ 'adult', 'teenager' ]);
+					});
+				});
+
+				suite('has-selected-values behavior', function() {
+					var element;
+
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+
+					test('returns false for no filters', function() {
+						expect(element._hasSelectedFilters({}, 0)).to.be.eql(false);
+					});
+					test('returns false for filters without values', function() {
+						expect(element._hasSelectedFilters({ age: [] }, 0)).to.be.eql(false);
+					});
+					test('returns true for no filters', function() {
+						expect(element._hasSelectedFilters({ age: [ 'adult' ] }, 0)).to.be.eql(true);
+					});
+				});
+
+				suite('summary of selected values', function() {
+					var element;
+					var filter;
+
+					setup(function() {
+						element = fixture('TrivialElement');
+						filter = { id: 'age', values: [ { id: 'child', name: '0-12' }, { id: 'adult', name: '20+' } ] };
+					});
+
+					test('shows placeholder if no values are selected', function() {
+						expect(element._getSelectedValuesNames(filter, {}, 0)).to.be.eql('No filters yet');
+					});
+					test('shows value if selected', function() {
+						expect(element._getSelectedValuesNames(filter, { age: [ 'adult' ] }, 0)).to.be.eql('20+');
+					});
+					test('concts multiple value if selected', function() {
+						expect(element._getSelectedValuesNames(filter, { age: [ 'child', 'adult' ] }, 0)).to.be.eql('0-12, 20+');
+					});
+				});
+			});
+		</script>
+
+	</body>
+</html>
