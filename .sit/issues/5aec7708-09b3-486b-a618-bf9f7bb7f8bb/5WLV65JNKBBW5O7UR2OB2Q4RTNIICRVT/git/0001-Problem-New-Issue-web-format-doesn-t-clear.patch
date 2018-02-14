@@ -1,0 +1,34 @@
+From d3a58b3460f69acdcc8e7c62a5fa0c49ceaeefa6 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 14 Feb 2018 17:23:43 +0700
+Subject: [PATCH] Problem: "New Issue" web format doesn't clear
+
+Once the issue is created, if you go to
+"New Issue" form again it'll still have the
+content of the last issue.
+
+Solution: clear the form once the issue is created.
+---
+ sit-web/webapp/src/issue/new.html | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/sit-web/webapp/src/issue/new.html b/sit-web/webapp/src/issue/new.html
+index 8ae3d4d..5af5216 100644
+--- a/sit-web/webapp/src/issue/new.html
++++ b/sit-web/webapp/src/issue/new.html
+@@ -103,9 +103,11 @@
+                 let issue = this.issue;
+ 
+                 Promise.all([req1.completes, req2.completes]).then(function() {
++                    this.$.details.set("value", "");
++                    this.$.summary.set("value", "");
+                     window.history.pushState({}, null, `/issue/${issue}`);
+                     window.dispatchEvent(new CustomEvent('location-changed'));
+-                });
++                }.bind(this));
+             }
+             handleBack() {
+                 window.history.pushState({}, null, `/`);
+-- 
+2.15.0
+

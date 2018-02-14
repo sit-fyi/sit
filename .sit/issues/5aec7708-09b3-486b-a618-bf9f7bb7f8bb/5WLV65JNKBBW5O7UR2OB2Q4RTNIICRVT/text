@@ -1,0 +1,5 @@
+Once the issue is created, if you go to
+"New Issue" form again it'll still have the
+content of the last issue.
+
+Solution: clear the form once the issue is created.
