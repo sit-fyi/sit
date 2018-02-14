@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+
+<head>
+	<title>Demo</title>
+	<script src="../../webcomponentsjs/webcomponents-loader.js"></script>
+	<link rel="import" href="../../paper-button/paper-button.html">
+	<link rel="import" href="../paper-filter-dialog.html">
+</head>
+
+<body>
+	<dom-bind>
+		<template>
+			<paper-button raised on-tap="open">Open</paper-button>
+			<paper-filter-dialog id="dialog" filters="[[filters]]" selected-filters="{{selectedFilters}}"></paper-filter-dialog>
+			Selected filters:
+			<span>[[_renderSelectedFilters(selectedFilters)]]</span>
+		</template>
+	</dom-bind>
+
+	<script>
+		var scope = document.querySelector("dom-bind");
+		scope._renderSelectedFilters = function (selectedFilters) {
+			return JSON.stringify(selectedFilters);
+		};
+		scope.open = function () {
+			this.$.dialog.open();
+		};
+		scope.selectedFilters = {
+			age: ["teenager", "adult"],
+			gender: ["male"]
+		};
+		scope.filters = [
+			{
+				id: "age",
+				name: "Age",
+				values: [{
+						id: "child",
+						name: "0-12",
+						count: 29
+					},
+					{
+						id: "teenager",
+						name: "13-19",
+						count: 8
+					},
+					{
+						id: "adult",
+						name: "20+",
+						count: 63
+					}
+				]
+			},
+			{
+				id: "gender",
+				name: "Gender",
+				values: [{
+						id: "female",
+						name: "Female"
+					},
+					{
+						id: "male",
+						name: "Male"
+					}
+				]
+			}
+		];
+	</script>
+</body>
+
+</html>

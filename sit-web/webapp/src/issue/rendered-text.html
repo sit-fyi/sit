@@ -2,12 +2,13 @@
 <link rel="import" href="/bower_components/marked-element/marked-element.html">
 <link rel="import" href="/bower_components/prism-element/prism-highlighter.html">
 <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="rendered-text-style.html">
+
 
 <dom-module id="rendered-text">
    <template>
-
-       <link rel="stylesheet" href="/src/issue/rendered-text.css">
        <link rel="stylesheet" href="/bower_components/prism/themes/prism.css">
+       <style include="rendered-text-style"></style>
 
        <iron-ajax auto url="/bower_components/prism/components/prism-[[lang]].js"
                   handle-as="text" on-response="loadSyntax"></iron-ajax>

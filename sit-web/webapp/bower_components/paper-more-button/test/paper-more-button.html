@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+	<head>
+		<title>paper-more-button</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		
+		<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+		<script src="../../web-component-tester/browser.js"></script>
+		<script src="../../test-fixture/test-fixture-mocha.js"></script>
+		<script src="../../iron-test-helpers/mock-interactions.js"></script>
+		
+		<link rel="import" href="../paper-more-button.html">
+		<link rel="import" href="../../test-fixture/test-fixture.html">
+	</head>
+	<body>
+	
+		<test-fixture id="TrivialElement">
+			<template>
+				<paper-more-button has-more>More</paper-more-button>
+			</template>
+		</test-fixture>
+	
+		<script>
+			suite('<paper-more-button>', function() {
+				suite('visibility behavior', function() {
+					var element;
+	
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+					
+					test('shows button if more items are available', function() {
+						expect(element._showMore(true, false)).to.be.eql(true);
+					});
+					test('hide button if no more items are available', function() {
+						expect(element._showMore(false, false)).to.be.eql(false);
+					});
+					test('hide button if loading', function() {
+						expect(element._showMore(true, true)).to.be.eql(false);
+						expect(element._showMore(false, true)).to.be.eql(false);
+					});
+				});
+				
+				suite('tap behavior', function() {
+					var element;
+	
+					setup(function() {
+						element = fixture('TrivialElement');
+					});
+					
+					test('fires tap-more event when clicking button', function(done) {
+						element.addEventListener('tap-more', function() {
+							done();
+						});
+						var button = Polymer.dom(element.root).querySelector("paper-button");
+						MockInteractions.tap(button);
+					});
+				});
+			});
+		</script>
+	
+	</body>
+</html>

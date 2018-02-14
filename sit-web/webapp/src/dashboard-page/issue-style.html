@@ -1,0 +1,41 @@
+<dom-module id="issue-style">
+    <template>
+        <style>
+            paper-card {
+                width: 20vw;
+                margin: 10pt;
+                --paper-card-header-text: {
+                    font-size: 14pt;
+                    height: 40pt;
+                    text-overflow: ellipsis;
+                }
+            }
+
+            .open {
+                background-color: darkseagreen;
+                padding: 4pt;
+                opacity: 0.5;
+            }
+
+            .closed {
+                background-color: #0e2231;
+                padding: 4pt;
+                color: white;
+                opacity: 0.5;
+            }
+
+
+            paper-badge {
+                --paper-badge-background: var(--paper-light-blue-100);
+           }
+
+            .mr {
+                padding: 4pt;
+                background-color: #0b97c4;
+                color: white;
+                opacity: 0.5;
+            }
+
+        </style>
+    </template>
+</dom-module>

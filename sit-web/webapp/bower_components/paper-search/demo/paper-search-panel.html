@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Demo</title>
+		<script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+		<link rel="import" href="../../paper-styles/demo-pages.html">
+		<link rel="import" href="../paper-search-panel.html">
+
+		<style>
+			.property {
+				margin-bottom: 10px;
+			}
+		</style>
+	</head>
+
+	<body>
+		<dom-bind>
+			<template>
+				<h2>Search panel</h2>
+				<paper-search-panel
+					placeholder="Search for anything..."
+					hide-filter-button="[[hideFilterButton]]"
+					search="{{search}}"
+					count="{{count}}"
+					items="[[_createItems(noResults)]]"
+					has-more="[[hasMore]]"
+					loading="[[loading]]"
+					filters="[[filters]]"
+					selected-filters="{{selectedFilters}}"
+					on-change-request-params="loadData">
+					<div>
+						Your job: Show your [[count]] results for "[[search]]"
+					</div>
+
+					<div fixed>
+						Content that is always shown
+					</div>
+				</paper-search-panel>
+
+				<h2>Properties</h2>
+				<div class="vertical-section">
+					<paper-checkbox class="property" checked="{{noResults}}">Empty results</paper-checkbox><br>
+					<paper-checkbox class="property" checked="{{hasMore}}">Results has more results</paper-checkbox><br>
+					<paper-checkbox class="property" checked="{{loading}}">Loading</paper-checkbox><br>
+					<paper-checkbox class="property" checked="{{hideFilterButton}}">Hide filter button</paper-checkbox><br>
+				</div>
+			</template>
+		</dom-bind>
+
+		<script>
+			var scope = document.querySelector("dom-bind");
+			scope.hasMore = true;
+			scope.selectedFilters = {
+				age: [ "teenager", "adult" ],
+				gender: [ "male" ]
+			};
+			scope.filters = [
+				{
+					id: "age",
+					name: "Age",
+					values: [
+						{
+							id: "child",
+							name: "0-12",
+							count: 29
+						},
+						{
+							id: "teenager",
+							name: "13-19",
+							count: 8
+						},
+						{
+							id: "adult",
+							name: "20+",
+							count: 63
+						}
+					]
+				},
+				{
+					id: "gender",
+					name: "Gender",
+					values: [
+						{
+							id: "female",
+							name: "Female"
+						},
+						{
+							id: "male",
+							name: "Male"
+						}
+					]
+				}
+			];
+			scope.loadData = function() {
+				// Simulate a 100ms data load
+				this.loading = true;
+				setTimeout(function() {
+					this.loading = false;
+				}.bind(this), 1000);
+			};
+
+			/**
+			 * Generate sample data
+			 *
+			 * @param {boolean} noResults if `true` then an empty result is simulated, otherwise a non-empty result.
+			 */
+			scope._createItems = function(noResults) {	
+				if (noResults) {
+					return [];
+				}
+
+				return [ "A", "B", "C" ];
+			};
+		</script>
+	</body>
+</html>

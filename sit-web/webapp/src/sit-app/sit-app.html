@@ -8,7 +8,6 @@
 
 <dom-module id="sit-app">
   <template>
-    <link rel="stylesheet" type="text/css" href="/src/sit-app/style.css">
     <app-location route="{{ route }}"></app-location>
 
     <app-route route="{{route}}" pattern="/issue/:id" data="{{issue}}" active="{{issueActive}}"> </app-route>
@@ -29,7 +28,7 @@
     </template>
 
     <template is="dom-if" if="{{ searchActive }}">
-      <dashboard-page filter="[[ search.filter ]]"></dashboard-page>
+      <dashboard-page filter-query="[[ search.filter ]]"></dashboard-page>
     </template>
 
 

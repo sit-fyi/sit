@@ -1,0 +1,61 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../paper-button/paper-button.html">
+<link rel="import" href="../paper-spinner/paper-spinner-lite.html">
+
+<!--
+A material design button to load more items in a list.
+
+### Example
+
+```html
+<paper-more-button has-more=[[hasMore]] loading=[[loading]]>More</paper-more-button>
+```
+
+@demo demo/index.html
+-->
+<dom-module id="paper-more-button">
+
+	<template>
+		<paper-button hidden$=[[!_showMore(hasMore,loading)]] on-tap="_tapMore"><slot></slot></paper-button>
+   	    <paper-spinner-lite active=[[loading]]></paper-spinner-lite>
+	</template>
+
+</dom-module>
+
+<script>
+
+(function() {
+
+	Polymer({
+		is: 'paper-more-button',
+
+	    properties: {
+	    	/**
+	    	 * True if the lister has more items than currently shown
+	    	 */
+			hasMore: {
+				type: Boolean,
+				value: false
+			},
+
+	    	/**
+	    	 * True if the lister is currently loading items
+	    	 */
+			loading: {
+				type: Boolean,
+				value: false
+			}
+		},
+		
+		// Private methods
+		_tapMore: function() {
+			this.fire('tap-more');
+		},
+		_showMore: function(hasMore, loading) {
+			return hasMore && !loading;
+		}
+	});
+
+})();
+
+</script>
