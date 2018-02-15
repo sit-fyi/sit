@@ -1,0 +1,37 @@
+From 9dfcb442f9e08faf143dcbe56870a0403c707d46 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 15 Feb 2018 19:15:09 +0700
+Subject: [PATCH] Problem: documentation TOC has wrong markup for one link
+
+Solution: fix it and clean it up
+---
+ doc/toc.md | 11 +----------
+ 1 file changed, 1 insertion(+), 10 deletions(-)
+
+diff --git a/doc/toc.md b/doc/toc.md
+index 5a6d897..26531ed 100644
+--- a/doc/toc.md
++++ b/doc/toc.md
+@@ -1,18 +1,9 @@
+ * Introduction
+   * [Getting Started](getting_started.md)
+-
+ * File Convention Dictionary
+-
+-  * [.type/Closed][dict/.type/Closed.md]
+-
++  * [.type/Closed](dict/.type/Closed.md)
+   * [.type/Commented](dict/.type/Commented.md)
+-
+   * [.type/DetailsChanged](dict/.type/DetailsChanged.md)
+-
+   * [.type/MergeRequested](dict/.type/MergeRequested.md)
+-
+   * [.type/Reopened](dict/.type/Reopened.md)
+-
+   * [.type/SummaryChanged](dict/.type/SummaryChanged.md)
+-
+-    ​
+-- 
+2.15.0
+
