@@ -92,7 +92,6 @@
                 details.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
                 details.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
                 this.set("detailsFormdata", details);
-                console.log(this)
             }
             handleCreate() {
                 this.$.createIssue.generateRequest();
