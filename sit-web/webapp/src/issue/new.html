@@ -103,9 +103,11 @@
                 let issue = this.issue;
 
                 Promise.all([req1.completes, req2.completes]).then(function() {
+                    this.$.details.set("value", "");
+                    this.$.summary.set("value", "");
                     window.history.pushState({}, null, `/issue/${issue}`);
                     window.dispatchEvent(new CustomEvent('location-changed'));
-                });
+                }.bind(this));
             }
             handleBack() {
                 window.history.pushState({}, null, `/`);
