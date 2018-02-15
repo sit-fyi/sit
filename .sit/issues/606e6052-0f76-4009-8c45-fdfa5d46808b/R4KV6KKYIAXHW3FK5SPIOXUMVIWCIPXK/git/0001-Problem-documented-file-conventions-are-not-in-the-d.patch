@@ -1,0 +1,37 @@
+From 84a74093167e6b218ee1074004cd856d7edf4f88 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 15 Feb 2018 19:12:19 +0700
+Subject: [PATCH] Problem: documented file conventions are not in the
+ documentation
+
+Solution: reference them in doc/toc.md
+---
+ doc/toc.md | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/doc/toc.md b/doc/toc.md
+index 08d7735..5a6d897 100644
+--- a/doc/toc.md
++++ b/doc/toc.md
+@@ -1,2 +1,18 @@
+ * Introduction
+   * [Getting Started](getting_started.md)
++
++* File Convention Dictionary
++
++  * [.type/Closed][dict/.type/Closed.md]
++
++  * [.type/Commented](dict/.type/Commented.md)
++
++  * [.type/DetailsChanged](dict/.type/DetailsChanged.md)
++
++  * [.type/MergeRequested](dict/.type/MergeRequested.md)
++
++  * [.type/Reopened](dict/.type/Reopened.md)
++
++  * [.type/SummaryChanged](dict/.type/SummaryChanged.md)
++
++    ​
+-- 
+2.15.0
+
