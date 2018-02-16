@@ -1,0 +1,7 @@
+This is happening because we're parallelizing every issue's
+filtering and querying but jmespath's use of `Rc` is not
+crossing the boundary of threads.
+
+Solution: enable `sync` feature in `jmespath` crate
+
+(This is what sit-web is doing already)

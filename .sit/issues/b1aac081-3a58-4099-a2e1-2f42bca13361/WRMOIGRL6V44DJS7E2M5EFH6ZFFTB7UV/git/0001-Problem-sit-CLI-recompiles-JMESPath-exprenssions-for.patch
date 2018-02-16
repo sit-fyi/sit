@@ -1,0 +1,54 @@
+From 37730a28e39db4ac7b1ab733663f0d1f838dd145 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 16 Feb 2018 09:18:17 +0700
+Subject: [PATCH] Problem: sit CLI recompiles JMESPath exprenssions for every
+ issue
+
+This is happening because we're parallelizing every issue's
+filtering and querying but jmespath's use of `Rc` is not
+crossing the boundary of threads.
+
+Solution: enable `sync` feature in `jmespath` crate
+
+(This is what sit-web is doing already)
+---
+ sit/Cargo.toml  | 2 +-
+ sit/src/main.rs | 5 +++--
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/sit/Cargo.toml b/sit/Cargo.toml
+index 5332a65..4aad4d1 100644
+--- a/sit/Cargo.toml
++++ b/sit/Cargo.toml
+@@ -13,7 +13,7 @@ config = { version = "0.8", features = ["json"] }
+ serde = "1.0"
+ serde_json = "1.0"
+ xdg = "2.1"
+-jmespath = "0.2"
++jmespath = { version = "0.2", features = ["sync"] }
+ tini = "0.2.0"
+ fs_extra = "1.1"
+ pbr = "1.0"
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 783087e..ccba814 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -329,12 +329,13 @@ fn main() {
+                 .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
+                 .unwrap();
+ 
++            let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
++            let query = jmespath::compile(&query_expr).expect("can't compile query expression");
++
+             let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+             let issues_with_reducers: Vec<_> =  issues.into_iter().map(|i| (i, reducer.clone())) .collect();
+             issues_with_reducers.into_par_iter()
+                 .map(|(issue, mut reducer)| {
+-                    let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
+-                    let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+                     let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
+                     let json = sit_core::serde_json::to_string(&result).unwrap();
+                     let data = jmespath::Variable::from_json(&json).unwrap();
+-- 
+2.15.0
+
