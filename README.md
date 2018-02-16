@@ -56,11 +56,14 @@ decreasing the risk of its loss.
 
 Hence the experiment to build SIT.
 
+## Downloading
+
+All our releases are hosted on [GitHub](https://github.com/sit-it/sit/releases)
+and binary files can be downloaded from there.
+
 ## Build Instructions
 
-As SIT is not currently distributed in any package managers, you'd have to
-build it manually. Make sure you have Rust 1.23 or higher installed and run
-this:
+Make sure you have Rust 1.24 or higher installed and run this:
 
 ```shell
 cargo build --release

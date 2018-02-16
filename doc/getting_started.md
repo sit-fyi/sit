@@ -7,13 +7,18 @@ be dealt with later.
 
 Let's start!
 
-## Building from the source code
+## Obtaining SIT
 
-As SIT is currently in a pre-release stage (although
-we're expecting a release soon), one has to build
-it from the source code.
+All our releases are hosted on [GitHub](https://github.com/sit-it/sit/releases)
+and binary files can be downloaded from there.
 
-Firstly, you will need to install Rust 1.23. Luckily
+## (OPTIONAL) Building from the source code
+
+As SIT is currently in its early days, sometimes
+it might make sense to use a pre-release build. You
+can do one yourself.
+
+Firstly, you will need to install Rust 1.24. Luckily
 it is typically a very simple process. You can find
 instructions on [Rust's website](https://www.rust-lang.org/en-US/install.html).
 
