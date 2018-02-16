@@ -1,0 +1,14 @@
+Problem: SIT leaves some temp directories
+
+Even though TempDirs are supposed to be deleted upon their dropping
+(https://github.com/rust-lang-nursery/tempdir/blob/master/src/lib.rs#L349-L356),
+I can still observe .sit/sit.* temp directories appearing.
+
+(The reason they are in .sit is to ensure they are at the same mount
+point as the SIT repository they are intended for, to enable atomic
+renames)
+
+Solution: where easily possible, ensure clean exit is performed
+
+``std::process:exit`` terminates the program immediately,
+not giving the destructors to have a chance to do anything.

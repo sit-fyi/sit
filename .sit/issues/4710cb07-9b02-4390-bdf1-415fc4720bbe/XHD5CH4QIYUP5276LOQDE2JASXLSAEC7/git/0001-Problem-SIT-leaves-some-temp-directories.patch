@@ -1,0 +1,118 @@
+From 55b24b9adabaf225f1dfb5723da24e3f30a0b790 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 16 Feb 2018 09:44:10 +0700
+Subject: [PATCH] Problem: SIT leaves some temp directories
+
+Even though TempDirs are supposed to be deleted upon their dropping
+(https://github.com/rust-lang-nursery/tempdir/blob/master/src/lib.rs#L349-L356),
+I can still observe .sit/sit.* temp directories appearing.
+
+(The reason they are in .sit is to ensure they are at the same mount
+point as the SIT repository they are intended for, to enable atomic
+renames)
+
+Solution: where easily possible, ensure clean exit is performed
+
+``std::process:exit`` terminates the program immediately,
+not giving the destructors to have a chance to do anything.
+---
+ sit/src/main.rs | 22 ++++++++++++++--------
+ 1 file changed, 14 insertions(+), 8 deletions(-)
+
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 783087e..3ea6965 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -56,6 +56,10 @@ fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
+ }
+ 
+ fn main() {
++    exit(main_with_result());
++}
++
++fn main_with_result() -> i32 {
+     #[cfg(unix)]
+     let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
+ 
+@@ -271,7 +275,7 @@ fn main() {
+         } else {
+             eprintln!("Authorship hasn't been configured. Update your {} config file\n\
+             to include `author` object with `name` and `email` properties specified", config_path);
+-            exit(1);
++            return 1;
+         }
+     }
+ 
+@@ -289,7 +293,7 @@ fn main() {
+             },
+             Err(err) => {
+                 eprintln!("Error while initializing repository {}: {}", dot_sit_str, err);
+-                exit(1);
++                return 1;
+             }
+         }
+     } else if let Some(matches) = matches.subcommand_matches("rebuild") {
+@@ -362,7 +366,7 @@ fn main() {
+             match issues.find(|i| i.id() == id) {
+                 None => {
+                     println!("Issue {} not found", id);
+-                    exit(1);
++                    return 1;
+                 },
+                 Some(mut issue) => {
+                     let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
+@@ -370,7 +374,7 @@ fn main() {
+ 
+                     if !files.clone().any(|f| f.starts_with(".type/")) && types.len() == 0 {
+                         println!("At least one record type (.type/TYPE file) or `-t/--type` command line argument is required.");
+-                        exit(1);
++                        return 1;
+                     }
+                     let files = files.into_iter()
+                             .map(move |name| {
+@@ -461,7 +465,7 @@ fn main() {
+ 
+                         if !output.status.success() {
+                             eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
+-                            exit(1);
++                            return 1;
+                         } else {
+                             use sit_core::repository::DynamicallyHashable;
+                             let dynamically_hashed_record = record.dynamically_hashed();
+@@ -475,7 +479,7 @@ fn main() {
+                             new_path.push(&new_hash);
+                             fs::rename(record.actual_path(), new_path).expect("can't rename record");
+                             println!("{}", new_hash);
+-                            exit(0);
++                            return 0;
+                         }
+ 
+                     } else {
+@@ -493,7 +497,7 @@ fn main() {
+             match issues.find(|i| i.id() == id) {
+                 None => {
+                     println!("Issue {} not found", id);
+-                    exit(1);
++                    return 1;
+                 },
+                 Some(issue) => {
+                     let records = issue.record_iter().expect("can't lis records");
+@@ -591,7 +595,7 @@ fn main() {
+             match issues.find(|i| i.id() == id) {
+                 None => {
+                     println!("Issue {} not found", id);
+-                    exit(1);
++                    return 1;
+                 },
+                 Some(issue) => {
+                     let query_expr = matches.value_of("named-query")
+@@ -619,4 +623,6 @@ fn main() {
+ 
+     }
+ 
++    return 0;
++
+ }
+-- 
+2.15.0
+
