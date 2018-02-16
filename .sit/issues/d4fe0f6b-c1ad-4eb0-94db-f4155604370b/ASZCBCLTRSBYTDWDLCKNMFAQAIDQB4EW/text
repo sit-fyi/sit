@@ -1,0 +1,6 @@
+sit-web doesn't provide a good way to know if the asset
+it is serving has been changed or not. This might result
+in unnecessary re-downloads (and ultimately, slight
+loss of performance)
+
+Solution: use ETag to prevent unnecessary downloads

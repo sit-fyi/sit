@@ -1,0 +1,208 @@
+From eb5d7741058424bfdab12c037ea33d9db87a7a92 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 16 Feb 2018 10:59:45 +0700
+Subject: [PATCH] Problem: re-downloading of unchanged sit-web assets
+
+sit-web doesn't provide a good way to know if the asset
+it is serving has been changed or not. This might result
+in unnecessary re-downloads (and ultimately, slight
+loss of performance)
+
+Solution: use ETag to prevent unnecessary downloads
+---
+ Cargo.lock            |  9 +++++++++
+ sit-web/Cargo.toml    |  3 +++
+ sit-web/src/main.rs   |  4 ++++
+ sit-web/src/webapp.rs | 55 +++++++++++++++++++++++++++++++++++++--------------
+ 4 files changed, 56 insertions(+), 15 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 8e607db..48adf64 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -380,6 +380,11 @@ name = "glob"
+ version = "0.2.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ 
++[[package]]
++name = "hex"
++version = "0.3.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
+ [[package]]
+ name = "httparse"
+ version = "1.2.4"
+@@ -931,9 +936,12 @@ dependencies = [
+ name = "sit-web"
+ version = "0.1.0"
+ dependencies = [
++ "blake2 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "clap 2.29.4 (registry+https://github.com/rust-lang/crates.io-index)",
+  "config 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
++ "digest 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
++ "hex 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+  "include_dir 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+  "itertools 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
+  "jmespath 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+@@ -1293,6 +1301,7 @@ dependencies = [
+ "checksum gcc 0.3.54 (registry+https://github.com/rust-lang/crates.io-index)" = "5e33ec290da0d127825013597dbdfc28bee4964690c7ce1166cbc2a7bd08b1bb"
+ "checksum generic-array 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ef25c5683767570c2bbd7deba372926a55eaae9982d7726ee2a1050239d45b9d"
+ "checksum glob 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)" = "8be18de09a56b60ed0edf84bc9df007e30040691af7acd1c41874faac5895bfb"
++"checksum hex 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "459d3cf58137bb02ad4adeef5036377ff59f066dbb82517b7192e3a5462a2abc"
+ "checksum httparse 1.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "c2f407128745b78abc95c0ffbe4e5d37427fdc0d45470710cfef8c44522a2e37"
+ "checksum idna 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "014b298351066f1512874135335d62a789ffe78a9974f94b43ed5621951eaf7d"
+ "checksum include_dir 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "a5d066c5b9c676ef54b5f5da74db3eb92af7fc64c2e2e74333cdf5b58a9cfbf2"
+diff --git a/sit-web/Cargo.toml b/sit-web/Cargo.toml
+index 9ff22f6..003f932 100644
+--- a/sit-web/Cargo.toml
++++ b/sit-web/Cargo.toml
+@@ -20,6 +20,9 @@ lazy_static = "1.0"
+ mime_guess = "1.8"
+ itertools = "0.7"
+ rayon = "0.9"
++digest = "0.7"
++blake2 = "0.7"
++hex = "0.3"
+ sit-core = { path = "../sit-core" }
+ 
+ [build-dependencies]
+diff --git a/sit-web/src/main.rs b/sit-web/src/main.rs
+index 9ab8ff8..1d8764e 100644
+--- a/sit-web/src/main.rs
++++ b/sit-web/src/main.rs
+@@ -28,6 +28,10 @@ extern crate rayon;
+ 
+ extern crate tempdir;
+ 
++extern crate digest;
++extern crate blake2;
++extern crate hex;
++
+ #[macro_use] extern crate lazy_static;
+ #[macro_use] extern crate rouille;
+ extern crate mime_guess;
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 1476bc7..7c20938 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -5,10 +5,17 @@ mod assets {
+     use rouille::{Response, ResponseBody};
+     use mime_guess::get_mime_type_str;
+     use std::path::PathBuf;
+-
+-    impl<'a> Into<Response> for &'a File {
+-        fn into(self) -> Response {
+-            match get_mime_type_str(PathBuf::from(self.name()).extension().unwrap().to_str().unwrap()) {
++    use blake2::Blake2b;
++    use digest::{Input, VariableOutput};
++    use hex;
++
++    impl<'a> Into<(Response, String)> for &'a File {
++        fn into(self) -> (Response, String) {
++            let mut hasher = Blake2b::new(20).unwrap();
++            let mut result = vec![0; 20];
++            hasher.process(self.contents);
++            let hash = hex::encode(hasher.variable_result(&mut result).unwrap());
++            (match get_mime_type_str(PathBuf::from(self.name()).extension().unwrap().to_str().unwrap()) {
+                 None => Response {
+                     status_code: 200,
+                     headers: vec![("Content-Type".into(), "application/octet-stream".into())],
+@@ -21,7 +28,7 @@ mod assets {
+                     data: ResponseBody::from_data(self.contents),
+                     upgrade: None,
+                 },
+-            }
++            }, hash)
+         }
+     }
+ 
+@@ -50,7 +57,7 @@ mod assets {
+ }
+ use self::assets::ASSETS;
+ 
+-use rouille::{start_server, Response, ResponseBody};
++use rouille::{start_server, Request, Response, ResponseBody};
+ use rouille::input::multipart::get_multipart_input;
+ 
+ use std::path::PathBuf;
+@@ -67,22 +74,38 @@ use rayon::prelude::*;
+ 
+ use tempdir;
+ 
+-fn path_to_response<P: Into<PathBuf>>(path: P) -> Response {
++use blake2::Blake2b;
++use digest::{Input, VariableOutput};
++use hex;
++
++fn path_to_response<P: Into<PathBuf>>(path: P, request: &Request) -> Response {
+     let path: PathBuf = path.into();
++
++    let mut file = fs::File::open(&path).unwrap();
++    let mut buf = Vec::with_capacity(file.metadata().unwrap().len() as usize);
++    use std::io::Read;
++    file.read_to_end(&mut buf).unwrap();
++
++
++    let mut hasher = Blake2b::new(20).unwrap();
++    let mut result = vec![0; 20];
++    hasher.process(&buf);
++    let hash = hex::encode(hasher.variable_result(&mut result).unwrap());
++
+     match get_mime_type_str(path.extension().unwrap_or(&OsString::new()).to_str().unwrap()) {
+         None => Response {
+             status_code: 200,
+             headers: vec![("Content-Type".into(), "application/octet-stream".into())],
+-            data: ResponseBody::from_reader(fs::File::open(path).unwrap()),
++            data: ResponseBody::from_data(buf),
+             upgrade: None,
+         },
+         Some(content_type) => Response {
+             status_code: 200,
+             headers: vec![("Content-Type".into(), content_type.into())],
+-            data: ResponseBody::from_reader(fs::File::open(path).unwrap()),
++            data: ResponseBody::from_data(buf),
+             upgrade: None,
+         },
+-    }
++    }.with_etag(request, hash)
+ }
+ 
+ use itertools::Itertools;
+@@ -279,7 +302,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+                return Response::empty_404();
+             }
+             if file.is_file() {
+-                return path_to_response(file)
++                return path_to_response(file, request)
+             } else if file.is_dir() {
+                 if let Ok(dir) = ::std::fs::read_dir(file) {
+                     let res = dir.filter(Result::is_ok)
+@@ -307,18 +330,20 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+         // Serve built-in or overridden assets
+         let overriden_path = assets.join(&request.url()[1..]);
+         if overriden_path.is_file() {
+-           return path_to_response(overriden_path)
++           return path_to_response(overriden_path, request)
+         } else {
+             if let Some(file) = ASSETS.get(&PathBuf::from(&request.url()[1..])) {
+-                return file.into()
++                let (response, hash) = file.into();
++                return response.with_etag(request, hash)
+             }
+         }
+         // Route the rest to /index.html for the web app to figure out
+         let custom_index = assets.join("index.html");
+         if custom_index.is_file() {
+-           path_to_response(custom_index)
++           path_to_response(custom_index, request)
+         } else {
+-           ASSETS.get(&PathBuf::from("index.html")).unwrap().into()
++           let (response, hash) = ASSETS.get(&PathBuf::from("index.html")).unwrap().into();
++           response.with_etag(request, hash)
+         }
+       }
+       ))
+-- 
+2.15.0
+
