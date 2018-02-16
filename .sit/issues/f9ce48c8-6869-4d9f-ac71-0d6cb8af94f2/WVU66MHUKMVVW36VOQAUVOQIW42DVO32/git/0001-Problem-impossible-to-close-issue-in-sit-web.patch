@@ -1,0 +1,159 @@
+From 2a505a9b034046b6fb3e54a77023e952453e9516 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 16 Feb 2018 11:35:16 +0700
+Subject: [PATCH] Problem: impossible to close issue in sit-web
+
+There's simply no way to do it without sit CLI
+
+Solution: add "close (X)" and "Comment and close" buttons
+---
+ sit-web/webapp/src/issue/issue-style.html       |  5 +++++
+ sit-web/webapp/src/issue/issue.html             | 26 +++++++++++++++++++++++--
+ sit-web/webapp/src/issue/new-comment-style.html |  4 +++-
+ sit-web/webapp/src/issue/new-comment.html       | 14 ++++++++++++-
+ 4 files changed, 45 insertions(+), 4 deletions(-)
+
+diff --git a/sit-web/webapp/src/issue/issue-style.html b/sit-web/webapp/src/issue/issue-style.html
+index 2957c61..78d43bc 100644
+--- a/sit-web/webapp/src/issue/issue-style.html
++++ b/sit-web/webapp/src/issue/issue-style.html
+@@ -30,6 +30,11 @@
+                 padding: 4pt;
+             }
+ 
++            #close {
++                background-color: darkred;
++                color: whitesmoke;
++            }
++
+         </style>
+     </template>
+ </dom-module>
+diff --git a/sit-web/webapp/src/issue/issue.html b/sit-web/webapp/src/issue/issue.html
+index c6612f3..a99fdc3 100644
+--- a/sit-web/webapp/src/issue/issue.html
++++ b/sit-web/webapp/src/issue/issue.html
+@@ -57,7 +57,10 @@
+            <div class="card-actions">
+                <div class="horizontal justified">
+                    <template is="dom-if" if="[[ isClosed ]]">
+-                     <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"> </paper-icon-button>
++                     <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"></paper-icon-button>
++                   </template>
++                   <template is="dom-if" if="[[ isOpen ]]">
++                     <paper-icon-button on-click="handleClose" title="Close" id="close" icon="close" alt="close"></paper-icon-button>
+                    </template>
+                 </div>
+ 
+@@ -72,7 +75,7 @@
+        </template>
+ 
+ 
+-       <issue-new-comment on-new-comment="reload" issue="{{ id }}"></issue-new-comment>
++       <issue-new-comment on-new-comment="reload" issue="{{ id }}" is-open="[[ isOpen ]]"></issue-new-comment>
+     </template>
+ 
+     <script>
+@@ -98,6 +101,10 @@
+                         type: Boolean,
+                         computed: 'checkIfClosed(view)'
+                     },
++                    isOpen: {
++                        type: Boolean,
++                        computed: 'checkIfOpen(isClosed)'
++                    }
+                 }
+             }
+             constructor() {
+@@ -109,6 +116,10 @@
+                 return view.state === 'closed';
+             }
+ 
++            checkIfOpen(isClosed) {
++                return !isClosed;
++            }
++
+             filterMergeFiles(files) {
+                 return files.filter(function(f) {
+                    return f.startsWith("git/") || f.startsWith("patch/")
+@@ -133,6 +144,17 @@
+                 this.$.postRequest.generateRequest();
+             }
+ 
++            handleClose() {
++                let timestamp = (new Date()).toISOString();
++                let formdata = new FormData();
++                formdata.append(".type/Closed", new Blob([""], {type: "text/plain"}), ".type/Closed");
++                formdata.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
++                formdata.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
++                this.set("formdata", formdata);
++                this.$.postRequest.generateRequest();
++            }
++
++
+             handleBack() {
+                 window.history.pushState({}, null, `/`);
+                 window.dispatchEvent(new CustomEvent('location-changed'));
+diff --git a/sit-web/webapp/src/issue/new-comment-style.html b/sit-web/webapp/src/issue/new-comment-style.html
+index b839864..5b7a837 100644
+--- a/sit-web/webapp/src/issue/new-comment-style.html
++++ b/sit-web/webapp/src/issue/new-comment-style.html
+@@ -1,7 +1,9 @@
+ <dom-module id="new-comment-style">
+     <template>
+         <style>
+-
++            #commentButton {
++                background-color: darkseagreen;
++            }
+         </style>
+     </template>
+ </dom-module>
+\ No newline at end of file
+diff --git a/sit-web/webapp/src/issue/new-comment.html b/sit-web/webapp/src/issue/new-comment.html
+index b03c751..74f439d 100644
+--- a/sit-web/webapp/src/issue/new-comment.html
++++ b/sit-web/webapp/src/issue/new-comment.html
+@@ -9,12 +9,16 @@
+     <template>
+ 
+         <style include="new-comment-style"></style>
++
+         <div>
+             <div>
+               <paper-textarea label="Comment" on-keypress="handleChange" on-change="handleChange" on-input="handleChange" id="comment" cols="80" rows="5"></paper-textarea>
+             </div>
+             <div>
+-                <paper-button raised on-click="handleComment">Comment</paper-button>
++                <paper-button raised id="commentButton" on-click="handleComment">Comment</paper-button>
++                <template is="dom-if" if="[[ isOpen ]]">
++                    <paper-button raised on-click="handleCommentAndClose">Comment and close</paper-button>
++                </template>
+             </div>
+         </div>
+ 
+@@ -41,6 +45,9 @@
+                     issue: {
+                         type: String
+                     },
++                    isOpen: {
++                        type: Boolean,
++                    },
+                     config: {
+                         type: Object
+                     }
+@@ -65,6 +72,11 @@
+             handleComment() {
+                 this.$.postRequest.generateRequest();
+             }
++            handleCommentAndClose() {
++                this.formdata.append(".type/Closed", new Blob([]), ".type/Closed");
++                this.set("formdata", this.formdata);
++                this.handleComment();
++            }
+             handleResponse() {
+                 this.$.comment.value = "";
+                 this.dispatchEvent(new CustomEvent('new-comment', {detail: {}}));
+-- 
+2.15.0
+
