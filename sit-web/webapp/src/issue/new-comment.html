@@ -9,12 +9,16 @@
     <template>
 
         <style include="new-comment-style"></style>
+
         <div>
             <div>
               <paper-textarea label="Comment" on-keypress="handleChange" on-change="handleChange" on-input="handleChange" id="comment" cols="80" rows="5"></paper-textarea>
             </div>
             <div>
-                <paper-button raised on-click="handleComment">Comment</paper-button>
+                <paper-button raised id="commentButton" on-click="handleComment">Comment</paper-button>
+                <template is="dom-if" if="[[ isOpen ]]">
+                    <paper-button raised on-click="handleCommentAndClose">Comment and close</paper-button>
+                </template>
             </div>
         </div>
 
@@ -41,6 +45,9 @@
                     issue: {
                         type: String
                     },
+                    isOpen: {
+                        type: Boolean,
+                    },
                     config: {
                         type: Object
                     }
@@ -64,6 +71,11 @@
             }
             handleComment() {
                 this.$.postRequest.generateRequest();
+            }
+            handleCommentAndClose() {
+                this.formdata.append(".type/Closed", new Blob([]), ".type/Closed");
+                this.set("formdata", this.formdata);
+                this.handleComment();
             }
             handleResponse() {
                 this.$.comment.value = "";

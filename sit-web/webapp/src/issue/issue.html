@@ -57,7 +57,10 @@
            <div class="card-actions">
                <div class="horizontal justified">
                    <template is="dom-if" if="[[ isClosed ]]">
-                     <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"> </paper-icon-button>
+                     <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"></paper-icon-button>
+                   </template>
+                   <template is="dom-if" if="[[ isOpen ]]">
+                     <paper-icon-button on-click="handleClose" title="Close" id="close" icon="close" alt="close"></paper-icon-button>
                    </template>
                 </div>
 
@@ -72,7 +75,7 @@
        </template>
 
 
-       <issue-new-comment on-new-comment="reload" issue="{{ id }}"></issue-new-comment>
+       <issue-new-comment on-new-comment="reload" issue="{{ id }}" is-open="[[ isOpen ]]"></issue-new-comment>
     </template>
 
     <script>
@@ -98,6 +101,10 @@
                         type: Boolean,
                         computed: 'checkIfClosed(view)'
                     },
+                    isOpen: {
+                        type: Boolean,
+                        computed: 'checkIfOpen(isClosed)'
+                    }
                 }
             }
             constructor() {
@@ -107,6 +114,10 @@
 
             checkIfClosed(view) {
                 return view.state === 'closed';
+            }
+
+            checkIfOpen(isClosed) {
+                return !isClosed;
             }
 
             filterMergeFiles(files) {
@@ -132,6 +143,17 @@
                 this.set("formdata", formdata);
                 this.$.postRequest.generateRequest();
             }
+
+            handleClose() {
+                let timestamp = (new Date()).toISOString();
+                let formdata = new FormData();
+                formdata.append(".type/Closed", new Blob([""], {type: "text/plain"}), ".type/Closed");
+                formdata.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
+                formdata.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
+                this.set("formdata", formdata);
+                this.$.postRequest.generateRequest();
+            }
+
 
             handleBack() {
                 window.history.pushState({}, null, `/`);
