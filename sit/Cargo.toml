@@ -19,6 +19,6 @@ fs_extra = "1.1"
 pbr = "1.0"
 tempdir = "0.3"
 glob = "0.2"
-rayon = "0.9"
+rayon = "1.0"
 sit-core = { path = "../sit-core" }
 

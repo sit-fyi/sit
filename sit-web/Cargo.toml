@@ -19,7 +19,7 @@ rouille =  "2.0"
 lazy_static = "1.0"
 mime_guess = "1.8"
 itertools = "0.7"
-rayon = "0.9"
+rayon = "1.0"
 sit-core = { path = "../sit-core" }
 
 [build-dependencies]
