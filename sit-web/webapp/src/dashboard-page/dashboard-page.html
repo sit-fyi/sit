@@ -41,7 +41,15 @@
        </div>
 
         <iron-ajax auto url="/api/issues/{{ filter }}/{{ query }}" handle-as="json"
-                   last-response="{{ issues }}"></iron-ajax>
+                   last-response="{{ issues }}"
+                   on-error="handleError"
+                   on-response="handleResponse"></iron-ajax>
+       <template is="dom-if" if="[[ badQuery ]]">
+           <h1>Wrong query, check the syntax (<a href="http://jmespath.org/specification.html" target="_blank">JMESPath specification</a>).</h1>
+       </template>
+       <template is="dom-if" if="[[ emptyResult ]]">
+           <h1>No matches</h1>
+       </template>
        <div class="layout horizontal baseline wrap">
         <template is="dom-repeat" items="{{ issues }}">
             <sit-issue issue="{{item}}"></sit-issue>
@@ -67,6 +75,17 @@
                     namedFilters: {
                         type: Array,
                         computed: 'computeNamedFilters(config)'
+                    },
+                    issues: {
+                        type: Array,
+                    },
+                    badQuery: {
+                        type: Boolean,
+                        value: false,
+                    },
+                    emptyResult: {
+                        type: Boolean,
+                        computed: 'computeEmptyResult(issues, badQuery)'
                     }
                 }
             }
@@ -77,6 +96,13 @@
                     .map(function(key) {
                        return { name: key, value: filters[key] }
                     });
+            }
+
+            computeEmptyResult(issues, badQuery) {
+                if (badQuery) {
+                    return false;
+                }
+                return (issues || []).length === 0;
             }
 
             handleFilter() {
@@ -100,6 +126,15 @@
                 super();
                 this.query = "{id: id, summary: summary, state: state, comments: (comments || `[]`), merge_request: merge_request || false}";
             }
+
+            handleResponse(evt, req) {
+                this.set("badQuery", false);
+            }
+
+            handleError(evt, req) {
+                this.set("badQuery", true);
+            }
+
 
             ready() {
                 if (typeof this.filterQuery !== 'undefined') {

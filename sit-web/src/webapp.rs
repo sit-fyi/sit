@@ -100,7 +100,17 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             use sit_core::issue::IssueReduction;
             let issues = repo.issue_iter().expect("can't list issues");
             let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-            let issues_with_reducers: Vec<_> =  issues.into_iter().map(|i| (i, reducer.clone())) .collect();
+            let issues_with_reducers: Vec<_> =  issues.into_iter().map(|i| (i, reducer.clone())).collect();
+
+            let filter = match jmespath::compile(&filter_expr) {
+                Ok(filter) => filter,
+                _ => return Response::empty_400(),
+            };
+            let query = match jmespath::compile(&query_expr) {
+                Ok(query) => query,
+                _ => return Response::empty_400(),
+            };
+
             let result: Vec<_> =
             issues_with_reducers.into_par_iter()
                   .map(|(issue, mut reducer)| {
@@ -110,10 +120,8 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                      sit_core::serde_json::to_string(&reduced).unwrap()
                   }).map(|json| {
                      let data = jmespath::Variable::from_json(&json).unwrap();
-                     let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
                      let result = filter.search(&data).unwrap();
-                     if result.as_boolean().unwrap() {
-                        let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+                     if result.is_boolean() && result.as_boolean().unwrap() {
                         Some(query.search(&data).unwrap())
                      } else {
                         None
@@ -127,8 +135,14 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             use sit_core::issue::IssueReduction;
             use sit_core::Issue;
             let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-            let query = jmespath::compile(&query_expr).expect("can't compile query expression");
-            let issue = repo.issue_iter().unwrap().find(|i| i.id() == id).unwrap();
+            let query = match jmespath::compile(&query_expr) {
+                Ok(query) => query,
+                _ => return Response::empty_400(),
+            };
+            let issue = match repo.issue_iter().unwrap().find(|i| i.id() == id) {
+                Some(issue) => issue,
+                _ => return Response::empty_404(),
+            };
             let reduced = issue.reduce_with_reducer(&mut reducer).unwrap();
             let json = sit_core::serde_json::to_string(&reduced).unwrap();
             let data = jmespath::Variable::from_json(&json).unwrap();
@@ -137,8 +151,14 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
         },
         (GET) (/api/issue/{id: String}/{record: String}/files) => {
             use sit_core::{Record, Issue};
-            let issue = repo.issue_iter().unwrap().find(|i| i.id() == id).unwrap();
-            let record = issue.record_iter().unwrap().flatten().find(|r| r.encoded_hash() == record).unwrap();
+            let issue = match repo.issue_iter().unwrap().find(|i| i.id() == id) {
+                Some(issue) => issue,
+                None => return Response::empty_404(),
+            };
+            let record = match issue.record_iter().unwrap().flatten().find(|r| r.encoded_hash() == record) {
+               Some(record) => record,
+               None => return Response::empty_404(),
+            };
             let files: Vec<_> = record.file_iter().map(|(name, _)| name).collect();
             Response::json(&files)
         },
@@ -148,6 +168,12 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
            Response::json(&issue.id())
         },
         (POST) (/api/issue/{id: String}/records) => {
+           use sit_core::{Issue, Record};
+           let mut issue = match repo.issue_iter().unwrap().find(|i| i.id() == id) {
+                Some(issue) => issue,
+                None => return Response::empty_404(),
+           };
+
            let mut multipart = get_multipart_input(&request).expect("multipart request");
            let mut files = vec![];
            let mut link = true;
@@ -176,9 +202,6 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                  }
               }
            }
-
-           use sit_core::{Issue, Record};
-           let mut issue = repo.issue_iter().unwrap().find(|i| i.id() == id).unwrap();
 
            let tmp = tempdir::TempDir::new_in(repo.path(), "sit").unwrap();
            let record_path = tmp.path();
