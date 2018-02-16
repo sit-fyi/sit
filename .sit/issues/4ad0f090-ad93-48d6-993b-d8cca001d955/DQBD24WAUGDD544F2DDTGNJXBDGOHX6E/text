@@ -1,0 +1,4 @@
+Solution: embed its documentation into sit-web
+
+This changes the position of the "New Issue" button to the
+top-left and puts "Help" to the top right.

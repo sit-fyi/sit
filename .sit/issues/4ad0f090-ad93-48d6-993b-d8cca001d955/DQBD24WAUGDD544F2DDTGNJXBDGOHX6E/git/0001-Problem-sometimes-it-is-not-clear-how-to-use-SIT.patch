@@ -1,0 +1,373 @@
+From 3d6cf14c88d0483b9d61e15f355b603a454a8513 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 16 Feb 2018 15:52:33 +0700
+Subject: [PATCH] Problem: sometimes it is not clear how to use SIT
+
+Solution: embed its documentation into sit-web
+
+This changes the position of the "New Issue" button to the
+top-left and puts "Help" to the top right.
+---
+ Cargo.lock                                         |   1 +
+ sit-web/.gitignore                                 |   1 +
+ sit-web/Cargo.toml                                 |   1 +
+ sit-web/build.rs                                   |  13 ++-
+ .../webapp/src/dashboard-page/dashboard-page.html  |   8 +-
+ sit-web/webapp/src/sit-app/sit-app.html            |  26 ++++-
+ sit-web/webapp/src/sit-doc/rendered-text.html      |  57 +++++++++
+ sit-web/webapp/src/sit-doc/sit-doc.html            | 128 +++++++++++++++++++++
+ 8 files changed, 230 insertions(+), 5 deletions(-)
+ create mode 100644 sit-web/webapp/src/sit-doc/rendered-text.html
+ create mode 100644 sit-web/webapp/src/sit-doc/sit-doc.html
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 2ebd03d..8d1aaad 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -981,6 +981,7 @@ dependencies = [
+  "clap 2.29.4 (registry+https://github.com/rust-lang/crates.io-index)",
+  "config 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "digest 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
++ "fs_extra 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "hex 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+  "include_dir 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+  "itertools 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)",
+diff --git a/sit-web/.gitignore b/sit-web/.gitignore
+index c9dd2cf..0731e56 100644
+--- a/sit-web/.gitignore
++++ b/sit-web/.gitignore
+@@ -1 +1,2 @@
+ webapp/node_modules
++webapp/documentation
+diff --git a/sit-web/Cargo.toml b/sit-web/Cargo.toml
+index 4108f84..6a9d045 100644
+--- a/sit-web/Cargo.toml
++++ b/sit-web/Cargo.toml
+@@ -27,4 +27,5 @@ sit-core = { path = "../sit-core", version = "0.2.0" }
+ 
+ [build-dependencies]
+ include_dir = "0.1"
++fs_extra = "1.1"
+ 
+diff --git a/sit-web/build.rs b/sit-web/build.rs
+index 75145e9..92f098b 100644
+--- a/sit-web/build.rs
++++ b/sit-web/build.rs
+@@ -1,13 +1,24 @@
+ extern crate include_dir;
++extern crate fs_extra;
+ 
+ use std::env;
+ use std::path::Path;
+ use include_dir::include_dir;
+ 
++
+ fn main() {
+     let outdir = env::var("OUT_DIR").unwrap();
+     let dest_path = Path::new(&outdir).join("assets.rs");
+-    include_dir(Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()).join("webapp").to_str().unwrap())
++    let webapp = Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()).join("webapp");
++    let mut doc = webapp.clone();
++    doc.pop(); doc.pop();
++    doc.push("doc");
++    let mut opts = fs_extra::dir::CopyOptions::new();
++    opts.copy_inside = true;
++    let documentation = webapp.join("documentation");
++    fs_extra::dir::remove(&documentation).expect("can't delete documentation");
++    fs_extra::dir::copy(doc, &documentation, &opts).expect("can't copy documentation");
++    include_dir(webapp.to_str().unwrap())
+         .as_variable("FILES")
+         .ignore("node_modules")
+         .to_file(dest_path)
+diff --git a/sit-web/webapp/src/dashboard-page/dashboard-page.html b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+index 4e2ecb6..67b3406 100644
+--- a/sit-web/webapp/src/dashboard-page/dashboard-page.html
++++ b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+@@ -19,8 +19,9 @@
+ 
+        <app-header reveals>
+            <app-toolbar>
+-               <div main-title>SIT</div>
+                <paper-icon-button icon="create" title="New issue" on-click="handleNew"></paper-icon-button>
++               <div main-title>SIT</div>
++               <paper-icon-button icon="help" title="Help" on-click="handleHelp"></paper-icon-button>
+            </app-toolbar>
+        </app-header>
+ 
+@@ -115,6 +116,11 @@
+                 window.dispatchEvent(new CustomEvent('location-changed'));
+             }
+ 
++            handleHelp() {
++                window.history.pushState({}, null, "/doc");
++                window.dispatchEvent(new CustomEvent('location-changed'));
++            }
++
+             handleNamedFilter() {
+                 let filter = this.config.issues.filters[this.$.namedFilter.selectedItemLabel];
+                 this.set("filter", filter);
+diff --git a/sit-web/webapp/src/sit-app/sit-app.html b/sit-web/webapp/src/sit-app/sit-app.html
+index 6533cd4..4c63155 100644
+--- a/sit-web/webapp/src/sit-app/sit-app.html
++++ b/sit-web/webapp/src/sit-app/sit-app.html
+@@ -4,6 +4,7 @@
+ <link rel="import" href="../dashboard-page/dashboard-page.html">
+ <link rel="import" href="../issue/issue.html">
+ <link rel="import" href="../issue/new.html">
++<link rel="import" href="../sit-doc/sit-doc.html">
+ <link rel="import" href="error.html">
+ 
+ <dom-module id="sit-app">
+@@ -13,6 +14,7 @@
+     <app-route route="{{route}}" pattern="/issue/:id" data="{{issue}}" active="{{issueActive}}"> </app-route>
+     <app-route route="{{route}}" pattern="/new" active="{{newIssueActive}}"> </app-route>
+     <app-route route="{{route}}" pattern="/search/:filter" data="{{search}}" active="{{searchActive}}"> </app-route>
++    <app-route route="{{route}}" pattern="/doc" tail="{{ docTail }}" active="{{ docActive }}"> </app-route>
+     <app-route route="{{route}}" pattern="/" active="{{homeActive}}"> </app-route>
+ 
+     <template is="dom-if" if="{{ issueActive }}">
+@@ -31,6 +33,9 @@
+       <dashboard-page filter-query="[[ search.filter ]]"></dashboard-page>
+     </template>
+ 
++    <template is="dom-if" if="[[ docActive ]]">
++      <sit-doc page="[[ docPage ]]"></sit-doc>
++    </template>
+ 
+     <template is="dom-if" if="{{ noRouteMatched }}">
+       <error-page message="Not found"></error-page>
+@@ -55,14 +60,29 @@
+               searchActive: {
+                   type: Boolean,
+               },
++              docActive: {
++                  type: Boolean,
++              },
++              docTail: {
++                  type: Object,
++              },
++              docPage: {
++                  type: String,
++                  computed: 'getDocPage(docTail)'
++              },
+               noRouteMatched: {
+                   type: Boolean,
+-                  computed: 'computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive)'
++                  computed: 'computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive, docActive)'
+               }
+           }
+       }
+-      computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive) {
+-          return !homeActive && !newIssueActive && !issueActive && !searchActive;
++
++      computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive, docActive) {
++          return !homeActive && !newIssueActive && !issueActive && !searchActive && !docActive;
++      }
++
++      getDocPage(docTail) {
++          return (docTail.path || "/getting_started.md").replace(/^\//, "");
+       }
+     }
+ 
+diff --git a/sit-web/webapp/src/sit-doc/rendered-text.html b/sit-web/webapp/src/sit-doc/rendered-text.html
+new file mode 100644
+index 0000000..003da3d
+--- /dev/null
++++ b/sit-web/webapp/src/sit-doc/rendered-text.html
+@@ -0,0 +1,57 @@
++<link rel="import" href="/bower_components/polymer/polymer-element.html">
++<link rel="import" href="/bower_components/marked-element/marked-element.html">
++<link rel="import" href="/bower_components/prism-element/prism-highlighter.html">
++<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
++
++<dom-module id="rendered-text">
++  <template>
++    <link rel="stylesheet" href="/bower_components/prism/themes/prism.css">
++
++    <iron-ajax auto url="/bower_components/prism/components/prism-[[lang]].js" handle-as="text" on-response="loadSyntax"></iron-ajax>
++
++    <style>
++      [slot="markdown-html"] img {
++        max-width: 100%;
++      }
++    </style>
++
++    <prism-highlighter></prism-highlighter>
++    <marked-element markdown="{{ text }}">
++      <div slot="markdown-html"></div>
++    </marked-element>
++  </template>
++
++  <script>
++    class RenderedText extends Polymer.Element {
++      static get is() { return 'rendered-text'; }
++      static get properties() {
++        return {
++          text: {
++            type: String,
++            value: ""
++          },
++          lang: {
++            type: String
++          }
++        }
++      }
++      constructor() {
++        super();
++        this.lang = "markdown";
++      }
++      loadSyntax(evt, req) {
++        eval(req.response);
++        // New String is allocated so that an
++        // update is triggered
++        this.set("text", new String(this.text));
++      }
++      ready() {
++        this.addEventListener('syntax-highlight', function (e) {
++          this.set("lang", e.detail.lang);
++        });
++        super.ready();
++      }
++    }
++    customElements.define(RenderedText.is, RenderedText);
++  </script>
++</dom-module>
+\ No newline at end of file
+diff --git a/sit-web/webapp/src/sit-doc/sit-doc.html b/sit-web/webapp/src/sit-doc/sit-doc.html
+new file mode 100644
+index 0000000..e37fa3f
+--- /dev/null
++++ b/sit-web/webapp/src/sit-doc/sit-doc.html
+@@ -0,0 +1,128 @@
++<link rel="import" href="/bower_components/polymer/polymer-element.html">
++<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
++<link rel="import" href="/bower_components/app-layout/app-layout.html">
++<link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
++<link rel="import" href="/bower_components/iron-icons/iron-icons.html">
++
++<link rel="import" href="rendered-text.html">
++
++<dom-module id="sit-doc">
++  <template>
++
++    <style>
++      app-header {
++        background-color: darkseagreen;
++        color: #fff;
++      }
++
++      app-drawer {
++        background-color: darkseagreen;
++      }
++
++      #doc {
++        max-width: 768px;
++      }
++
++      @media screen and (min-width: 768px) {
++        #doc {
++          margin-left: 10pt;
++        }
++      }
++
++    </style>
++
++    <iron-ajax auto url="[[ tocUrl ]]" handle-as="text" last-response="{{ toc }}">
++    </iron-ajax>
++
++    <iron-ajax auto url="[[ pageUrl ]]" handle-as="text" last-response="{{ pageContent }}">
++    </iron-ajax>
++
++
++    <app-drawer-layout>
++      <app-drawer slot="drawer">
++        <app-toolbar>Table of Contents</app-toolbar>
++        <rendered-text text="[[ processedToc ]]"></rendered-text>
++      </app-drawer>
++      <app-header-layout>
++        <app-header slot="header">
++          <app-toolbar>
++            <paper-icon-button icon="arrow-back" title="Back to SIT" on-click="handleBack"></paper-icon-button>
++            <div main-title>SIT Documentation</div>
++          </app-toolbar>
++      </app-header-layout>
++      </app-header>
++
++      <div id="doc">
++        <rendered-text text="[[ processedPageContent ]]"></rendered-text>
++      </div>
++
++    </app-drawer-layout>
++
++
++  </template>
++  <script>
++    class SitDoc extends Polymer.Element {
++      static get is() { return 'sit-doc'; }
++      static get properties() {
++        return {
++          tocUrl: {
++            type: String,
++            value: "/documentation/toc.md"
++          },
++          toc: {
++            type: String,
++            value: ""
++          },
++          processedToc: {
++            type: String,
++            computed: 'processToc(toc, page)'
++          },
++          page: {
++            type: String,
++            value: String,
++          },
++          pageUrl: {
++            type: String,
++            computed: 'getPageUrl(page)'
++          },
++          pageContent: {
++            type: String,
++            value: ""
++          },
++          processedPageContent: {
++            type: String,
++            computed: 'processMarkdownAndImages(pageContent)'
++          }
++        }
++      }
++
++      processMarkdown(md) {
++        return md.replace(/([^!]\[.*\])\(([^\/.].*)\)/g, "$1(/doc/$2)")
++      }
++
++      processToc(md, page) {
++        let page1 = page.replace("\.", "\\.");
++        let regex = new RegExp(`\\[(.*)\\]\\(${page1}\\)`, "g");
++        let removeLinkToPage = md.replace(regex, "**$1**");
++        return this.processMarkdown(removeLinkToPage);
++      }
++
++      processMarkdownAndImages(md) {
++        return this.processMarkdown(md.replace(/\!(\[.*\])\(([^\/.].*)\)/g,
++          "!$1(/documentation/$2)"));
++      }
++
++
++      getPageUrl(page) {
++        return `/documentation/${page}`;
++      }
++
++      handleBack() {
++          window.history.pushState({}, null, "/");
++          window.dispatchEvent(new CustomEvent('location-changed'));
++      }
++    }
++
++    window.customElements.define(SitDoc.is, SitDoc);
++  </script>
++</dom-module>
+\ No newline at end of file
+-- 
+2.15.0
+
