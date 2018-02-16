@@ -1,0 +1,128 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="/bower_components/app-layout/app-layout.html">
+<link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="/bower_components/iron-icons/iron-icons.html">
+
+<link rel="import" href="rendered-text.html">
+
+<dom-module id="sit-doc">
+  <template>
+
+    <style>
+      app-header {
+        background-color: darkseagreen;
+        color: #fff;
+      }
+
+      app-drawer {
+        background-color: darkseagreen;
+      }
+
+      #doc {
+        max-width: 768px;
+      }
+
+      @media screen and (min-width: 768px) {
+        #doc {
+          margin-left: 10pt;
+        }
+      }
+
+    </style>
+
+    <iron-ajax auto url="[[ tocUrl ]]" handle-as="text" last-response="{{ toc }}">
+    </iron-ajax>
+
+    <iron-ajax auto url="[[ pageUrl ]]" handle-as="text" last-response="{{ pageContent }}">
+    </iron-ajax>
+
+
+    <app-drawer-layout>
+      <app-drawer slot="drawer">
+        <app-toolbar>Table of Contents</app-toolbar>
+        <rendered-text text="[[ processedToc ]]"></rendered-text>
+      </app-drawer>
+      <app-header-layout>
+        <app-header slot="header">
+          <app-toolbar>
+            <paper-icon-button icon="arrow-back" title="Back to SIT" on-click="handleBack"></paper-icon-button>
+            <div main-title>SIT Documentation</div>
+          </app-toolbar>
+      </app-header-layout>
+      </app-header>
+
+      <div id="doc">
+        <rendered-text text="[[ processedPageContent ]]"></rendered-text>
+      </div>
+
+    </app-drawer-layout>
+
+
+  </template>
+  <script>
+    class SitDoc extends Polymer.Element {
+      static get is() { return 'sit-doc'; }
+      static get properties() {
+        return {
+          tocUrl: {
+            type: String,
+            value: "/documentation/toc.md"
+          },
+          toc: {
+            type: String,
+            value: ""
+          },
+          processedToc: {
+            type: String,
+            computed: 'processToc(toc, page)'
+          },
+          page: {
+            type: String,
+            value: String,
+          },
+          pageUrl: {
+            type: String,
+            computed: 'getPageUrl(page)'
+          },
+          pageContent: {
+            type: String,
+            value: ""
+          },
+          processedPageContent: {
+            type: String,
+            computed: 'processMarkdownAndImages(pageContent)'
+          }
+        }
+      }
+
+      processMarkdown(md) {
+        return md.replace(/([^!]\[.*\])\(([^\/.].*)\)/g, "$1(/doc/$2)")
+      }
+
+      processToc(md, page) {
+        let page1 = page.replace("\.", "\\.");
+        let regex = new RegExp(`\\[(.*)\\]\\(${page1}\\)`, "g");
+        let removeLinkToPage = md.replace(regex, "**$1**");
+        return this.processMarkdown(removeLinkToPage);
+      }
+
+      processMarkdownAndImages(md) {
+        return this.processMarkdown(md.replace(/\!(\[.*\])\(([^\/.].*)\)/g,
+          "!$1(/documentation/$2)"));
+      }
+
+
+      getPageUrl(page) {
+        return `/documentation/${page}`;
+      }
+
+      handleBack() {
+          window.history.pushState({}, null, "/");
+          window.dispatchEvent(new CustomEvent('location-changed'));
+      }
+    }
+
+    window.customElements.define(SitDoc.is, SitDoc);
+  </script>
+</dom-module>
