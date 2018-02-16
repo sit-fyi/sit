@@ -27,4 +27,5 @@ sit-core = { path = "../sit-core", version = "0.2.0" }
 
 [build-dependencies]
 include_dir = "0.1"
+fs_extra = "1.1"
 

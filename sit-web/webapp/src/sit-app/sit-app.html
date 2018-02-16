@@ -4,6 +4,7 @@
 <link rel="import" href="../dashboard-page/dashboard-page.html">
 <link rel="import" href="../issue/issue.html">
 <link rel="import" href="../issue/new.html">
+<link rel="import" href="../sit-doc/sit-doc.html">
 <link rel="import" href="error.html">
 
 <dom-module id="sit-app">
@@ -13,6 +14,7 @@
     <app-route route="{{route}}" pattern="/issue/:id" data="{{issue}}" active="{{issueActive}}"> </app-route>
     <app-route route="{{route}}" pattern="/new" active="{{newIssueActive}}"> </app-route>
     <app-route route="{{route}}" pattern="/search/:filter" data="{{search}}" active="{{searchActive}}"> </app-route>
+    <app-route route="{{route}}" pattern="/doc" tail="{{ docTail }}" active="{{ docActive }}"> </app-route>
     <app-route route="{{route}}" pattern="/" active="{{homeActive}}"> </app-route>
 
     <template is="dom-if" if="{{ issueActive }}">
@@ -31,6 +33,9 @@
       <dashboard-page filter-query="[[ search.filter ]]"></dashboard-page>
     </template>
 
+    <template is="dom-if" if="[[ docActive ]]">
+      <sit-doc page="[[ docPage ]]"></sit-doc>
+    </template>
 
     <template is="dom-if" if="{{ noRouteMatched }}">
       <error-page message="Not found"></error-page>
@@ -55,14 +60,29 @@
               searchActive: {
                   type: Boolean,
               },
+              docActive: {
+                  type: Boolean,
+              },
+              docTail: {
+                  type: Object,
+              },
+              docPage: {
+                  type: String,
+                  computed: 'getDocPage(docTail)'
+              },
               noRouteMatched: {
                   type: Boolean,
-                  computed: 'computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive)'
+                  computed: 'computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive, docActive)'
               }
           }
       }
-      computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive) {
-          return !homeActive && !newIssueActive && !issueActive && !searchActive;
+
+      computeNoRouteMatched(homeActive, newIssueActive, issueActive, searchActive, docActive) {
+          return !homeActive && !newIssueActive && !issueActive && !searchActive && !docActive;
+      }
+
+      getDocPage(docTail) {
+          return (docTail.path || "/getting_started.md").replace(/^\//, "");
       }
     }
 

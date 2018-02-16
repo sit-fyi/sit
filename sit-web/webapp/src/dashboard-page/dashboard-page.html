@@ -19,8 +19,9 @@
 
        <app-header reveals>
            <app-toolbar>
-               <div main-title>SIT</div>
                <paper-icon-button icon="create" title="New issue" on-click="handleNew"></paper-icon-button>
+               <div main-title>SIT</div>
+               <paper-icon-button icon="help" title="Help" on-click="handleHelp"></paper-icon-button>
            </app-toolbar>
        </app-header>
 
@@ -112,6 +113,11 @@
 
             handleNew() {
                 window.history.pushState({}, null, "/new");
+                window.dispatchEvent(new CustomEvent('location-changed'));
+            }
+
+            handleHelp() {
+                window.history.pushState({}, null, "/doc");
                 window.dispatchEvent(new CustomEvent('location-changed'));
             }
 
