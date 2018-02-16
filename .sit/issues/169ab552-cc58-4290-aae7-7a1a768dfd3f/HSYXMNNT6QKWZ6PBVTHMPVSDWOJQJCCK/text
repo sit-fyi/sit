@@ -1,0 +1,9 @@
+When I am doing a lot of maintenance work (i.e. merging
+merge requests), it's annoying that I have to go to the URL,
+copy the ID part, then find the hash of the merge request
+record, copy that just to run `merge-merge-requests`.
+
+Solution: provive "Maintainer's tip" with copy-paste information
+(and a copy button)
+
+This also showcases how sit-web's UI can be extended

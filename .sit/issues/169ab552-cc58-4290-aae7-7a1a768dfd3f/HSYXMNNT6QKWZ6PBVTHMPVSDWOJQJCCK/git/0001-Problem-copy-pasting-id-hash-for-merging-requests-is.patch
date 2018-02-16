@@ -1,0 +1,1873 @@
+From 114b9d0cbc9d3c28ae0354e0c2571e2b17094662 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 16 Feb 2018 10:26:01 +0700
+Subject: [PATCH] Problem: copy-pasting id & hash for merging requests is
+ annoying
+
+When I am doing a lot of maintenance work (i.e. merging
+merge requests), it's annoying that I have to go to the URL,
+copy the ID part, then find the hash of the merge request
+record, copy that just to run `merge-merge-requests`.
+
+Solution: provive "Maintainer's tip" with copy-paste information
+(and a copy button)
+
+This also showcases how sit-web's UI can be extended
+---
+ .sit/.web/bower_components/clipboard/.bower.json   |  32 +
+ .sit/.web/bower_components/clipboard/bower.json    |  22 +
+ .../bower_components/clipboard/contributing.md     |  28 +
+ .../bower_components/clipboard/dist/clipboard.js   | 790 +++++++++++++++++++++
+ .../clipboard/dist/clipboard.min.js                |   7 +
+ .sit/.web/bower_components/clipboard/package.js    |  12 +
+ .sit/.web/bower_components/clipboard/package.json  |  48 ++
+ .sit/.web/bower_components/clipboard/readme.md     | 183 +++++
+ .../bower_components/granite-clipboard/.bower.json |  68 ++
+ .../bower_components/granite-clipboard/.bowerrc    |   3 +
+ .../bower_components/granite-clipboard/.gitignore  |   1 +
+ .../bower_components/granite-clipboard/LICENCE.md  |   7 +
+ .../bower_components/granite-clipboard/README.md   |  82 +++
+ .../bower_components/granite-clipboard/bower.json  |  57 ++
+ .../granite-clipboard/demo/index.html              | 107 +++
+ .../granite-clipboard/granite-clipboard.html       | 116 +++
+ .../bower_components/granite-clipboard/index.html  |  32 +
+ .sit/.web/src/merge-request/header.html            |  62 ++
+ sit-web/webapp/src/merge-request/header.html       |  14 +
+ .../webapp/src/merge-request/merge-request.html    |   3 +
+ 20 files changed, 1674 insertions(+)
+ create mode 100644 .sit/.web/bower_components/clipboard/.bower.json
+ create mode 100644 .sit/.web/bower_components/clipboard/bower.json
+ create mode 100644 .sit/.web/bower_components/clipboard/contributing.md
+ create mode 100644 .sit/.web/bower_components/clipboard/dist/clipboard.js
+ create mode 100644 .sit/.web/bower_components/clipboard/dist/clipboard.min.js
+ create mode 100644 .sit/.web/bower_components/clipboard/package.js
+ create mode 100644 .sit/.web/bower_components/clipboard/package.json
+ create mode 100644 .sit/.web/bower_components/clipboard/readme.md
+ create mode 100644 .sit/.web/bower_components/granite-clipboard/.bower.json
+ create mode 100755 .sit/.web/bower_components/granite-clipboard/.bowerrc
+ create mode 100755 .sit/.web/bower_components/granite-clipboard/.gitignore
+ create mode 100755 .sit/.web/bower_components/granite-clipboard/LICENCE.md
+ create mode 100755 .sit/.web/bower_components/granite-clipboard/README.md
+ create mode 100755 .sit/.web/bower_components/granite-clipboard/bower.json
+ create mode 100755 .sit/.web/bower_components/granite-clipboard/demo/index.html
+ create mode 100755 .sit/.web/bower_components/granite-clipboard/granite-clipboard.html
+ create mode 100755 .sit/.web/bower_components/granite-clipboard/index.html
+ create mode 100644 .sit/.web/src/merge-request/header.html
+ create mode 100644 sit-web/webapp/src/merge-request/header.html
+
+diff --git a/.sit/.web/bower_components/clipboard/.bower.json b/.sit/.web/bower_components/clipboard/.bower.json
+new file mode 100644
+index 0000000..07d87fd
+--- /dev/null
++++ b/.sit/.web/bower_components/clipboard/.bower.json
+@@ -0,0 +1,32 @@
++{
++  "name": "clipboard",
++  "version": "1.7.1",
++  "description": "Modern copy to clipboard. No Flash. Just 2kb",
++  "license": "MIT",
++  "main": "dist/clipboard.js",
++  "ignore": [
++    "/.*/",
++    "/demo/",
++    "/test/",
++    "/.*",
++    "/bower.json",
++    "/karma.conf.js",
++    "/src",
++    "/lib"
++  ],
++  "keywords": [
++    "clipboard",
++    "copy",
++    "cut"
++  ],
++  "homepage": "https://github.com/zenorocha/clipboard.js",
++  "_release": "1.7.1",
++  "_resolution": {
++    "type": "version",
++    "tag": "v1.7.1",
++    "commit": "b6e6b80ab07eab03ce0d277515b3ed540773a330"
++  },
++  "_source": "https://github.com/zenorocha/clipboard.js.git",
++  "_target": "^1.7.0",
++  "_originalSource": "clipboard"
++}
+\ No newline at end of file
+diff --git a/.sit/.web/bower_components/clipboard/bower.json b/.sit/.web/bower_components/clipboard/bower.json
+new file mode 100644
+index 0000000..c9417d8
+--- /dev/null
++++ b/.sit/.web/bower_components/clipboard/bower.json
+@@ -0,0 +1,22 @@
++{
++  "name": "clipboard",
++  "version": "1.7.1",
++  "description": "Modern copy to clipboard. No Flash. Just 2kb",
++  "license": "MIT",
++  "main": "dist/clipboard.js",
++  "ignore": [
++    "/.*/",
++    "/demo/",
++    "/test/",
++    "/.*",
++    "/bower.json",
++    "/karma.conf.js",
++    "/src",
++    "/lib"
++  ],
++  "keywords": [
++    "clipboard",
++    "copy",
++    "cut"
++  ]
++}
+diff --git a/.sit/.web/bower_components/clipboard/contributing.md b/.sit/.web/bower_components/clipboard/contributing.md
+new file mode 100644
+index 0000000..9ab2c8f
+--- /dev/null
++++ b/.sit/.web/bower_components/clipboard/contributing.md
+@@ -0,0 +1,28 @@
++# Contributing guide
++
++Want to contribute to Clipboard.js? Awesome!
++There are many ways you can contribute, see below.
++
++## Opening issues
++
++Open an issue to report bugs or to propose new features.
++
++- Reporting bugs: describe the bug as clearly as you can, including steps to reproduce, what happened and what you were expecting to happen. Also include browser version, OS and other related software's (npm, Node.js, etc) versions when applicable.
++
++- Proposing features: explain the proposed feature, what it should do, why it is useful, how users should use it. Give us as much info as possible so it will be easier to discuss, access and implement the proposed feature. When you're unsure about a certain aspect of the feature, feel free to leave it open for others to discuss and find an appropriate solution.
++
++## Proposing pull requests
++
++Pull requests are very welcome. Note that if you are going to propose drastic changes, be sure to open an issue for discussion first, to make sure that your PR will be accepted before you spend effort coding it.
++
++Fork the Clipboard.js repository, clone it locally and create a branch for your proposed bug fix or new feature. Avoid working directly on the master branch.
++
++Implement your bug fix or feature, write tests to cover it and make sure all tests are passing (run a final `npm test` to make sure everything is correct). Then commit your changes, push your bug fix/feature branch to the origin (your forked repo) and open a pull request to the upstream (the repository you originally forked)'s master branch.
++
++## Documentation
++
++Documentation is extremely important and takes a fair deal of time and effort to write and keep updated. Please submit any and all improvements you can make to the repository's docs.
++
++## Known issues
++If you're using npm@3 you'll probably face some issues related to peerDependencies.
++https://github.com/npm/npm/issues/9204
+diff --git a/.sit/.web/bower_components/clipboard/dist/clipboard.js b/.sit/.web/bower_components/clipboard/dist/clipboard.js
+new file mode 100644
+index 0000000..75b60e7
+--- /dev/null
++++ b/.sit/.web/bower_components/clipboard/dist/clipboard.js
+@@ -0,0 +1,790 @@
++/*!
++ * clipboard.js v1.7.1
++ * https://zenorocha.github.io/clipboard.js
++ *
++ * Licensed MIT © Zeno Rocha
++ */
++(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.Clipboard = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
++var DOCUMENT_NODE_TYPE = 9;
++
++/**
++ * A polyfill for Element.matches()
++ */
++if (typeof Element !== 'undefined' && !Element.prototype.matches) {
++    var proto = Element.prototype;
++
++    proto.matches = proto.matchesSelector ||
++                    proto.mozMatchesSelector ||
++                    proto.msMatchesSelector ||
++                    proto.oMatchesSelector ||
++                    proto.webkitMatchesSelector;
++}
++
++/**
++ * Finds the closest parent that matches a selector.
++ *
++ * @param {Element} element
++ * @param {String} selector
++ * @return {Function}
++ */
++function closest (element, selector) {
++    while (element && element.nodeType !== DOCUMENT_NODE_TYPE) {
++        if (typeof element.matches === 'function' &&
++            element.matches(selector)) {
++          return element;
++        }
++        element = element.parentNode;
++    }
++}
++
++module.exports = closest;
++
++},{}],2:[function(require,module,exports){
++var closest = require('./closest');
++
++/**
++ * Delegates event to a selector.
++ *
++ * @param {Element} element
++ * @param {String} selector
++ * @param {String} type
++ * @param {Function} callback
++ * @param {Boolean} useCapture
++ * @return {Object}
++ */
++function delegate(element, selector, type, callback, useCapture) {
++    var listenerFn = listener.apply(this, arguments);
++
++    element.addEventListener(type, listenerFn, useCapture);
++
++    return {
++        destroy: function() {
++            element.removeEventListener(type, listenerFn, useCapture);
++        }
++    }
++}
++
++/**
++ * Finds closest match and invokes callback.
++ *
++ * @param {Element} element
++ * @param {String} selector
++ * @param {String} type
++ * @param {Function} callback
++ * @return {Function}
++ */
++function listener(element, selector, type, callback) {
++    return function(e) {
++        e.delegateTarget = closest(e.target, selector);
++
++        if (e.delegateTarget) {
++            callback.call(element, e);
++        }
++    }
++}
++
++module.exports = delegate;
++
++},{"./closest":1}],3:[function(require,module,exports){
++/**
++ * Check if argument is a HTML element.
++ *
++ * @param {Object} value
++ * @return {Boolean}
++ */
++exports.node = function(value) {
++    return value !== undefined
++        && value instanceof HTMLElement
++        && value.nodeType === 1;
++};
++
++/**
++ * Check if argument is a list of HTML elements.
++ *
++ * @param {Object} value
++ * @return {Boolean}
++ */
++exports.nodeList = function(value) {
++    var type = Object.prototype.toString.call(value);
++
++    return value !== undefined
++        && (type === '[object NodeList]' || type === '[object HTMLCollection]')
++        && ('length' in value)
++        && (value.length === 0 || exports.node(value[0]));
++};
++
++/**
++ * Check if argument is a string.
++ *
++ * @param {Object} value
++ * @return {Boolean}
++ */
++exports.string = function(value) {
++    return typeof value === 'string'
++        || value instanceof String;
++};
++
++/**
++ * Check if argument is a function.
++ *
++ * @param {Object} value
++ * @return {Boolean}
++ */
++exports.fn = function(value) {
++    var type = Object.prototype.toString.call(value);
++
++    return type === '[object Function]';
++};
++
++},{}],4:[function(require,module,exports){
++var is = require('./is');
++var delegate = require('delegate');
++
++/**
++ * Validates all params and calls the right
++ * listener function based on its target type.
++ *
++ * @param {String|HTMLElement|HTMLCollection|NodeList} target
++ * @param {String} type
++ * @param {Function} callback
++ * @return {Object}
++ */
++function listen(target, type, callback) {
++    if (!target && !type && !callback) {
++        throw new Error('Missing required arguments');
++    }
++
++    if (!is.string(type)) {
++        throw new TypeError('Second argument must be a String');
++    }
++
++    if (!is.fn(callback)) {
++        throw new TypeError('Third argument must be a Function');
++    }
++
++    if (is.node(target)) {
++        return listenNode(target, type, callback);
++    }
++    else if (is.nodeList(target)) {
++        return listenNodeList(target, type, callback);
++    }
++    else if (is.string(target)) {
++        return listenSelector(target, type, callback);
++    }
++    else {
++        throw new TypeError('First argument must be a String, HTMLElement, HTMLCollection, or NodeList');
++    }
++}
++
++/**
++ * Adds an event listener to a HTML element
++ * and returns a remove listener function.
++ *
++ * @param {HTMLElement} node
++ * @param {String} type
++ * @param {Function} callback
++ * @return {Object}
++ */
++function listenNode(node, type, callback) {
++    node.addEventListener(type, callback);
++
++    return {
++        destroy: function() {
++            node.removeEventListener(type, callback);
++        }
++    }
++}
++
++/**
++ * Add an event listener to a list of HTML elements
++ * and returns a remove listener function.
++ *
++ * @param {NodeList|HTMLCollection} nodeList
++ * @param {String} type
++ * @param {Function} callback
++ * @return {Object}
++ */
++function listenNodeList(nodeList, type, callback) {
++    Array.prototype.forEach.call(nodeList, function(node) {
++        node.addEventListener(type, callback);
++    });
++
++    return {
++        destroy: function() {
++            Array.prototype.forEach.call(nodeList, function(node) {
++                node.removeEventListener(type, callback);
++            });
++        }
++    }
++}
++
++/**
++ * Add an event listener to a selector
++ * and returns a remove listener function.
++ *
++ * @param {String} selector
++ * @param {String} type
++ * @param {Function} callback
++ * @return {Object}
++ */
++function listenSelector(selector, type, callback) {
++    return delegate(document.body, selector, type, callback);
++}
++
++module.exports = listen;
++
++},{"./is":3,"delegate":2}],5:[function(require,module,exports){
++function select(element) {
++    var selectedText;
++
++    if (element.nodeName === 'SELECT') {
++        element.focus();
++
++        selectedText = element.value;
++    }
++    else if (element.nodeName === 'INPUT' || element.nodeName === 'TEXTAREA') {
++        var isReadOnly = element.hasAttribute('readonly');
++
++        if (!isReadOnly) {
++            element.setAttribute('readonly', '');
++        }
++
++        element.select();
++        element.setSelectionRange(0, element.value.length);
++
++        if (!isReadOnly) {
++            element.removeAttribute('readonly');
++        }
++
++        selectedText = element.value;
++    }
++    else {
++        if (element.hasAttribute('contenteditable')) {
++            element.focus();
++        }
++
++        var selection = window.getSelection();
++        var range = document.createRange();
++
++        range.selectNodeContents(element);
++        selection.removeAllRanges();
++        selection.addRange(range);
++
++        selectedText = selection.toString();
++    }
++
++    return selectedText;
++}
++
++module.exports = select;
++
++},{}],6:[function(require,module,exports){
++function E () {
++  // Keep this empty so it's easier to inherit from
++  // (via https://github.com/lipsmack from https://github.com/scottcorgan/tiny-emitter/issues/3)
++}
++
++E.prototype = {
++  on: function (name, callback, ctx) {
++    var e = this.e || (this.e = {});
++
++    (e[name] || (e[name] = [])).push({
++      fn: callback,
++      ctx: ctx
++    });
++
++    return this;
++  },
++
++  once: function (name, callback, ctx) {
++    var self = this;
++    function listener () {
++      self.off(name, listener);
++      callback.apply(ctx, arguments);
++    };
++
++    listener._ = callback
++    return this.on(name, listener, ctx);
++  },
++
++  emit: function (name) {
++    var data = [].slice.call(arguments, 1);
++    var evtArr = ((this.e || (this.e = {}))[name] || []).slice();
++    var i = 0;
++    var len = evtArr.length;
++
++    for (i; i < len; i++) {
++      evtArr[i].fn.apply(evtArr[i].ctx, data);
++    }
++
++    return this;
++  },
++
++  off: function (name, callback) {
++    var e = this.e || (this.e = {});
++    var evts = e[name];
++    var liveEvents = [];
++
++    if (evts && callback) {
++      for (var i = 0, len = evts.length; i < len; i++) {
++        if (evts[i].fn !== callback && evts[i].fn._ !== callback)
++          liveEvents.push(evts[i]);
++      }
++    }
++
++    // Remove event from queue to prevent memory leak
++    // Suggested by https://github.com/lazd
++    // Ref: https://github.com/scottcorgan/tiny-emitter/commit/c6ebfaa9bc973b33d110a84a307742b7cf94c953#commitcomment-5024910
++
++    (liveEvents.length)
++      ? e[name] = liveEvents
++      : delete e[name];
++
++    return this;
++  }
++};
++
++module.exports = E;
++
++},{}],7:[function(require,module,exports){
++(function (global, factory) {
++    if (typeof define === "function" && define.amd) {
++        define(['module', 'select'], factory);
++    } else if (typeof exports !== "undefined") {
++        factory(module, require('select'));
++    } else {
++        var mod = {
++            exports: {}
++        };
++        factory(mod, global.select);
++        global.clipboardAction = mod.exports;
++    }
++})(this, function (module, _select) {
++    'use strict';
++
++    var _select2 = _interopRequireDefault(_select);
++
++    function _interopRequireDefault(obj) {
++        return obj && obj.__esModule ? obj : {
++            default: obj
++        };
++    }
++
++    var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
++        return typeof obj;
++    } : function (obj) {
++        return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
++    };
++
++    function _classCallCheck(instance, Constructor) {
++        if (!(instance instanceof Constructor)) {
++            throw new TypeError("Cannot call a class as a function");
++        }
++    }
++
++    var _createClass = function () {
++        function defineProperties(target, props) {
++            for (var i = 0; i < props.length; i++) {
++                var descriptor = props[i];
++                descriptor.enumerable = descriptor.enumerable || false;
++                descriptor.configurable = true;
++                if ("value" in descriptor) descriptor.writable = true;
++                Object.defineProperty(target, descriptor.key, descriptor);
++            }
++        }
++
++        return function (Constructor, protoProps, staticProps) {
++            if (protoProps) defineProperties(Constructor.prototype, protoProps);
++            if (staticProps) defineProperties(Constructor, staticProps);
++            return Constructor;
++        };
++    }();
++
++    var ClipboardAction = function () {
++        /**
++         * @param {Object} options
++         */
++        function ClipboardAction(options) {
++            _classCallCheck(this, ClipboardAction);
++
++            this.resolveOptions(options);
++            this.initSelection();
++        }
++
++        /**
++         * Defines base properties passed from constructor.
++         * @param {Object} options
++         */
++
++
++        _createClass(ClipboardAction, [{
++            key: 'resolveOptions',
++            value: function resolveOptions() {
++                var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
++
++                this.action = options.action;
++                this.container = options.container;
++                this.emitter = options.emitter;
++                this.target = options.target;
++                this.text = options.text;
++                this.trigger = options.trigger;
++
++                this.selectedText = '';
++            }
++        }, {
++            key: 'initSelection',
++            value: function initSelection() {
++                if (this.text) {
++                    this.selectFake();
++                } else if (this.target) {
++                    this.selectTarget();
++                }
++            }
++        }, {
++            key: 'selectFake',
++            value: function selectFake() {
++                var _this = this;
++
++                var isRTL = document.documentElement.getAttribute('dir') == 'rtl';
++
++                this.removeFake();
++
++                this.fakeHandlerCallback = function () {
++                    return _this.removeFake();
++                };
++                this.fakeHandler = this.container.addEventListener('click', this.fakeHandlerCallback) || true;
++
++                this.fakeElem = document.createElement('textarea');
++                // Prevent zooming on iOS
++                this.fakeElem.style.fontSize = '12pt';
++                // Reset box model
++                this.fakeElem.style.border = '0';
++                this.fakeElem.style.padding = '0';
++                this.fakeElem.style.margin = '0';
++                // Move element out of screen horizontally
++                this.fakeElem.style.position = 'absolute';
++                this.fakeElem.style[isRTL ? 'right' : 'left'] = '-9999px';
++                // Move element to the same position vertically
++                var yPosition = window.pageYOffset || document.documentElement.scrollTop;
++                this.fakeElem.style.top = yPosition + 'px';
++
++                this.fakeElem.setAttribute('readonly', '');
++                this.fakeElem.value = this.text;
++
++                this.container.appendChild(this.fakeElem);
++
++                this.selectedText = (0, _select2.default)(this.fakeElem);
++                this.copyText();
++            }
++        }, {
++            key: 'removeFake',
++            value: function removeFake() {
++                if (this.fakeHandler) {
++                    this.container.removeEventListener('click', this.fakeHandlerCallback);
++                    this.fakeHandler = null;
++                    this.fakeHandlerCallback = null;
++                }
++
++                if (this.fakeElem) {
++                    this.container.removeChild(this.fakeElem);
++                    this.fakeElem = null;
++                }
++            }
++        }, {
++            key: 'selectTarget',
++            value: function selectTarget() {
++                this.selectedText = (0, _select2.default)(this.target);
++                this.copyText();
++            }
++        }, {
++            key: 'copyText',
++            value: function copyText() {
++                var succeeded = void 0;
++
++                try {
++                    succeeded = document.execCommand(this.action);
++                } catch (err) {
++                    succeeded = false;
++                }
++
++                this.handleResult(succeeded);
++            }
++        }, {
++            key: 'handleResult',
++            value: function handleResult(succeeded) {
++                this.emitter.emit(succeeded ? 'success' : 'error', {
++                    action: this.action,
++                    text: this.selectedText,
++                    trigger: this.trigger,
++                    clearSelection: this.clearSelection.bind(this)
++                });
++            }
++        }, {
++            key: 'clearSelection',
++            value: function clearSelection() {
++                if (this.trigger) {
++                    this.trigger.focus();
++                }
++
++                window.getSelection().removeAllRanges();
++            }
++        }, {
++            key: 'destroy',
++            value: function destroy() {
++                this.removeFake();
++            }
++        }, {
++            key: 'action',
++            set: function set() {
++                var action = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'copy';
++
++                this._action = action;
++
++                if (this._action !== 'copy' && this._action !== 'cut') {
++                    throw new Error('Invalid "action" value, use either "copy" or "cut"');
++                }
++            },
++            get: function get() {
++                return this._action;
++            }
++        }, {
++            key: 'target',
++            set: function set(target) {
++                if (target !== undefined) {
++                    if (target && (typeof target === 'undefined' ? 'undefined' : _typeof(target)) === 'object' && target.nodeType === 1) {
++                        if (this.action === 'copy' && target.hasAttribute('disabled')) {
++                            throw new Error('Invalid "target" attribute. Please use "readonly" instead of "disabled" attribute');
++                        }
++
++                        if (this.action === 'cut' && (target.hasAttribute('readonly') || target.hasAttribute('disabled'))) {
++                            throw new Error('Invalid "target" attribute. You can\'t cut text from elements with "readonly" or "disabled" attributes');
++                        }
++
++                        this._target = target;
++                    } else {
++                        throw new Error('Invalid "target" value, use a valid Element');
++                    }
++                }
++            },
++            get: function get() {
++                return this._target;
++            }
++        }]);
++
++        return ClipboardAction;
++    }();
++
++    module.exports = ClipboardAction;
++});
++
++},{"select":5}],8:[function(require,module,exports){
++(function (global, factory) {
++    if (typeof define === "function" && define.amd) {
++        define(['module', './clipboard-action', 'tiny-emitter', 'good-listener'], factory);
++    } else if (typeof exports !== "undefined") {
++        factory(module, require('./clipboard-action'), require('tiny-emitter'), require('good-listener'));
++    } else {
++        var mod = {
++            exports: {}
++        };
++        factory(mod, global.clipboardAction, global.tinyEmitter, global.goodListener);
++        global.clipboard = mod.exports;
++    }
++})(this, function (module, _clipboardAction, _tinyEmitter, _goodListener) {
++    'use strict';
++
++    var _clipboardAction2 = _interopRequireDefault(_clipboardAction);
++
++    var _tinyEmitter2 = _interopRequireDefault(_tinyEmitter);
++
++    var _goodListener2 = _interopRequireDefault(_goodListener);
++
++    function _interopRequireDefault(obj) {
++        return obj && obj.__esModule ? obj : {
++            default: obj
++        };
++    }
++
++    var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
++        return typeof obj;
++    } : function (obj) {
++        return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
++    };
++
++    function _classCallCheck(instance, Constructor) {
++        if (!(instance instanceof Constructor)) {
++            throw new TypeError("Cannot call a class as a function");
++        }
++    }
++
++    var _createClass = function () {
++        function defineProperties(target, props) {
++            for (var i = 0; i < props.length; i++) {
++                var descriptor = props[i];
++                descriptor.enumerable = descriptor.enumerable || false;
++                descriptor.configurable = true;
++                if ("value" in descriptor) descriptor.writable = true;
++                Object.defineProperty(target, descriptor.key, descriptor);
++            }
++        }
++
++        return function (Constructor, protoProps, staticProps) {
++            if (protoProps) defineProperties(Constructor.prototype, protoProps);
++            if (staticProps) defineProperties(Constructor, staticProps);
++            return Constructor;
++        };
++    }();
++
++    function _possibleConstructorReturn(self, call) {
++        if (!self) {
++            throw new ReferenceError("this hasn't been initialised - super() hasn't been called");
++        }
++
++        return call && (typeof call === "object" || typeof call === "function") ? call : self;
++    }
++
++    function _inherits(subClass, superClass) {
++        if (typeof superClass !== "function" && superClass !== null) {
++            throw new TypeError("Super expression must either be null or a function, not " + typeof superClass);
++        }
++
++        subClass.prototype = Object.create(superClass && superClass.prototype, {
++            constructor: {
++                value: subClass,
++                enumerable: false,
++                writable: true,
++                configurable: true
++            }
++        });
++        if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass;
++    }
++
++    var Clipboard = function (_Emitter) {
++        _inherits(Clipboard, _Emitter);
++
++        /**
++         * @param {String|HTMLElement|HTMLCollection|NodeList} trigger
++         * @param {Object} options
++         */
++        function Clipboard(trigger, options) {
++            _classCallCheck(this, Clipboard);
++
++            var _this = _possibleConstructorReturn(this, (Clipboard.__proto__ || Object.getPrototypeOf(Clipboard)).call(this));
++
++            _this.resolveOptions(options);
++            _this.listenClick(trigger);
++            return _this;
++        }
++
++        /**
++         * Defines if attributes would be resolved using internal setter functions
++         * or custom functions that were passed in the constructor.
++         * @param {Object} options
++         */
++
++
++        _createClass(Clipboard, [{
++            key: 'resolveOptions',
++            value: function resolveOptions() {
++                var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
++
++                this.action = typeof options.action === 'function' ? options.action : this.defaultAction;
++                this.target = typeof options.target === 'function' ? options.target : this.defaultTarget;
++                this.text = typeof options.text === 'function' ? options.text : this.defaultText;
++                this.container = _typeof(options.container) === 'object' ? options.container : document.body;
++            }
++        }, {
++            key: 'listenClick',
++            value: function listenClick(trigger) {
++                var _this2 = this;
++
++                this.listener = (0, _goodListener2.default)(trigger, 'click', function (e) {
++                    return _this2.onClick(e);
++                });
++            }
++        }, {
++            key: 'onClick',
++            value: function onClick(e) {
++                var trigger = e.delegateTarget || e.currentTarget;
++
++                if (this.clipboardAction) {
++                    this.clipboardAction = null;
++                }
++
++                this.clipboardAction = new _clipboardAction2.default({
++                    action: this.action(trigger),
++                    target: this.target(trigger),
++                    text: this.text(trigger),
++                    container: this.container,
++                    trigger: trigger,
++                    emitter: this
++                });
++            }
++        }, {
++            key: 'defaultAction',
++            value: function defaultAction(trigger) {
++                return getAttributeValue('action', trigger);
++            }
++        }, {
++            key: 'defaultTarget',
++            value: function defaultTarget(trigger) {
++                var selector = getAttributeValue('target', trigger);
++
++                if (selector) {
++                    return document.querySelector(selector);
++                }
++            }
++        }, {
++            key: 'defaultText',
++            value: function defaultText(trigger) {
++                return getAttributeValue('text', trigger);
++            }
++        }, {
++            key: 'destroy',
++            value: function destroy() {
++                this.listener.destroy();
++
++                if (this.clipboardAction) {
++                    this.clipboardAction.destroy();
++                    this.clipboardAction = null;
++                }
++            }
++        }], [{
++            key: 'isSupported',
++            value: function isSupported() {
++                var action = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : ['copy', 'cut'];
++
++                var actions = typeof action === 'string' ? [action] : action;
++                var support = !!document.queryCommandSupported;
++
++                actions.forEach(function (action) {
++                    support = support && !!document.queryCommandSupported(action);
++                });
++
++                return support;
++            }
++        }]);
++
++        return Clipboard;
++    }(_tinyEmitter2.default);
++
++    /**
++     * Helper function to retrieve attribute value.
++     * @param {String} suffix
++     * @param {Element} element
++     */
++    function getAttributeValue(suffix, element) {
++        var attribute = 'data-clipboard-' + suffix;
++
++        if (!element.hasAttribute(attribute)) {
++            return;
++        }
++
++        return element.getAttribute(attribute);
++    }
++
++    module.exports = Clipboard;
++});
++
++},{"./clipboard-action":7,"good-listener":4,"tiny-emitter":6}]},{},[8])(8)
++});
+\ No newline at end of file
+diff --git a/.sit/.web/bower_components/clipboard/dist/clipboard.min.js b/.sit/.web/bower_components/clipboard/dist/clipboard.min.js
+new file mode 100644
+index 0000000..90fd15b
+--- /dev/null
++++ b/.sit/.web/bower_components/clipboard/dist/clipboard.min.js
+@@ -0,0 +1,7 @@
++/*!
++ * clipboard.js v1.7.1
++ * https://zenorocha.github.io/clipboard.js
++ *
++ * Licensed MIT © Zeno Rocha
++ */
++!function(t){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=t();else if("function"==typeof define&&define.amd)define([],t);else{var e;e="undefined"!=typeof window?window:"undefined"!=typeof global?global:"undefined"!=typeof self?self:this,e.Clipboard=t()}}(function(){var t,e,n;return function t(e,n,o){function i(a,c){if(!n[a]){if(!e[a]){var l="function"==typeof require&&require;if(!c&&l)return l(a,!0);if(r)return r(a,!0);var s=new Error("Cannot find module '"+a+"'");throw s.code="MODULE_NOT_FOUND",s}var u=n[a]={exports:{}};e[a][0].call(u.exports,function(t){var n=e[a][1][t];return i(n||t)},u,u.exports,t,e,n,o)}return n[a].exports}for(var r="function"==typeof require&&require,a=0;a<o.length;a++)i(o[a]);return i}({1:[function(t,e,n){function o(t,e){for(;t&&t.nodeType!==i;){if("function"==typeof t.matches&&t.matches(e))return t;t=t.parentNode}}var i=9;if("undefined"!=typeof Element&&!Element.prototype.matches){var r=Element.prototype;r.matches=r.matchesSelector||r.mozMatchesSelector||r.msMatchesSelector||r.oMatchesSelector||r.webkitMatchesSelector}e.exports=o},{}],2:[function(t,e,n){function o(t,e,n,o,r){var a=i.apply(this,arguments);return t.addEventListener(n,a,r),{destroy:function(){t.removeEventListener(n,a,r)}}}function i(t,e,n,o){return function(n){n.delegateTarget=r(n.target,e),n.delegateTarget&&o.call(t,n)}}var r=t("./closest");e.exports=o},{"./closest":1}],3:[function(t,e,n){n.node=function(t){return void 0!==t&&t instanceof HTMLElement&&1===t.nodeType},n.nodeList=function(t){var e=Object.prototype.toString.call(t);return void 0!==t&&("[object NodeList]"===e||"[object HTMLCollection]"===e)&&"length"in t&&(0===t.length||n.node(t[0]))},n.string=function(t){return"string"==typeof t||t instanceof String},n.fn=function(t){return"[object Function]"===Object.prototype.toString.call(t)}},{}],4:[function(t,e,n){function o(t,e,n){if(!t&&!e&&!n)throw new Error("Missing required arguments");if(!c.string(e))throw new TypeError("Second argument must be a String");if(!c.fn(n))throw new TypeError("Third argument must be a Function");if(c.node(t))return i(t,e,n);if(c.nodeList(t))return r(t,e,n);if(c.string(t))return a(t,e,n);throw new TypeError("First argument must be a String, HTMLElement, HTMLCollection, or NodeList")}function i(t,e,n){return t.addEventListener(e,n),{destroy:function(){t.removeEventListener(e,n)}}}function r(t,e,n){return Array.prototype.forEach.call(t,function(t){t.addEventListener(e,n)}),{destroy:function(){Array.prototype.forEach.call(t,function(t){t.removeEventListener(e,n)})}}}function a(t,e,n){return l(document.body,t,e,n)}var c=t("./is"),l=t("delegate");e.exports=o},{"./is":3,delegate:2}],5:[function(t,e,n){function o(t){var e;if("SELECT"===t.nodeName)t.focus(),e=t.value;else if("INPUT"===t.nodeName||"TEXTAREA"===t.nodeName){var n=t.hasAttribute("readonly");n||t.setAttribute("readonly",""),t.select(),t.setSelectionRange(0,t.value.length),n||t.removeAttribute("readonly"),e=t.value}else{t.hasAttribute("contenteditable")&&t.focus();var o=window.getSelection(),i=document.createRange();i.selectNodeContents(t),o.removeAllRanges(),o.addRange(i),e=o.toString()}return e}e.exports=o},{}],6:[function(t,e,n){function o(){}o.prototype={on:function(t,e,n){var o=this.e||(this.e={});return(o[t]||(o[t]=[])).push({fn:e,ctx:n}),this},once:function(t,e,n){function o(){i.off(t,o),e.apply(n,arguments)}var i=this;return o._=e,this.on(t,o,n)},emit:function(t){var e=[].slice.call(arguments,1),n=((this.e||(this.e={}))[t]||[]).slice(),o=0,i=n.length;for(o;o<i;o++)n[o].fn.apply(n[o].ctx,e);return this},off:function(t,e){var n=this.e||(this.e={}),o=n[t],i=[];if(o&&e)for(var r=0,a=o.length;r<a;r++)o[r].fn!==e&&o[r].fn._!==e&&i.push(o[r]);return i.length?n[t]=i:delete n[t],this}},e.exports=o},{}],7:[function(e,n,o){!function(i,r){if("function"==typeof t&&t.amd)t(["module","select"],r);else if(void 0!==o)r(n,e("select"));else{var a={exports:{}};r(a,i.select),i.clipboardAction=a.exports}}(this,function(t,e){"use strict";function n(t){return t&&t.__esModule?t:{default:t}}function o(t,e){if(!(t instanceof e))throw new TypeError("Cannot call a class as a function")}var i=n(e),r="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(t){return typeof t}:function(t){return t&&"function"==typeof Symbol&&t.constructor===Symbol&&t!==Symbol.prototype?"symbol":typeof t},a=function(){function t(t,e){for(var n=0;n<e.length;n++){var o=e[n];o.enumerable=o.enumerable||!1,o.configurable=!0,"value"in o&&(o.writable=!0),Object.defineProperty(t,o.key,o)}}return function(e,n,o){return n&&t(e.prototype,n),o&&t(e,o),e}}(),c=function(){function t(e){o(this,t),this.resolveOptions(e),this.initSelection()}return a(t,[{key:"resolveOptions",value:function t(){var e=arguments.length>0&&void 0!==arguments[0]?arguments[0]:{};this.action=e.action,this.container=e.container,this.emitter=e.emitter,this.target=e.target,this.text=e.text,this.trigger=e.trigger,this.selectedText=""}},{key:"initSelection",value:function t(){this.text?this.selectFake():this.target&&this.selectTarget()}},{key:"selectFake",value:function t(){var e=this,n="rtl"==document.documentElement.getAttribute("dir");this.removeFake(),this.fakeHandlerCallback=function(){return e.removeFake()},this.fakeHandler=this.container.addEventListener("click",this.fakeHandlerCallback)||!0,this.fakeElem=document.createElement("textarea"),this.fakeElem.style.fontSize="12pt",this.fakeElem.style.border="0",this.fakeElem.style.padding="0",this.fakeElem.style.margin="0",this.fakeElem.style.position="absolute",this.fakeElem.style[n?"right":"left"]="-9999px";var o=window.pageYOffset||document.documentElement.scrollTop;this.fakeElem.style.top=o+"px",this.fakeElem.setAttribute("readonly",""),this.fakeElem.value=this.text,this.container.appendChild(this.fakeElem),this.selectedText=(0,i.default)(this.fakeElem),this.copyText()}},{key:"removeFake",value:function t(){this.fakeHandler&&(this.container.removeEventListener("click",this.fakeHandlerCallback),this.fakeHandler=null,this.fakeHandlerCallback=null),this.fakeElem&&(this.container.removeChild(this.fakeElem),this.fakeElem=null)}},{key:"selectTarget",value:function t(){this.selectedText=(0,i.default)(this.target),this.copyText()}},{key:"copyText",value:function t(){var e=void 0;try{e=document.execCommand(this.action)}catch(t){e=!1}this.handleResult(e)}},{key:"handleResult",value:function t(e){this.emitter.emit(e?"success":"error",{action:this.action,text:this.selectedText,trigger:this.trigger,clearSelection:this.clearSelection.bind(this)})}},{key:"clearSelection",value:function t(){this.trigger&&this.trigger.focus(),window.getSelection().removeAllRanges()}},{key:"destroy",value:function t(){this.removeFake()}},{key:"action",set:function t(){var e=arguments.length>0&&void 0!==arguments[0]?arguments[0]:"copy";if(this._action=e,"copy"!==this._action&&"cut"!==this._action)throw new Error('Invalid "action" value, use either "copy" or "cut"')},get:function t(){return this._action}},{key:"target",set:function t(e){if(void 0!==e){if(!e||"object"!==(void 0===e?"undefined":r(e))||1!==e.nodeType)throw new Error('Invalid "target" value, use a valid Element');if("copy"===this.action&&e.hasAttribute("disabled"))throw new Error('Invalid "target" attribute. Please use "readonly" instead of "disabled" attribute');if("cut"===this.action&&(e.hasAttribute("readonly")||e.hasAttribute("disabled")))throw new Error('Invalid "target" attribute. You can\'t cut text from elements with "readonly" or "disabled" attributes');this._target=e}},get:function t(){return this._target}}]),t}();t.exports=c})},{select:5}],8:[function(e,n,o){!function(i,r){if("function"==typeof t&&t.amd)t(["module","./clipboard-action","tiny-emitter","good-listener"],r);else if(void 0!==o)r(n,e("./clipboard-action"),e("tiny-emitter"),e("good-listener"));else{var a={exports:{}};r(a,i.clipboardAction,i.tinyEmitter,i.goodListener),i.clipboard=a.exports}}(this,function(t,e,n,o){"use strict";function i(t){return t&&t.__esModule?t:{default:t}}function r(t,e){if(!(t instanceof e))throw new TypeError("Cannot call a class as a function")}function a(t,e){if(!t)throw new ReferenceError("this hasn't been initialised - super() hasn't been called");return!e||"object"!=typeof e&&"function"!=typeof e?t:e}function c(t,e){if("function"!=typeof e&&null!==e)throw new TypeError("Super expression must either be null or a function, not "+typeof e);t.prototype=Object.create(e&&e.prototype,{constructor:{value:t,enumerable:!1,writable:!0,configurable:!0}}),e&&(Object.setPrototypeOf?Object.setPrototypeOf(t,e):t.__proto__=e)}function l(t,e){var n="data-clipboard-"+t;if(e.hasAttribute(n))return e.getAttribute(n)}var s=i(e),u=i(n),f=i(o),d="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(t){return typeof t}:function(t){return t&&"function"==typeof Symbol&&t.constructor===Symbol&&t!==Symbol.prototype?"symbol":typeof t},h=function(){function t(t,e){for(var n=0;n<e.length;n++){var o=e[n];o.enumerable=o.enumerable||!1,o.configurable=!0,"value"in o&&(o.writable=!0),Object.defineProperty(t,o.key,o)}}return function(e,n,o){return n&&t(e.prototype,n),o&&t(e,o),e}}(),p=function(t){function e(t,n){r(this,e);var o=a(this,(e.__proto__||Object.getPrototypeOf(e)).call(this));return o.resolveOptions(n),o.listenClick(t),o}return c(e,t),h(e,[{key:"resolveOptions",value:function t(){var e=arguments.length>0&&void 0!==arguments[0]?arguments[0]:{};this.action="function"==typeof e.action?e.action:this.defaultAction,this.target="function"==typeof e.target?e.target:this.defaultTarget,this.text="function"==typeof e.text?e.text:this.defaultText,this.container="object"===d(e.container)?e.container:document.body}},{key:"listenClick",value:function t(e){var n=this;this.listener=(0,f.default)(e,"click",function(t){return n.onClick(t)})}},{key:"onClick",value:function t(e){var n=e.delegateTarget||e.currentTarget;this.clipboardAction&&(this.clipboardAction=null),this.clipboardAction=new s.default({action:this.action(n),target:this.target(n),text:this.text(n),container:this.container,trigger:n,emitter:this})}},{key:"defaultAction",value:function t(e){return l("action",e)}},{key:"defaultTarget",value:function t(e){var n=l("target",e);if(n)return document.querySelector(n)}},{key:"defaultText",value:function t(e){return l("text",e)}},{key:"destroy",value:function t(){this.listener.destroy(),this.clipboardAction&&(this.clipboardAction.destroy(),this.clipboardAction=null)}}],[{key:"isSupported",value:function t(){var e=arguments.length>0&&void 0!==arguments[0]?arguments[0]:["copy","cut"],n="string"==typeof e?[e]:e,o=!!document.queryCommandSupported;return n.forEach(function(t){o=o&&!!document.queryCommandSupported(t)}),o}}]),e}(u.default);t.exports=p})},{"./clipboard-action":7,"good-listener":4,"tiny-emitter":6}]},{},[8])(8)});
+\ No newline at end of file
+diff --git a/.sit/.web/bower_components/clipboard/package.js b/.sit/.web/bower_components/clipboard/package.js
+new file mode 100644
+index 0000000..497ce56
+--- /dev/null
++++ b/.sit/.web/bower_components/clipboard/package.js
+@@ -0,0 +1,12 @@
++// Package metadata for Meteor.js.
++
++Package.describe({
++  name: "zenorocha:clipboard",
++  summary: "Modern copy to clipboard. No Flash. Just 2kb.",
++  version: "1.7.1",
++  git: "https://github.com/zenorocha/clipboard.js"
++});
++
++Package.onUse(function(api) {
++  api.addFiles("dist/clipboard.js", "client");
++});
+diff --git a/.sit/.web/bower_components/clipboard/package.json b/.sit/.web/bower_components/clipboard/package.json
+new file mode 100644
+index 0000000..3e55bd7
+--- /dev/null
++++ b/.sit/.web/bower_components/clipboard/package.json
+@@ -0,0 +1,48 @@
++{
++  "name": "clipboard",
++  "version": "1.7.1",
++  "description": "Modern copy to clipboard. No Flash. Just 2kb",
++  "repository": "zenorocha/clipboard.js",
++  "license": "MIT",
++  "main": "lib/clipboard.js",
++  "keywords": [
++    "clipboard",
++    "copy",
++    "cut"
++  ],
++  "dependencies": {
++    "good-listener": "^1.2.2",
++    "select": "^1.1.2",
++    "tiny-emitter": "^2.0.0"
++  },
++  "devDependencies": {
++    "babel-cli": "^6.24.1",
++    "babel-core": "^6.24.1",
++    "babel-plugin-transform-es2015-modules-umd": "^6.24.1",
++    "babel-preset-es2015": "^6.24.1",
++    "babelify": "^7.3.0",
++    "bannerify": "Vekat/bannerify#feature-option",
++    "browserify": "^14.3.0",
++    "chai": "^3.5.0",
++    "install": "^0.9.6",
++    "karma": "^1.6.0",
++    "karma-browserify": "^5.1.1",
++    "karma-chai": "^0.1.0",
++    "karma-mocha": "^1.3.0",
++    "karma-phantomjs-launcher": "^1.0.4",
++    "karma-sinon": "^1.0.5",
++    "mocha": "^3.3.0",
++    "phantomjs-prebuilt": "^2.1.14",
++    "sinon": "^2.2.0",
++    "uglify-js": "^2.8.22",
++    "watchify": "^3.9.0"
++  },
++  "scripts": {
++    "build": "npm run build-debug && npm run build-min",
++    "build-debug": "browserify src/clipboard.js -s Clipboard -t [babelify] -p [bannerify --file .banner ] -o dist/clipboard.js",
++    "build-min": "uglifyjs dist/clipboard.js --comments '/!/' -m screw_ie8=true -c screw_ie8=true,unused=false -o dist/clipboard.min.js",
++    "build-watch": "watchify src/clipboard.js -s Clipboard -t [babelify] -o dist/clipboard.js -v",
++    "test": "karma start --single-run",
++    "prepublish": "babel src --out-dir lib"
++  }
++}
+diff --git a/.sit/.web/bower_components/clipboard/readme.md b/.sit/.web/bower_components/clipboard/readme.md
+new file mode 100644
+index 0000000..0dbe974
+--- /dev/null
++++ b/.sit/.web/bower_components/clipboard/readme.md
+@@ -0,0 +1,183 @@
++# clipboard.js
++
++[![Build Status](http://img.shields.io/travis/zenorocha/clipboard.js/master.svg?style=flat)](https://travis-ci.org/zenorocha/clipboard.js)
++![Killing Flash](https://img.shields.io/badge/killing-flash-brightgreen.svg?style=flat)
++
++> Modern copy to clipboard. No Flash. Just 3kb gzipped.
++
++<a href="https://clipboardjs.com/"><img width="728" src="https://cloud.githubusercontent.com/assets/398893/16165747/a0f6fc46-349a-11e6-8c9b-c5fd58d9099c.png" alt="Demo"></a>
++
++## Why
++
++Copying text to the clipboard shouldn't be hard. It shouldn't require dozens of steps to configure or hundreds of KBs to load. But most of all, it shouldn't depend on Flash or any bloated framework.
++
++That's why clipboard.js exists.
++
++## Install
++
++You can get it on npm.
++
++```
++npm install clipboard --save
++```
++
++Or if you're not into package management, just [download a ZIP](https://github.com/zenorocha/clipboard.js/archive/master.zip) file.
++
++## Setup
++
++First, include the script located on the `dist` folder or load it from [a third-party CDN provider](https://github.com/zenorocha/clipboard.js/wiki/CDN-Providers).
++
++```html
++<script src="dist/clipboard.min.js"></script>
++```
++
++Now, you need to instantiate it by [passing a DOM selector](https://github.com/zenorocha/clipboard.js/blob/master/demo/constructor-selector.html#L18), [HTML element](https://github.com/zenorocha/clipboard.js/blob/master/demo/constructor-node.html#L16-L17), or [list of HTML elements](https://github.com/zenorocha/clipboard.js/blob/master/demo/constructor-nodelist.html#L18-L19).
++
++```js
++new Clipboard('.btn');
++```
++
++Internally, we need to fetch all elements that matches with your selector and attach event listeners for each one. But guess what? If you have hundreds of matches, this operation can consume a lot of memory.
++
++For this reason we use [event delegation](http://stackoverflow.com/questions/1687296/what-is-dom-event-delegation) which replaces multiple event listeners with just a single listener. After all, [#perfmatters](https://twitter.com/hashtag/perfmatters).
++
++# Usage
++
++We're living a _declarative renaissance_, that's why we decided to take advantage of [HTML5 data attributes](https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/Using_data_attributes) for better usability.
++
++### Copy text from another element
++
++A pretty common use case is to copy content from another element. You can do that by adding a `data-clipboard-target` attribute in your trigger element.
++
++The value you include on this attribute needs to match another's element selector.
++
++<a href="https://clipboardjs.com/#example-target"><img width="473" alt="example-2" src="https://cloud.githubusercontent.com/assets/398893/9983467/a4946aaa-5fb1-11e5-9780-f09fcd7ca6c8.png"></a>
++
++```html
++<!-- Target -->
++<input id="foo" value="https://github.com/zenorocha/clipboard.js.git">
++
++<!-- Trigger -->
++<button class="btn" data-clipboard-target="#foo">
++    <img src="assets/clippy.svg" alt="Copy to clipboard">
++</button>
++```
++
++### Cut text from another element
++
++Additionally, you can define a `data-clipboard-action` attribute to specify if you want to either `copy` or `cut` content.
++
++If you omit this attribute, `copy` will be used by default.
++
++<a href="https://clipboardjs.com/#example-action"><img width="473" alt="example-3" src="https://cloud.githubusercontent.com/assets/398893/10000358/7df57b9c-6050-11e5-9cd1-fbc51d2fd0a7.png"></a>
++
++```html
++<!-- Target -->
++<textarea id="bar">Mussum ipsum cacilds...</textarea>
++
++<!-- Trigger -->
++<button class="btn" data-clipboard-action="cut" data-clipboard-target="#bar">
++    Cut to clipboard
++</button>
++```
++
++As you may expect, the `cut` action only works on `<input>` or `<textarea>` elements.
++
++### Copy text from attribute
++
++Truth is, you don't even need another element to copy its content from. You can just include a `data-clipboard-text` attribute in your trigger element.
++
++<a href="https://clipboardjs.com/#example-text"><img width="147" alt="example-1" src="https://cloud.githubusercontent.com/assets/398893/10000347/6e16cf8c-6050-11e5-9883-1c5681f9ec45.png"></a>
++
++```html
++<!-- Trigger -->
++<button class="btn" data-clipboard-text="Just because you can doesn't mean you should — clipboard.js">
++    Copy to clipboard
++</button>
++```
++
++## Events
++
++There are cases where you'd like to show some user feedback or capture what has been selected after a copy/cut operation.
++
++That's why we fire custom events such as `success` and `error` for you to listen and implement your custom logic.
++
++```js
++var clipboard = new Clipboard('.btn');
++
++clipboard.on('success', function(e) {
++    console.info('Action:', e.action);
++    console.info('Text:', e.text);
++    console.info('Trigger:', e.trigger);
++
++    e.clearSelection();
++});
++
++clipboard.on('error', function(e) {
++    console.error('Action:', e.action);
++    console.error('Trigger:', e.trigger);
++});
++```
++
++For a live demonstration, open this [site](https://clipboardjs.com/) and just your console :)
++
++## Advanced Options
++
++If you don't want to modify your HTML, there's a pretty handy imperative API for you to use. All you need to do is declare a function, do your thing, and return a value.
++
++For instance, if you want to dynamically set a `target`, you'll need to return a Node.
++
++```js
++new Clipboard('.btn', {
++    target: function(trigger) {
++        return trigger.nextElementSibling;
++    }
++});
++```
++
++If you want to dynamically set a `text`, you'll return a String.
++
++```js
++new Clipboard('.btn', {
++    text: function(trigger) {
++        return trigger.getAttribute('aria-label');
++    }
++});
++```
++
++For use in Bootstrap Modals or with any other library that changes the focus you'll want to set the focused element as the `container` value.
++
++```js
++new Clipboard('.btn', {
++    container: document.getElementById('#modal')
++});
++```
++
++Also, if you are working with single page apps, you may want to manage the lifecycle of the DOM more precisely. Here's how you clean up the events and objects that we create.
++
++```js
++var clipboard = new Clipboard('.btn');
++clipboard.destroy();
++```
++
++## Browser Support
++
++This library relies on both [Selection](https://developer.mozilla.org/en-US/docs/Web/API/Selection) and [execCommand](https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand) APIs. The first one is [supported by all browsers](http://caniuse.com/#search=selection) while the second one is supported in the following browsers.
++
++| <img src="https://clipboardjs.com/assets/images/chrome.png" width="48px" height="48px" alt="Chrome logo"> | <img src="https://clipboardjs.com/assets/images/edge.png" width="48px" height="48px" alt="Edge logo"> | <img src="https://clipboardjs.com/assets/images/firefox.png" width="48px" height="48px" alt="Firefox logo"> | <img src="https://clipboardjs.com/assets/images/ie.png" width="48px" height="48px" alt="Internet Explorer logo"> | <img src="https://clipboardjs.com/assets/images/opera.png" width="48px" height="48px" alt="Opera logo"> | <img src="https://clipboardjs.com/assets/images/safari.png" width="48px" height="48px" alt="Safari logo"> |
++|:---:|:---:|:---:|:---:|:---:|:---:|
++| 42+ ✔ | 12+ ✔ | 41+ ✔ | 9+ ✔ | 29+ ✔ | 10+ ✔ |
++
++The good news is that clipboard.js gracefully degrades if you need to support older browsers. All you have to do is show a tooltip saying `Copied!` when `success` event is called and `Press Ctrl+C to copy` when `error` event is called because the text is already selected.
++
++You can also check if clipboard.js is supported or not by running `Clipboard.isSupported()`, that way you can hide copy/cut buttons from the UI.
++
++## Bonus
++
++A browser extension that adds a "copy to clipboard" button to every code block on *GitHub, MDN, Gist, StackOverflow, StackExchange, npm, and even Medium.*
++
++Install for [Chrome](https://chrome.google.com/webstore/detail/codecopy/fkbfebkcoelajmhanocgppanfoojcdmg) and [Firefox](https://addons.mozilla.org/en-US/firefox/addon/codecopy/).
++
++## License
++
++[MIT License](http://zenorocha.mit-license.org/) © Zeno Rocha
+diff --git a/.sit/.web/bower_components/granite-clipboard/.bower.json b/.sit/.web/bower_components/granite-clipboard/.bower.json
+new file mode 100644
+index 0000000..d892ef7
+--- /dev/null
++++ b/.sit/.web/bower_components/granite-clipboard/.bower.json
+@@ -0,0 +1,68 @@
++{
++  "name": "granite-clipboard",
++  "authors": [
++    "Horacio Gonzalez <horacio.gonzalez@gmail.com>"
++  ],
++  "description": "A lightweight element wrapping-up clipboard.js",
++  "keywords": [
++    "web-component",
++    "web-components",
++    "polymer",
++    "lostinbrittany",
++    "clipboard",
++    "clipboard.js"
++  ],
++  "main": "granite-clipboard.html",
++  "license": "MIT",
++  "homepage": "https://github.com/LostInBrittany/granite-clipboard",
++  "ignore": [],
++  "dependencies": {
++    "polymer": "Polymer/polymer#1.9 - 2",
++    "clipboard": "^1.7.0"
++  },
++  "devDependencies": {
++    "iron-component-page": "PolymerElements/iron-component-page#1 - 2",
++    "iron-demo-helpers": "PolymerElements/iron-demo-helpers#1 - 2",
++    "iron-icon": "PolymerElements/iron-icon#1 - 2",
++    "iron-icons": "PolymerElements/iron-icons#1 - 2",
++    "iron-test-helpers": "PolymerElements/iron-test-helpers#1 - 2",
++    "test-fixture": "PolymerElements/test-fixture#^3.0.0-rc.1",
++    "web-component-tester": "^6.0.0",
++    "webcomponentsjs": "webcomponents/webcomponentsjs#^1.0.0"
++  },
++  "variants": {
++    "1.x": {
++      "dependencies": {
++        "polymer": "Polymer/polymer#^1.9",
++        "clipboard": "^1.7.0"
++      },
++      "devDependencies": {
++        "iron-component-page": "PolymerElements/iron-component-page#^1.0.0",
++        "iron-demo-helpers": "PolymerElements/iron-demo-helpers#^1.0.0",
++        "iron-icon": "PolymerElements/iron-icon#^1.0.0",
++        "iron-icons": "PolymerElements/iron-icons#^1.0.0",
++        "iron-test-helpers": "PolymerElements/iron-test-helpers#^1.0.0",
++        "test-fixture": "PolymerElements/test-fixture#^1.0.0",
++        "webcomponentsjs": "webcomponents/webcomponentsjs#^0.7.0",
++        "web-component-tester": "Polymer/web-component-tester#^4.0.0"
++      },
++      "resolutions": {
++        "webcomponentsjs": "^0.7"
++      }
++    }
++  },
++  "demos": {
++    "demo": "demo/index.html"
++  },
++  "version": "1.2.3",
++  "_release": "1.2.3",
++  "_resolution": {
++    "type": "version",
++    "tag": "1.2.3",
++    "commit": "4c1212464b9567bba99ae2d64b118f356f8c7adf"
++  },
++  "_source": "https://github.com/LostInBrittany/granite-clipboard.git",
++  "_target": "^1.2.3",
++  "_originalSource": "granite-clipboard",
++  "_direct": true
++}
+\ No newline at end of file
+diff --git a/.sit/.web/bower_components/granite-clipboard/.bowerrc b/.sit/.web/bower_components/granite-clipboard/.bowerrc
+new file mode 100755
+index 0000000..66c1875
+--- /dev/null
++++ b/.sit/.web/bower_components/granite-clipboard/.bowerrc
+@@ -0,0 +1,3 @@
++{
++  "directory": "./bower_components/"
++}
+diff --git a/.sit/.web/bower_components/granite-clipboard/.gitignore b/.sit/.web/bower_components/granite-clipboard/.gitignore
+new file mode 100755
+index 0000000..ab079b0
+--- /dev/null
++++ b/.sit/.web/bower_components/granite-clipboard/.gitignore
+@@ -0,0 +1 @@
++bower_components
+\ No newline at end of file
+diff --git a/.sit/.web/bower_components/granite-clipboard/LICENCE.md b/.sit/.web/bower_components/granite-clipboard/LICENCE.md
+new file mode 100755
+index 0000000..0e03d75
+--- /dev/null
++++ b/.sit/.web/bower_components/granite-clipboard/LICENCE.md
+@@ -0,0 +1,7 @@
++## Licence MIT
++
++Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+diff --git a/.sit/.web/bower_components/granite-clipboard/README.md b/.sit/.web/bower_components/granite-clipboard/README.md
+new file mode 100755
+index 0000000..51e7d2a
+--- /dev/null
++++ b/.sit/.web/bower_components/granite-clipboard/README.md
+@@ -0,0 +1,82 @@
++# granite-clipboard
++
++> A is a lightweight element wrapping-up [clipboard.js](https://clipboardjs.com/) 
++> 
++> Hybrid Polymer element, 1.x-2.x ready
++
++
++## Doc & demo
++
++[https://lostinbrittany.github.io/granite-clipboard](https://lostinbrittany.github.io/granite-clipboard)
++
++
++## Usage example
++
++<!--
++```
++<custom-element-demo>
++  <template>
++    <script src="../webcomponentsjs/webcomponents-lite.js"></script>
++    <link rel="import" href="granite-clipboard.html">
++    <next-code-block></next-code-block>
++  </template>
++</custom-element-demo>
++```
++-->
++```html
++<granite-clipboard text="Text to be copied">
++    <div style="width:250px;height:50px;border-radius:5px;background-color:#aaaaff;cursor:pointer;">Click here</div>
++</granite-clipboard> 
++```
++
++
++
++## Install
++
++Install the component using [Bower](http://bower.io/):
++
++```sh
++$ bower install LostInBrittany/granite-clipboard --save
++```
++
++Or [download as ZIP](https://github.com/LostInBrittany/granite-clipboard/archive/gh-pages.zip).## Usage
++
++1. Import Web Components' polyfill (if needed):
++
++    ```html
++    <script src="bower_components/webcomponentsjs/webcomponents.js"></script>
++    ```
++
++2. Import Custom Element:
++
++    ```html
++    <link rel="import" href="bower_components/granite-clipboard/granite-clipboard.html">
++    ```
++
++3. Start using it!
++
++    ```html
++    <granite-clipboard level="danger">This is a serious alert!</granite-clipboard>
++    ```
++
++
++## Attributes
++
++Attribute     | Type      | Default  | Description
++---           | ---       | ---      | ---
++`text`        | *String*  | ``       | The text to copy
++`action`      | *String*  | `copy`   | The action to do (either `copy` or `cut`)  
++
++
++
++## Contributing
++
++1. Fork it!
++2. Create your feature branch: `git checkout -b my-new-feature`
++3. Commit your changes: `git commit -m 'Add some feature'`
++4. Push to the branch: `git push origin my-new-feature`
++5. Submit a pull request :D
++
++## License
++
++[MIT License](http://opensource.org/licenses/MIT)
+\ No newline at end of file
+diff --git a/.sit/.web/bower_components/granite-clipboard/bower.json b/.sit/.web/bower_components/granite-clipboard/bower.json
+new file mode 100755
+index 0000000..2ddbe44
+--- /dev/null
++++ b/.sit/.web/bower_components/granite-clipboard/bower.json
+@@ -0,0 +1,57 @@
++{
++  "name": "granite-clipboard",
++  "authors": [
++    "Horacio Gonzalez <horacio.gonzalez@gmail.com>"
++  ],
++  "description": "A lightweight element wrapping-up clipboard.js",
++  "keywords": [
++    "web-component",
++    "web-components",
++    "polymer",
++    "lostinbrittany",
++    "clipboard",
++    "clipboard.js"
++  ],
++  "main": "granite-clipboard.html",
++  "license": "MIT",
++  "homepage": "https://github.com/LostInBrittany/granite-clipboard",
++  "ignore": [],
++  "dependencies": {
++    "polymer": "Polymer/polymer#1.9 - 2",
++    "clipboard": "^1.7.0"
++  },
++  "devDependencies": {
++    "iron-component-page": "PolymerElements/iron-component-page#1 - 2",
++    "iron-demo-helpers": "PolymerElements/iron-demo-helpers#1 - 2",
++    "iron-icon": "PolymerElements/iron-icon#1 - 2",
++    "iron-icons": "PolymerElements/iron-icons#1 - 2",
++    "iron-test-helpers": "PolymerElements/iron-test-helpers#1 - 2",
++    "test-fixture": "PolymerElements/test-fixture#^3.0.0-rc.1",
++    "web-component-tester": "^6.0.0",
++    "webcomponentsjs": "webcomponents/webcomponentsjs#^1.0.0"
++  },
++  "variants": {
++    "1.x": {
++      "dependencies": {
++        "polymer": "Polymer/polymer#^1.9",
++        "clipboard": "^1.7.0"
++      },
++      "devDependencies": {
++        "iron-component-page": "PolymerElements/iron-component-page#^1.0.0",
++        "iron-demo-helpers": "PolymerElements/iron-demo-helpers#^1.0.0",
++        "iron-icon": "PolymerElements/iron-icon#^1.0.0",
++        "iron-icons": "PolymerElements/iron-icons#^1.0.0",
++        "iron-test-helpers": "PolymerElements/iron-test-helpers#^1.0.0",
++        "test-fixture": "PolymerElements/test-fixture#^1.0.0",
++        "webcomponentsjs": "webcomponents/webcomponentsjs#^0.7.0",
++        "web-component-tester": "Polymer/web-component-tester#^4.0.0"
++      },
++      "resolutions": {
++        "webcomponentsjs": "^0.7"
++      }
++    }
++  },
++  "demos": {
++    "demo": "demo/index.html"
++  }
++}
+diff --git a/.sit/.web/bower_components/granite-clipboard/demo/index.html b/.sit/.web/bower_components/granite-clipboard/demo/index.html
+new file mode 100755
+index 0000000..3b68259
+--- /dev/null
++++ b/.sit/.web/bower_components/granite-clipboard/demo/index.html
+@@ -0,0 +1,107 @@
++<!DOCTYPE html>
++<!--
++@license MIT
++Copyright (c) 2015 Horacio "LostInBrittany" Gonzalez
++
++Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++-->
++<html lang="en">
++
++<head>
++  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
++  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=yes">
++  <title>granite-clipboard demo</title>
++
++  <link rel="icon" href="./favicon.ico" type="image/x-icon" />
++  <link rel="shortcut icon" href="./favicon.ico" type="image/x-icon" />
++
++  <script>
++    // setup Polymer options
++    window.Polymer = {
++      lazyRegister: true,
++      dom: 'shadow'
++    };
++
++    // load webcomponents polyfills
++    (function() {
++      if ('registerElement' in document &&
++        'import' in document.createElement('link') &&
++        'content' in document.createElement('template')) {
++        // browser has web components
++      } else {
++        // polyfill web components
++        var e = document.createElement('script');
++        e.src = '../webcomponentsjs/webcomponents-lite.min.js';
++        document.head.appendChild(e);
++      }
++    })();
++  </script>
++  <link rel="import" href="../../polymer/polymer.html">
++
++  <link rel="import" href="../../paper-styles/color.html">
++  <link rel="import" href="../../iron-demo-helpers/demo-snippet.html">
++  <link rel="import" href="../../iron-demo-helpers/demo-pages-shared-styles.html">
++  <link rel="import" href="../../iron-icons/iron-icons.html">
++
++  <link rel="import" href="../granite-clipboard.html">
++
++  <style is="custom-style" include="demo-pages-shared-styles">
++    .spacer-10 {
++      width: 100%;
++      height: 10px;
++    }
++
++    .spacer-50 {
++      width: 100%;
++      height: 50px;
++    }
++
++    .vertical-section-container {
++      max-width: 550px;
++    }
++
++    .inlineClipboard {
++      display: inline;
++    }
++  </style>
++</head>
++
++<body unresolved>
++  <div class="vertical-section-container centered">
++
++    <h3>granite-clipboard</h3>
++    <demo-snippet class="centered-demo">
++      <template id="app">
++          <granite-clipboard text="Text to be copied" verbose>
++            <div style="width:250px;height:50px;border-radius:5px;background-color:#aaaaff;cursor:pointer;">Click here</div>
++          </granite-clipboard>
++        </template>
++    </demo-snippet>
++  </div>
++
++  <div class="vertical-section-container centered">
++
++    <h3>granite-clipboard</h3>
++    <demo-snippet class="centered-demo">
++      <template id="app">
++          <div>
++            Here an inline use case
++            <granite-clipboard class="inlineClipboard" text="Text to be copied" verbose>
++              <div style="width:250px;height:50px;border-radius:5px;background-color: #aaaaff;cursor:pointer;">Click here</div>
++            </granite-clipboard>
++            does it work?
++          </div>
++        </template>
++    </demo-snippet>
++  </div>
++
++
++  <script>
++  </script>
++</body>
++
++</html>
+diff --git a/.sit/.web/bower_components/granite-clipboard/granite-clipboard.html b/.sit/.web/bower_components/granite-clipboard/granite-clipboard.html
+new file mode 100755
+index 0000000..d096926
+--- /dev/null
++++ b/.sit/.web/bower_components/granite-clipboard/granite-clipboard.html
+@@ -0,0 +1,116 @@
++<!--
++@license MIT
++Copyright (c) 2016 Horacio "LostInBrittany" Gonzalez
++
++Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++-->
++<link rel="import" href="../polymer/polymer.html">
++
++<script src="../clipboard/dist/clipboard.min.js"></script>
++<!-- bower_components/clipboard/dist/clipboard.min.js -->
++<!--
++`<granite-clipboard>` is a lightweight element wrapping-up [clipboard.js](https://clipboardjs.com/)
++
++Typical usage:
++
++```html
++<granite-clipboard text="Text to be copied">
++    <div style="width:250px;height:50px;border-radius:5px;background-color:#aaaaff;cursor:pointer;">Click here</div>
++</granite-clipboard>
++```
++
++@element granite-clipboard
++@blurb A lightweight element wrapping-up clipboard.js
++@homepage index.html
++@demo demo/index.html
++-->
++<dom-module id="granite-clipboard">
++
++  <template>
++    <style>
++      :host {
++        display: block;
++      }
++    </style>
++    <div id="container" data-clipboard-text$="[[text]]" data-clipboard-action$="[[action]]">
++      <slot></slot>
++    </div>
++  </template>
++
++  <script>
++    Polymer({
++      is: "granite-clipboard",
++
++      properties: {
++        /**
++         * The text to copy.
++         */
++        text: {
++          type: String,
++        },
++        /**
++         * The action (copy or cut).
++         */
++        action: {
++          type: String,
++          value: "copy",
++          observer: "_onActionChange"
++        },
++        _allowedValues: {
++          type: Array,
++          value: function() {
++            return ['copy', 'cut'];
++          }
++        },
++        /**
++         * If true, log messages will automatically be logged to the console.
++         */
++        verbose: {
++          type: Boolean,
++          value: false
++        },
++      },
++
++      // Observers
++      _onActionChange: function(newValue) {
++        if(!this._allowedValues) {return;}
++        let new_action_index = this._allowedValues.indexOf(newValue);
++        if (new_action_index < 0) {
++          this.action = this._allowedValues[0];
++        } else {
++          this.action = this._allowedValues[new_action_index];
++        }
++      },
++
++      // Event listeners
++      _onClipboardSuccess: function(evt) {
++        if (this.verbose) {
++          console.debug("[granite-clipboard] _onClipboardSuccess", evt);
++        }
++        this.dispatchEvent(new CustomEvent("clipboard-" + this.action, {
++          bubbles: true,
++          composed: true,
++          detail: evt
++        }));
++      },
++
++      // Lifecycle methods
++      attached: function() {
++        Polymer.RenderStatus.afterNextRender(this, function() {
++          this.clipboard = new Clipboard(this.$.container);
++          this.clipboard.on('success', this._onClipboardSuccess.bind(this));
++        });
++      },
++      detached: function() {
++        if (this.clipboard) {
++          this.clipboard.destroy();
++        }
++      }
++    });
++  </script>
++
++</dom-module>
+diff --git a/.sit/.web/bower_components/granite-clipboard/index.html b/.sit/.web/bower_components/granite-clipboard/index.html
+new file mode 100755
+index 0000000..ffef0b3
+--- /dev/null
++++ b/.sit/.web/bower_components/granite-clipboard/index.html
+@@ -0,0 +1,32 @@
++<!doctype html>
++<!--
++@license
++Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
++This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
++The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
++The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
++Code distributed by Google as part of the polymer project is also
++subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
++-->
++<html>
++
++<head>
++
++  <meta charset="utf-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1.0">
++
++  <script src="../webcomponentsjs/webcomponents-lite.js"></script>
++  <link rel="import" href="../iron-component-page/iron-component-page.html">
++
++</head>
++
++<body>
++  <!-- Note: if the main element for this repository doesn't
++       match the folder name, add a src="&lt;main-component&gt;.html" attribute,
++       where &lt;main-component&gt;.html" is a file that imports all of the
++       components you want documented. -->
++  <iron-component-page></iron-component-page>
++
++</body>
++
++</html>
+diff --git a/.sit/.web/src/merge-request/header.html b/.sit/.web/src/merge-request/header.html
+new file mode 100644
+index 0000000..3bcef0f
+--- /dev/null
++++ b/.sit/.web/src/merge-request/header.html
+@@ -0,0 +1,62 @@
++<link rel="import" href="/bower_components/paper-card/paper-card.html">
++<link rel="import" href="/bower_components/iron-icons/iron-icons.html">
++<link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
++<link rel="import" href="/bower_components/polymer/polymer-element.html">
++<link rel="import" href="/bower_components/granite-clipboard/granite-clipboard.html">
++
++<link rel="import" href="../syntax-highlighting/syntax-highlighting.html">
++
++<dom-module id="merge-request-header">
++    <template>
++        <style>
++            div {
++                padding-bottom: 10pt;
++            }
++            paper-card {
++                position: absolute;
++                right: 0pt;
++                --paper-card-header-text: {
++                    background-color: dimgray;
++                    color: whitesmoke;
++                }
++            }
++        </style>
++        <div>
++            <paper-card heading="Maintainer's tip">
++                <div class="card-content">
++                    To merge this request, run:
++                    <syntax-highlighting lang="shell" code="[[ script]]"></syntax-highlighting>
++                    <granite-clipboard text="[[ script ]]">
++                        <paper-icon-button icon="content-copy"></paper-icon-button>
++                   </granite-clipboard>
++                </div>
++            </paper-card>
++       </div>
++    </template>
++    <script>
++        class MergeRequestHeader extends Polymer.Element {
++            static get is() {
++                return 'merge-request-header';
++            }
++            static get properties() {
++                return {
++                    issue: {
++                        type: String,
++                    },
++                    record: {
++                        type: String,
++                    },
++                    script: {
++                        type: String,
++                        computed: 'computeScript(issue, record)'
++                    }
++                }
++            }
++
++            computeScript(issue, record) {
++                return `./script/merge-merge-request ${issue} ${record}`;
++            }
++        }
++        window.customElements.define(MergeRequestHeader.is, MergeRequestHeader);
++    </script>
++</dom-module>
+\ No newline at end of file
+diff --git a/sit-web/webapp/src/merge-request/header.html b/sit-web/webapp/src/merge-request/header.html
+new file mode 100644
+index 0000000..6853e40
+--- /dev/null
++++ b/sit-web/webapp/src/merge-request/header.html
+@@ -0,0 +1,14 @@
++<link rel="import" href="/bower_components/polymer/polymer-element.html">
++
++<dom-module id="merge-request-header">
++    <template>
++    </template>
++    <script>
++        class MergeRequestHeader extends Polymer.Element {
++            static get is() {
++                return 'merge-request-header';
++            }
++        }
++        window.customElements.define(MergeRequestHeader.is, MergeRequestHeader);
++    </script>
++</dom-module>
+diff --git a/sit-web/webapp/src/merge-request/merge-request.html b/sit-web/webapp/src/merge-request/merge-request.html
+index 2b740b1..7a297a6 100644
+--- a/sit-web/webapp/src/merge-request/merge-request.html
++++ b/sit-web/webapp/src/merge-request/merge-request.html
+@@ -4,6 +4,8 @@
+ <link rel="import" href="/bower_components/paper-card/paper-card.html">
+ <link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
+ <link rel="import" href="/bower_components/iron-icons/iron-icons.html">
++
++<link rel="import" href="header.html">
+ <link rel="import" href="merge-request-style.html">
+ <link rel="import" href="patch.html">
+ 
+@@ -19,6 +21,7 @@
+                  last-response="{{ files }}"></iron-ajax>
+            <paper-card heading="Merge Request [[ record ]]">
+                <div class="card-content">
++                   <merge-request-header issue="[[ issue ]]" record="[[ record ]]"></merge-request-header>
+                    <template is="dom-repeat" items="[[ mergeFiles ]]">
+                        <merge-patch issue="[[ issue ]]" record="[[ record ]]" file="[[ item ]]"></merge-patch>
+                    </template>
+-- 
+2.15.0
+
