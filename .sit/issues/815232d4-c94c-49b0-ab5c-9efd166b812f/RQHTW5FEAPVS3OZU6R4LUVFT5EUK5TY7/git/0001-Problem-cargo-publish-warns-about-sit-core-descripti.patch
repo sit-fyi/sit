@@ -1,0 +1,27 @@
+From fb8a865eeff4b0dc5d08724cc06444e4a1664f40 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 16 Feb 2018 09:26:31 +0700
+Subject: [PATCH] Problem: cargo publish warns about sit-core description
+
+Well, the fact that it is not set.
+
+Solution: set the description
+---
+ sit-core/Cargo.toml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sit-core/Cargo.toml b/sit-core/Cargo.toml
+index 661b134..04171b7 100644
+--- a/sit-core/Cargo.toml
++++ b/sit-core/Cargo.toml
+@@ -5,6 +5,7 @@ authors = ["Yurii Rashkovskii <me@yrashk.com>"]
+ license = "MIT/Apache-2.0"
+ repository = "https://github.com/sit-it/sit"
+ documentation = "https://docs.rs/sit-core"
++description = "Core library for SIT Issue Tracker"
+ 
+ [dependencies]
+ derive-error = "0.0"
+-- 
+2.15.0
+
