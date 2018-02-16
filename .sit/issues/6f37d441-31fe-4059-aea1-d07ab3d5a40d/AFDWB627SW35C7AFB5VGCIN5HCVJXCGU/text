@@ -1,0 +1,14 @@
+Problem: sit-web's handling of errors is rudimentary
+
+sit-web crashes a responding thread on just about any error (resulting
+in HTTP 500).
+
+In some cases this is fine (something truly unexpected happened,
+especially I/O-wise), but often times it is not, in cases such as:
+
+* Issue not found
+* Invalid JMESPath expression
+
+Solution: avoid crashing on the above errors
+
+Also, handle some of these errors in the UI
