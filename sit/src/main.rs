@@ -111,7 +111,7 @@ fn main_with_result() -> i32 {
             .arg(Arg::with_name("DEST")
                      .takes_value(true)
                      .required(true)
-                     .help("Destination reposutory directory (must not exist)"))
+                     .help("Destination repository directory (must not exist)"))
             .arg(Arg::with_name("on-record")
                      .long("on-record")
                      .takes_value(true)
