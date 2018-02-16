@@ -20,6 +20,9 @@ lazy_static = "1.0"
 mime_guess = "1.8"
 itertools = "0.7"
 rayon = "1.0"
+digest = "0.7"
+blake2 = "0.7"
+hex = "0.3"
 sit-core = { path = "../sit-core" }
 
 [build-dependencies]

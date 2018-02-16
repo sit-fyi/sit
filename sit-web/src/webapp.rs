@@ -5,10 +5,17 @@ mod assets {
     use rouille::{Response, ResponseBody};
     use mime_guess::get_mime_type_str;
     use std::path::PathBuf;
+    use blake2::Blake2b;
+    use digest::{Input, VariableOutput};
+    use hex;
 
-    impl<'a> Into<Response> for &'a File {
-        fn into(self) -> Response {
-            match get_mime_type_str(PathBuf::from(self.name()).extension().unwrap().to_str().unwrap()) {
+    impl<'a> Into<(Response, String)> for &'a File {
+        fn into(self) -> (Response, String) {
+            let mut hasher = Blake2b::new(20).unwrap();
+            let mut result = vec![0; 20];
+            hasher.process(self.contents);
+            let hash = hex::encode(hasher.variable_result(&mut result).unwrap());
+            (match get_mime_type_str(PathBuf::from(self.name()).extension().unwrap().to_str().unwrap()) {
                 None => Response {
                     status_code: 200,
                     headers: vec![("Content-Type".into(), "application/octet-stream".into())],
@@ -21,7 +28,7 @@ mod assets {
                     data: ResponseBody::from_data(self.contents),
                     upgrade: None,
                 },
-            }
+            }, hash)
         }
     }
 
@@ -50,7 +57,7 @@ mod assets {
 }
 use self::assets::ASSETS;
 
-use rouille::{start_server, Response, ResponseBody};
+use rouille::{start_server, Request, Response, ResponseBody};
 use rouille::input::multipart::get_multipart_input;
 
 use std::path::PathBuf;
@@ -67,22 +74,38 @@ use rayon::prelude::*;
 
 use tempdir;
 
-fn path_to_response<P: Into<PathBuf>>(path: P) -> Response {
+use blake2::Blake2b;
+use digest::{Input, VariableOutput};
+use hex;
+
+fn path_to_response<P: Into<PathBuf>>(path: P, request: &Request) -> Response {
     let path: PathBuf = path.into();
+
+    let mut file = fs::File::open(&path).unwrap();
+    let mut buf = Vec::with_capacity(file.metadata().unwrap().len() as usize);
+    use std::io::Read;
+    file.read_to_end(&mut buf).unwrap();
+
+
+    let mut hasher = Blake2b::new(20).unwrap();
+    let mut result = vec![0; 20];
+    hasher.process(&buf);
+    let hash = hex::encode(hasher.variable_result(&mut result).unwrap());
+
     match get_mime_type_str(path.extension().unwrap_or(&OsString::new()).to_str().unwrap()) {
         None => Response {
             status_code: 200,
             headers: vec![("Content-Type".into(), "application/octet-stream".into())],
-            data: ResponseBody::from_reader(fs::File::open(path).unwrap()),
+            data: ResponseBody::from_data(buf),
             upgrade: None,
         },
         Some(content_type) => Response {
             status_code: 200,
             headers: vec![("Content-Type".into(), content_type.into())],
-            data: ResponseBody::from_reader(fs::File::open(path).unwrap()),
+            data: ResponseBody::from_data(buf),
             upgrade: None,
         },
-    }
+    }.with_etag(request, hash)
 }
 
 use itertools::Itertools;
@@ -279,7 +302,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                return Response::empty_404();
             }
             if file.is_file() {
-                return path_to_response(file)
+                return path_to_response(file, request)
             } else if file.is_dir() {
                 if let Ok(dir) = ::std::fs::read_dir(file) {
                     let res = dir.filter(Result::is_ok)
@@ -307,18 +330,20 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
         // Serve built-in or overridden assets
         let overriden_path = assets.join(&request.url()[1..]);
         if overriden_path.is_file() {
-           return path_to_response(overriden_path)
+           return path_to_response(overriden_path, request)
         } else {
             if let Some(file) = ASSETS.get(&PathBuf::from(&request.url()[1..])) {
-                return file.into()
+                let (response, hash) = file.into();
+                return response.with_etag(request, hash)
             }
         }
         // Route the rest to /index.html for the web app to figure out
         let custom_index = assets.join("index.html");
         if custom_index.is_file() {
-           path_to_response(custom_index)
+           path_to_response(custom_index, request)
         } else {
-           ASSETS.get(&PathBuf::from("index.html")).unwrap().into()
+           let (response, hash) = ASSETS.get(&PathBuf::from("index.html")).unwrap().into();
+           response.with_etag(request, hash)
         }
       }
       ))

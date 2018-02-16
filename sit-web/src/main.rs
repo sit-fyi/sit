@@ -28,6 +28,10 @@ extern crate rayon;
 
 extern crate tempdir;
 
+extern crate digest;
+extern crate blake2;
+extern crate hex;
+
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate rouille;
 extern crate mime_guess;
