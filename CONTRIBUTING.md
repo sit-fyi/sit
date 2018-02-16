@@ -65,7 +65,7 @@ an example right above).
 
 Then, at the end, it will give you a command line
 to copy-paste to push the request out (make sure
-you set up `issue` remote as per suggestion in [README](README.md##send-it-to-upstream)
+you set up `issue` remote as per suggestion in [README](README.md#send-it-to-upstream)
 
 **Alternatively**, you can use a manual route:
 
