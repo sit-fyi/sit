@@ -56,6 +56,10 @@ fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
 }
 
 fn main() {
+    exit(main_with_result());
+}
+
+fn main_with_result() -> i32 {
     #[cfg(unix)]
     let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
 
@@ -271,7 +275,7 @@ fn main() {
         } else {
             eprintln!("Authorship hasn't been configured. Update your {} config file\n\
             to include `author` object with `name` and `email` properties specified", config_path);
-            exit(1);
+            return 1;
         }
     }
 
@@ -289,7 +293,7 @@ fn main() {
             },
             Err(err) => {
                 eprintln!("Error while initializing repository {}: {}", dot_sit_str, err);
-                exit(1);
+                return 1;
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("rebuild") {
@@ -362,7 +366,7 @@ fn main() {
             match issues.find(|i| i.id() == id) {
                 None => {
                     println!("Issue {} not found", id);
-                    exit(1);
+                    return 1;
                 },
                 Some(mut issue) => {
                     let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
@@ -370,7 +374,7 @@ fn main() {
 
                     if !files.clone().any(|f| f.starts_with(".type/")) && types.len() == 0 {
                         println!("At least one record type (.type/TYPE file) or `-t/--type` command line argument is required.");
-                        exit(1);
+                        return 1;
                     }
                     let files = files.into_iter()
                             .map(move |name| {
@@ -461,7 +465,7 @@ fn main() {
 
                         if !output.status.success() {
                             eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
-                            exit(1);
+                            return 1;
                         } else {
                             use sit_core::repository::DynamicallyHashable;
                             let dynamically_hashed_record = record.dynamically_hashed();
@@ -475,7 +479,7 @@ fn main() {
                             new_path.push(&new_hash);
                             fs::rename(record.actual_path(), new_path).expect("can't rename record");
                             println!("{}", new_hash);
-                            exit(0);
+                            return 0;
                         }
 
                     } else {
@@ -493,7 +497,7 @@ fn main() {
             match issues.find(|i| i.id() == id) {
                 None => {
                     println!("Issue {} not found", id);
-                    exit(1);
+                    return 1;
                 },
                 Some(issue) => {
                     let records = issue.record_iter().expect("can't lis records");
@@ -591,7 +595,7 @@ fn main() {
             match issues.find(|i| i.id() == id) {
                 None => {
                     println!("Issue {} not found", id);
-                    exit(1);
+                    return 1;
                 },
                 Some(issue) => {
                     let query_expr = matches.value_of("named-query")
@@ -618,5 +622,7 @@ fn main() {
         }
 
     }
+
+    return 0;
 
 }
