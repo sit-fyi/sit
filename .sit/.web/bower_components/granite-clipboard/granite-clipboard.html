@@ -1,0 +1,116 @@
+<!--
+@license MIT
+Copyright (c) 2016 Horacio "LostInBrittany" Gonzalez
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+-->
+<link rel="import" href="../polymer/polymer.html">
+
+<script src="../clipboard/dist/clipboard.min.js"></script>
+<!-- bower_components/clipboard/dist/clipboard.min.js -->
+<!--
+`<granite-clipboard>` is a lightweight element wrapping-up [clipboard.js](https://clipboardjs.com/)
+
+Typical usage:
+
+```html
+<granite-clipboard text="Text to be copied">
+    <div style="width:250px;height:50px;border-radius:5px;background-color:#aaaaff;cursor:pointer;">Click here</div>
+</granite-clipboard>
+```
+
+@element granite-clipboard
+@blurb A lightweight element wrapping-up clipboard.js
+@homepage index.html
+@demo demo/index.html
+-->
+<dom-module id="granite-clipboard">
+
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+    </style>
+    <div id="container" data-clipboard-text$="[[text]]" data-clipboard-action$="[[action]]">
+      <slot></slot>
+    </div>
+  </template>
+
+  <script>
+    Polymer({
+      is: "granite-clipboard",
+
+      properties: {
+        /**
+         * The text to copy.
+         */
+        text: {
+          type: String,
+        },
+        /**
+         * The action (copy or cut).
+         */
+        action: {
+          type: String,
+          value: "copy",
+          observer: "_onActionChange"
+        },
+        _allowedValues: {
+          type: Array,
+          value: function() {
+            return ['copy', 'cut'];
+          }
+        },
+        /**
+         * If true, log messages will automatically be logged to the console.
+         */
+        verbose: {
+          type: Boolean,
+          value: false
+        },
+      },
+
+      // Observers
+      _onActionChange: function(newValue) {
+        if(!this._allowedValues) {return;}
+        let new_action_index = this._allowedValues.indexOf(newValue);
+        if (new_action_index < 0) {
+          this.action = this._allowedValues[0];
+        } else {
+          this.action = this._allowedValues[new_action_index];
+        }
+      },
+
+      // Event listeners
+      _onClipboardSuccess: function(evt) {
+        if (this.verbose) {
+          console.debug("[granite-clipboard] _onClipboardSuccess", evt);
+        }
+        this.dispatchEvent(new CustomEvent("clipboard-" + this.action, {
+          bubbles: true,
+          composed: true,
+          detail: evt
+        }));
+      },
+
+      // Lifecycle methods
+      attached: function() {
+        Polymer.RenderStatus.afterNextRender(this, function() {
+          this.clipboard = new Clipboard(this.$.container);
+          this.clipboard.on('success', this._onClipboardSuccess.bind(this));
+        });
+      },
+      detached: function() {
+        if (this.clipboard) {
+          this.clipboard.destroy();
+        }
+      }
+    });
+  </script>
+
+</dom-module>

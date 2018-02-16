@@ -4,6 +4,8 @@
 <link rel="import" href="/bower_components/paper-card/paper-card.html">
 <link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
 <link rel="import" href="/bower_components/iron-icons/iron-icons.html">
+
+<link rel="import" href="header.html">
 <link rel="import" href="merge-request-style.html">
 <link rel="import" href="patch.html">
 
@@ -19,6 +21,7 @@
                  last-response="{{ files }}"></iron-ajax>
            <paper-card heading="Merge Request [[ record ]]">
                <div class="card-content">
+                   <merge-request-header issue="[[ issue ]]" record="[[ record ]]"></merge-request-header>
                    <template is="dom-repeat" items="[[ mergeFiles ]]">
                        <merge-patch issue="[[ issue ]]" record="[[ record ]]" file="[[ item ]]"></merge-patch>
                    </template>
