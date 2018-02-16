@@ -55,6 +55,20 @@ be longer than one line.
 
 Once you have a branch (BRANCH) with your patch ready:
 
+Run `./scripts/prepare-merge-request <BRANCH>` script 
+and either use the suggested text as is or edit it.
+Please keep in mind that currently it expects the first
+line of your commit to be a one-line problem statement
+(it will copy it to the summary), the second line to be
+empty and the rest to be a description (you can see
+an example right above).
+
+Then, at the end, it will give you a command line
+to copy-paste to push the request out (make sure
+you set up `issue` remote as per suggestion in [README](README.md##send-it-to-upstream)
+
+**Alternatively**, you can use a manual route:
+
 1. Create a new issue: `sit issue` and take a note of the generated ID.
 2. Generate patches: `rm -rf git && git format-patch $(git merge-base --fork-point master <BRANCH>)..<BRANCH> -o git` (cleaning `git` assures there are no leftover patches)
 2. Edit temporary `text` file to supply the one-line summary (such as `Problem: ...`).
@@ -68,9 +82,3 @@ Once you have a branch (BRANCH) with your patch ready:
 
 Alternatively, if the problem was already stated in some issue, it also makes sense to add
 a merge request directly to that issue (ID1): `sit record -t MergeRequested,Commented ID1 text git/*.patch` and follow sending instructions in Step 5.
-
-**OR**
-
-(at your risk, as it is not well tested yet) you can use
-`./scripts/prepare-merge-request <branch>` script and follow its instructions
-at the end.
