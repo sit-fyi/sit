@@ -1,0 +1,26 @@
+From a917f753350b97e2f83baa73b3d51d359bea8b24 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 16 Feb 2018 09:39:46 +0700
+Subject: [PATCH] Problem: tiny typo in CLI's help
+
+Solution: correct it
+---
+ sit/src/main.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 783087e..497c155 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -107,7 +107,7 @@ fn main() {
+             .arg(Arg::with_name("DEST")
+                      .takes_value(true)
+                      .required(true)
+-                     .help("Destination reposutory directory (must not exist)"))
++                     .help("Destination repository directory (must not exist)"))
+             .arg(Arg::with_name("on-record")
+                      .long("on-record")
+                      .takes_value(true)
+-- 
+2.15.0
+
