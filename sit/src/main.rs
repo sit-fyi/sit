@@ -333,12 +333,13 @@ fn main_with_result() -> i32 {
                 .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
                 .unwrap();
 
+            let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
+            let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+
             let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
             let issues_with_reducers: Vec<_> =  issues.into_iter().map(|i| (i, reducer.clone())) .collect();
             issues_with_reducers.into_par_iter()
                 .map(|(issue, mut reducer)| {
-                    let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
-                    let query = jmespath::compile(&query_expr).expect("can't compile query expression");
                     let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
                     let json = sit_core::serde_json::to_string(&result).unwrap();
                     let data = jmespath::Variable::from_json(&json).unwrap();
