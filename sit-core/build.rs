@@ -6,15 +6,17 @@ use std::path::Path;
 use include_dir::include_dir;
 
 fn main() {
-
     match env::var("CARGO_FEATURE_DUKTAPE") {
         Ok(ref flag) if flag == "1" => {
-                cc::Build::new()
-                    .file("src/duktape/duktape.c")
-                    .compile("duktape");
+            let mut build = cc::Build::new();
+            build.file("src/duktape/duktape.c");
+            if env::var("CARGO_FEATURE_WINDOWS7").is_ok() {
+                build.define("DUK_USE_DATE_NOW_WINDOWS","1");
+            }
+            build.compile("duktape");
 
-                println!("cargo:rustc-link-lib=static=duktape");
-            },
+            println!("cargo:rustc-link-lib=static=duktape");
+        },
         _ => (),
     }
 
