@@ -1,0 +1,9 @@
+Getting this error in web console:
+
+```
+Uncaught SyntaxError: Identifier 'RenderedText' has already been
+declared
+```
+
+Solution: rename sit-doc's rendered-text to rendered-doc
+
