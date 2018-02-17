@@ -22,13 +22,36 @@ run() {
   fi
 
   git format-patch "${range}"  -o "${tmpdir}/git" || exit 2
-  git log --reverse --pretty=format:"%s%n%n%b" "${range}" > "${tmpdir}/log" || exit 2
-  $editor "${tmpdir}/log" || exit 2
+
 
   if [ -z "${attach}" ]; then
+          # Summary
+          echo " Summary of the merge request (typically, one line)" > "${tmpdir}/summary"
+          echo "  If your patchset contained more than one commit, you will see a few options below. Please choose one." >> "${tmpdir}/summary"
+          echo "  (ALL LINES STARTING WITH '#' WILL BE REMOVED)" >> "${tmpdir}/summary" 
+          git log --reverse --pretty=format:"%s" "${range}" >> "${tmpdir}/summary" || exit 2
+          sed -i 's/^/#/' "${tmpdir}/summary"
+          sed -i '4s/^#//' "${tmpdir}/summary"
+          $editor "${tmpdir}/summary" || exit 2
+          sed -i '/^#/ d'  "${tmpdir}/summary"
+
+          # Details
+          echo "# Details of the merge request" >> "${tmpdir}/details"
+          echo "#  (ALL LINES STARTING WITH '#' WILL BE REMOVED)" >> "${tmpdir}/details" 
+          git log --reverse --pretty=format:"%b%n" "${range}" >> "${tmpdir}/details" || exit 2
+          $editor "${tmpdir}/details" || exit 2
+          sed -i '/^#/ d'  "${tmpdir}/details"
+
           issue=$(${sit} issue)
           issue_branch=${issue}
   else
+          # Comment
+          echo "# Comment to accompany your merge request" >> "${tmpdir}/text"
+          echo "#  (ALL LINES STARTING WITH '#' WILL BE REMOVED)" >> "${tmpdir}/text" 
+          git log --reverse --pretty=format:"%s%n%n%b" "${range}" >> "${tmpdir}/text" || exit 2
+          $editor "${tmpdir}/text" || exit 2
+          sed -i '/^#/ d'  "${tmpdir}/text"
+
           last_record=$(${sit} records ${issue} | tail -1)
           issue_branch="${issue}-${last_record}-$(date +%s)"
   fi
@@ -39,16 +62,12 @@ run() {
   cd "${tmpdir}" || exit 2
 
   if [ -z "${attach}" ]; then
-          tail -n +3 log > details
-          head -n 1 log > text
-          rm log
-
+          mv -f summary text
           "${sit}" -d "${curdir}" record -t SummaryChanged "${issue}" text || exit 2
 
           mv -f details text
           "${sit}" -d "${curdir}" record -t DetailsChanged,MergeRequested "${issue}" text git/*.patch || exit 2
   else
-          mv log text
           "${sit}" -d "${curdir}" record -t Commented,MergeRequested "${issue}" text git/*.patch || exit 2
   fi
 
