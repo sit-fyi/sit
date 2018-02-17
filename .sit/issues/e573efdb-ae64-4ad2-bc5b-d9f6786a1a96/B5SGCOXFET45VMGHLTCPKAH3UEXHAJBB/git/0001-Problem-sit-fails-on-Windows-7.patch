@@ -1,0 +1,83 @@
+From c2871e1d746bd707c2be761844eb4d16fb877adc Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 17 Feb 2018 07:32:32 +0700
+Subject: [PATCH] Problem: sit fails on Windows 7
+
+The error is:
+
+"The procedure entry point GetSystemTimePreciseAsFileTime could not be
+located in the dynamic link library KERNEL32.dll"
+
+Solution: avoid using this function in Duktape if compiled with
+`windows7` feature
+
+This function has only been added in Windows 8
+---
+ sit-core/Cargo.toml |  1 +
+ sit-core/build.rs   | 14 ++++++++------
+ sit-web/Cargo.toml  |  3 +++
+ sit/Cargo.toml      |  3 +++
+ 4 files changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/sit-core/Cargo.toml b/sit-core/Cargo.toml
+index 9a9dbbb..54750ff 100644
+--- a/sit-core/Cargo.toml
++++ b/sit-core/Cargo.toml
+@@ -37,3 +37,4 @@ default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap"]
+ duktape-reducers = ["duktape", "cesu8"]
+ duktape = []
+ duktape-mmap = ["memmap"]
++windows7 = []
+diff --git a/sit-core/build.rs b/sit-core/build.rs
+index 7b94dda..7e82f36 100644
+--- a/sit-core/build.rs
++++ b/sit-core/build.rs
+@@ -6,15 +6,17 @@ use std::path::Path;
+ use include_dir::include_dir;
+ 
+ fn main() {
+-
+     match env::var("CARGO_FEATURE_DUKTAPE") {
+         Ok(ref flag) if flag == "1" => {
+-                cc::Build::new()
+-                    .file("src/duktape/duktape.c")
+-                    .compile("duktape");
++            let mut build = cc::Build::new();
++            build.file("src/duktape/duktape.c");
++            if env::var("CARGO_FEATURE_WINDOWS7").is_ok() {
++                build.define("DUK_USE_DATE_NOW_WINDOWS","1");
++            }
++            build.compile("duktape");
+ 
+-                println!("cargo:rustc-link-lib=static=duktape");
+-            },
++            println!("cargo:rustc-link-lib=static=duktape");
++        },
+         _ => (),
+     }
+ 
+diff --git a/sit-web/Cargo.toml b/sit-web/Cargo.toml
+index 6a9d045..0a34b9c 100644
+--- a/sit-web/Cargo.toml
++++ b/sit-web/Cargo.toml
+@@ -29,3 +29,6 @@ sit-core = { path = "../sit-core", version = "0.2.0" }
+ include_dir = "0.1"
+ fs_extra = "1.1"
+ 
++[features]
++windows7 = ["sit-core/windows7"]
++
+diff --git a/sit/Cargo.toml b/sit/Cargo.toml
+index b38a149..259ea6e 100644
+--- a/sit/Cargo.toml
++++ b/sit/Cargo.toml
+@@ -22,3 +22,6 @@ glob = "0.2"
+ rayon = "1.0"
+ sit-core = { path = "../sit-core", version = "0.2.0" }
+ 
++[features]
++windows7 = ["sit-core/windows7"]
++
+-- 
+2.15.0
+

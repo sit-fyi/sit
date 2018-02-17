@@ -1,0 +1,17 @@
+The error is:
+
+"The procedure entry point GetSystemTimePreciseAsFileTime could not be
+located in the dynamic link library KERNEL32.dll"
+
+Solution: avoid using this function in Duktape if compiled with
+`windows7` feature
+
+This function has only been added in Windows 8
+
+---
+
+This is a provisional merge request as I can't verify
+it on Windows 7. Waiting for the original issue report
+to respond:
+
+https://www.reddit.com/r/programming/comments/7xwvee/first_public_release_of_sit_scmagnostic_filebased/dud9huw/
