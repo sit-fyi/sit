@@ -1,0 +1,7 @@
+Retaking these screenshots is going to be painful.
+But screenshots are very important for the documentation.
+
+Solution: Develop a script to be executed once in a
+while to update all needed screenshots. This is done
+through headless Chrome/Chromium (Puppeteer project).
+
