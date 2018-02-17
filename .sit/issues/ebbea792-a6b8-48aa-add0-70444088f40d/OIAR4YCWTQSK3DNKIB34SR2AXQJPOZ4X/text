@@ -1,0 +1,14 @@
+prepare-merge-request script ALWAYS assumes
+that the summary of the issue is the subject
+of the first commit in the branch (counting
+from the forkpoint) and doesn't give any
+options there.
+
+It also doesn't provide much in the way of
+explanation of what is this file the user
+is supposed to edit.
+
+Solution: offer an option to edit summary
+and provide instructions/explanation with each file
+user is editing
+
