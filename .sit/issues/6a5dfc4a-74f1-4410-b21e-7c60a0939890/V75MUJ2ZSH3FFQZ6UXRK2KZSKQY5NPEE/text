@@ -1,0 +1,14 @@
+As someone rightfully [mentioned on
+reddit](https://www.reddit.com/r/rust/comments/7xwvag/sit_scmagnostic_offlinefirst_issue_tracker/dubvl5j/),
+too many files are hiding as dot-files.
+
+The idea behind dot-files is that they are "meta" -- i.e.
+about the item where they are, but not the item itself.
+
+For some things it makes sense (like `.issues` is meta to `issues`),
+but for `.reducers` and `.web` this doesn't really hold true.
+
+Solution: move .reducers to reducers and .web to web
+
+This is a breaking change.
+
