@@ -56,7 +56,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
         };
         use glob;
-        let paths = glob::glob(repository.path().join(".reducers/*.js").to_str().unwrap()).unwrap();
+        let paths = glob::glob(repository.path().join("reducers/*.js").to_str().unwrap()).unwrap();
         let mut reducers = 0;
         let mut filenames = vec![];
         let mut functions = vec![];
@@ -322,8 +322,8 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         use std::fs;
         use std::io::Write;
-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"function(state, record) { return {\"hello\": record.hash}; }").unwrap();
 
         let issue = repo.new_issue().unwrap();
@@ -341,8 +341,8 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         use std::fs;
         use std::io::Write;
-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
 
         let issue = repo.new_issue().unwrap();
@@ -360,8 +360,8 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         use std::fs;
         use std::io::Write;
-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"function() {\
          if (this.counter == undefined) { \
            this.counter = 1;   \
@@ -391,10 +391,10 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         use std::fs;
         use std::io::Write;
-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer1.js")).unwrap();
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
         f.write(b"function(state) { return Object.assign({\"hello\": 1}, state); }").unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer2.js")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer2.js")).unwrap();
         f.write(b"function(state) { return Object.assign({\"bye\": 2}, state); }").unwrap();
 
         let issue = repo.new_issue().unwrap();
@@ -413,12 +413,12 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         use std::fs;
         use std::io::Write;
-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
         let res = DuktapeReducer::<::repository::Record>::new(&repo);
         assert!(res.is_err());
-        let reducer_file = repo.path().join(".reducers/reducer.js");
+        let reducer_file = repo.path().join("reducers/reducer.js");
         let err = res.unwrap_err();
         match err {
             Error::CompileError { file, error } => {
@@ -438,8 +438,8 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         use std::fs;
         use std::io::Write;
-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers").join("reducer.js")).unwrap();
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers").join("reducer.js")).unwrap();
         f.write(b"function(state) { return Object.assign({\"hello\": record.a}, state); }").unwrap();
 
                 let issue = repo.new_issue().unwrap();
@@ -449,7 +449,7 @@ mod tests {
         assert!(state.get("errors").is_some());
         let errors = state.get("errors").unwrap().as_array().unwrap();
         assert_eq!(errors[0].as_object().unwrap().get("error").unwrap(), &JsonValue::String("ReferenceError: identifier \'record\' undefined".into()));
-        assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(repo.path().join(".reducers").join("reducer.js").to_str().unwrap().into()));
+        assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(repo.path().join("reducers").join("reducer.js").to_str().unwrap().into()));
     }
 
     #[test]
@@ -459,8 +459,8 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         use std::fs;
         use std::io::Write;
-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"function() {\
          if (this.counter == undefined) { \
            this.counter = 1;   \
@@ -502,8 +502,8 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         use std::fs;
         use std::io::Write;
-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"function() {\
          if (this.counter == undefined) { \
            this.counter = 1;   \
@@ -549,8 +549,8 @@ mod tests {
         let repo = Repository::new(tmp).unwrap();
         use std::fs;
         use std::io::Write;
-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
 
         let issue = repo.new_issue().unwrap();
