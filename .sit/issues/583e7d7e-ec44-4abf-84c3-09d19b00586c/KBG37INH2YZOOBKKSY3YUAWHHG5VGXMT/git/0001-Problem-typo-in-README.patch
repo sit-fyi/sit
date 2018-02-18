@@ -1,0 +1,29 @@
+From 13483828ec9ed9b630110c8af09afd04c4de23e7 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sun, 18 Feb 2018 06:07:27 +0700
+Subject: [PATCH] Problem: typo in README
+
+This particular typo prevents correct use of
+one of SIT's features.
+
+Solution: fix the typo
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 4e0f65a..00a44d2 100644
+--- a/README.md
++++ b/README.md
+@@ -193,7 +193,7 @@ specific queries or filters to address your needs. For this, named filters
+ and queries should be used.
+ 
+ They can be defined either per SIT-repository, or in sit config. In repository,
+-filters they are defined with files named `.issues/filter/NAME`, and
++filters they are defined with files named `.issues/filters/NAME`, and
+ queries are defined with files named `.issues/queries/NAME. Their content
+ should be the expression to be evaluated.
+ 
+-- 
+2.15.0
+
