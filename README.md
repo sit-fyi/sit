@@ -193,7 +193,7 @@ specific queries or filters to address your needs. For this, named filters
 and queries should be used.
 
 They can be defined either per SIT-repository, or in sit config. In repository,
-filters they are defined with files named `.issues/filter/NAME`, and
+filters they are defined with files named `.issues/filters/NAME`, and
 queries are defined with files named `.issues/queries/NAME. Their content
 should be the expression to be evaluated.
 
