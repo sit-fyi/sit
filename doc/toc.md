@@ -1,5 +1,6 @@
 * Introduction
   * [Getting Started](getting_started.md)
+* [FAQ](faq.md)
 * File Convention Dictionary
   * [.type/Closed](dict/.type/Closed.md)
   * [.type/Commented](dict/.type/Commented.md)
