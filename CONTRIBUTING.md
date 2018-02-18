@@ -67,6 +67,8 @@ Then, at the end, it will give you a command line
 to copy-paste to push the request out (make sure
 you set up `issue` remote as per suggestion in [README](README.md#send-it-to-upstream)
 
+<img src="doc/merge_request.gif">
+
 **Alternatively**, you can use a manual route:
 
 1. Create a new issue: `sit issue` and take a note of the generated ID.
