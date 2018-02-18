@@ -3,7 +3,7 @@
 <link rel="import" href="/bower_components/prism-element/prism-highlighter.html">
 <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
 
-<dom-module id="rendered-text">
+<dom-module id="rendered-doc">
   <template>
     <link rel="stylesheet" href="/bower_components/prism/themes/prism.css">
 
@@ -22,8 +22,8 @@
   </template>
 
   <script>
-    class RenderedText extends Polymer.Element {
-      static get is() { return 'rendered-text'; }
+    class RenderedDoc extends Polymer.Element {
+      static get is() { return 'rendered-doc'; }
       static get properties() {
         return {
           text: {
@@ -52,6 +52,6 @@
         super.ready();
       }
     }
-    customElements.define(RenderedText.is, RenderedText);
+    customElements.define(RenderedDoc.is, RenderedDoc);
   </script>
 </dom-module>
