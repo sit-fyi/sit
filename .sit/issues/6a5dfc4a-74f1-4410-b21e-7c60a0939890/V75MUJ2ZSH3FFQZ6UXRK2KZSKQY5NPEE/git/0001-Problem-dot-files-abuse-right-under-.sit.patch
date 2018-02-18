@@ -1,0 +1,336 @@
+From c04b89829dc74ec8e7cbe6487409e1546cb3e294 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 19 Feb 2018 02:24:31 +0700
+Subject: [PATCH] Problem: dot-files abuse right under .sit
+
+As someone rightfully [mentioned on
+reddit](https://www.reddit.com/r/rust/comments/7xwvag/sit_scmagnostic_offlinefirst_issue_tracker/dubvl5j/),
+too many files are hiding as dot-files.
+
+The idea behind dot-files is that they are "meta" -- i.e.
+about the item where they are, but not the item itself.
+
+For some things it makes sense (like `.issues` is meta to `issues`),
+but for `.reducers` and `.web` this doesn't really hold true.
+
+Solution: move .reducers to reducers and .web to web
+
+This is a breaking change.
+---
+ .sit/{.reducers => reducers}/Commented.js          |  0
+ .sit/{.reducers => reducers}/DetailsChanges.js     |  0
+ .sit/{.reducers => reducers}/MergeRequested.js     |  0
+ .sit/{.reducers => reducers}/State.js              |  0
+ .sit/{.reducers => reducers}/SummaryChanged.js     |  0
+ .../bower_components/clipboard/.bower.json         |  0
+ .../bower_components/clipboard/bower.json          |  0
+ .../bower_components/clipboard/contributing.md     |  0
+ .../bower_components/clipboard/dist/clipboard.js   |  0
+ .../clipboard/dist/clipboard.min.js                |  0
+ .../bower_components/clipboard/package.js          |  0
+ .../bower_components/clipboard/package.json        |  0
+ .../bower_components/clipboard/readme.md           |  0
+ .../bower_components/granite-clipboard/.bower.json |  0
+ .../bower_components/granite-clipboard/.bowerrc    |  0
+ .../bower_components/granite-clipboard/.gitignore  |  0
+ .../bower_components/granite-clipboard/LICENCE.md  |  0
+ .../bower_components/granite-clipboard/README.md   |  0
+ .../bower_components/granite-clipboard/bower.json  |  0
+ .../granite-clipboard/demo/index.html              |  0
+ .../granite-clipboard/granite-clipboard.html       |  0
+ .../bower_components/granite-clipboard/index.html  |  0
+ .sit/{.web => web}/src/merge-request/header.html   |  0
+ .../{.reducers => reducers}/Commented.js           |  0
+ .../{.reducers => reducers}/DetailsChanges.js      |  0
+ .../{.reducers => reducers}/MergeRequested.js      |  0
+ .../default-files/{.reducers => reducers}/State.js |  0
+ .../{.reducers => reducers}/SummaryChanged.js      |  0
+ sit-core/src/reducers/duktape.rs                   | 44 +++++++++++-----------
+ sit-web/src/webapp.rs                              |  2 +-
+ 30 files changed, 23 insertions(+), 23 deletions(-)
+ rename .sit/{.reducers => reducers}/Commented.js (100%)
+ rename .sit/{.reducers => reducers}/DetailsChanges.js (100%)
+ rename .sit/{.reducers => reducers}/MergeRequested.js (100%)
+ rename .sit/{.reducers => reducers}/State.js (100%)
+ rename .sit/{.reducers => reducers}/SummaryChanged.js (100%)
+ rename .sit/{.web => web}/bower_components/clipboard/.bower.json (100%)
+ rename .sit/{.web => web}/bower_components/clipboard/bower.json (100%)
+ rename .sit/{.web => web}/bower_components/clipboard/contributing.md (100%)
+ rename .sit/{.web => web}/bower_components/clipboard/dist/clipboard.js (100%)
+ rename .sit/{.web => web}/bower_components/clipboard/dist/clipboard.min.js (100%)
+ rename .sit/{.web => web}/bower_components/clipboard/package.js (100%)
+ rename .sit/{.web => web}/bower_components/clipboard/package.json (100%)
+ rename .sit/{.web => web}/bower_components/clipboard/readme.md (100%)
+ rename .sit/{.web => web}/bower_components/granite-clipboard/.bower.json (100%)
+ rename .sit/{.web => web}/bower_components/granite-clipboard/.bowerrc (100%)
+ rename .sit/{.web => web}/bower_components/granite-clipboard/.gitignore (100%)
+ rename .sit/{.web => web}/bower_components/granite-clipboard/LICENCE.md (100%)
+ rename .sit/{.web => web}/bower_components/granite-clipboard/README.md (100%)
+ rename .sit/{.web => web}/bower_components/granite-clipboard/bower.json (100%)
+ rename .sit/{.web => web}/bower_components/granite-clipboard/demo/index.html (100%)
+ rename .sit/{.web => web}/bower_components/granite-clipboard/granite-clipboard.html (100%)
+ rename .sit/{.web => web}/bower_components/granite-clipboard/index.html (100%)
+ rename .sit/{.web => web}/src/merge-request/header.html (100%)
+ rename sit-core/default-files/{.reducers => reducers}/Commented.js (100%)
+ rename sit-core/default-files/{.reducers => reducers}/DetailsChanges.js (100%)
+ rename sit-core/default-files/{.reducers => reducers}/MergeRequested.js (100%)
+ rename sit-core/default-files/{.reducers => reducers}/State.js (100%)
+ rename sit-core/default-files/{.reducers => reducers}/SummaryChanged.js (100%)
+
+diff --git a/.sit/.reducers/Commented.js b/.sit/reducers/Commented.js
+similarity index 100%
+rename from .sit/.reducers/Commented.js
+rename to .sit/reducers/Commented.js
+diff --git a/.sit/.reducers/DetailsChanges.js b/.sit/reducers/DetailsChanges.js
+similarity index 100%
+rename from .sit/.reducers/DetailsChanges.js
+rename to .sit/reducers/DetailsChanges.js
+diff --git a/.sit/.reducers/MergeRequested.js b/.sit/reducers/MergeRequested.js
+similarity index 100%
+rename from .sit/.reducers/MergeRequested.js
+rename to .sit/reducers/MergeRequested.js
+diff --git a/.sit/.reducers/State.js b/.sit/reducers/State.js
+similarity index 100%
+rename from .sit/.reducers/State.js
+rename to .sit/reducers/State.js
+diff --git a/.sit/.reducers/SummaryChanged.js b/.sit/reducers/SummaryChanged.js
+similarity index 100%
+rename from .sit/.reducers/SummaryChanged.js
+rename to .sit/reducers/SummaryChanged.js
+diff --git a/.sit/.web/bower_components/clipboard/.bower.json b/.sit/web/bower_components/clipboard/.bower.json
+similarity index 100%
+rename from .sit/.web/bower_components/clipboard/.bower.json
+rename to .sit/web/bower_components/clipboard/.bower.json
+diff --git a/.sit/.web/bower_components/clipboard/bower.json b/.sit/web/bower_components/clipboard/bower.json
+similarity index 100%
+rename from .sit/.web/bower_components/clipboard/bower.json
+rename to .sit/web/bower_components/clipboard/bower.json
+diff --git a/.sit/.web/bower_components/clipboard/contributing.md b/.sit/web/bower_components/clipboard/contributing.md
+similarity index 100%
+rename from .sit/.web/bower_components/clipboard/contributing.md
+rename to .sit/web/bower_components/clipboard/contributing.md
+diff --git a/.sit/.web/bower_components/clipboard/dist/clipboard.js b/.sit/web/bower_components/clipboard/dist/clipboard.js
+similarity index 100%
+rename from .sit/.web/bower_components/clipboard/dist/clipboard.js
+rename to .sit/web/bower_components/clipboard/dist/clipboard.js
+diff --git a/.sit/.web/bower_components/clipboard/dist/clipboard.min.js b/.sit/web/bower_components/clipboard/dist/clipboard.min.js
+similarity index 100%
+rename from .sit/.web/bower_components/clipboard/dist/clipboard.min.js
+rename to .sit/web/bower_components/clipboard/dist/clipboard.min.js
+diff --git a/.sit/.web/bower_components/clipboard/package.js b/.sit/web/bower_components/clipboard/package.js
+similarity index 100%
+rename from .sit/.web/bower_components/clipboard/package.js
+rename to .sit/web/bower_components/clipboard/package.js
+diff --git a/.sit/.web/bower_components/clipboard/package.json b/.sit/web/bower_components/clipboard/package.json
+similarity index 100%
+rename from .sit/.web/bower_components/clipboard/package.json
+rename to .sit/web/bower_components/clipboard/package.json
+diff --git a/.sit/.web/bower_components/clipboard/readme.md b/.sit/web/bower_components/clipboard/readme.md
+similarity index 100%
+rename from .sit/.web/bower_components/clipboard/readme.md
+rename to .sit/web/bower_components/clipboard/readme.md
+diff --git a/.sit/.web/bower_components/granite-clipboard/.bower.json b/.sit/web/bower_components/granite-clipboard/.bower.json
+similarity index 100%
+rename from .sit/.web/bower_components/granite-clipboard/.bower.json
+rename to .sit/web/bower_components/granite-clipboard/.bower.json
+diff --git a/.sit/.web/bower_components/granite-clipboard/.bowerrc b/.sit/web/bower_components/granite-clipboard/.bowerrc
+similarity index 100%
+rename from .sit/.web/bower_components/granite-clipboard/.bowerrc
+rename to .sit/web/bower_components/granite-clipboard/.bowerrc
+diff --git a/.sit/.web/bower_components/granite-clipboard/.gitignore b/.sit/web/bower_components/granite-clipboard/.gitignore
+similarity index 100%
+rename from .sit/.web/bower_components/granite-clipboard/.gitignore
+rename to .sit/web/bower_components/granite-clipboard/.gitignore
+diff --git a/.sit/.web/bower_components/granite-clipboard/LICENCE.md b/.sit/web/bower_components/granite-clipboard/LICENCE.md
+similarity index 100%
+rename from .sit/.web/bower_components/granite-clipboard/LICENCE.md
+rename to .sit/web/bower_components/granite-clipboard/LICENCE.md
+diff --git a/.sit/.web/bower_components/granite-clipboard/README.md b/.sit/web/bower_components/granite-clipboard/README.md
+similarity index 100%
+rename from .sit/.web/bower_components/granite-clipboard/README.md
+rename to .sit/web/bower_components/granite-clipboard/README.md
+diff --git a/.sit/.web/bower_components/granite-clipboard/bower.json b/.sit/web/bower_components/granite-clipboard/bower.json
+similarity index 100%
+rename from .sit/.web/bower_components/granite-clipboard/bower.json
+rename to .sit/web/bower_components/granite-clipboard/bower.json
+diff --git a/.sit/.web/bower_components/granite-clipboard/demo/index.html b/.sit/web/bower_components/granite-clipboard/demo/index.html
+similarity index 100%
+rename from .sit/.web/bower_components/granite-clipboard/demo/index.html
+rename to .sit/web/bower_components/granite-clipboard/demo/index.html
+diff --git a/.sit/.web/bower_components/granite-clipboard/granite-clipboard.html b/.sit/web/bower_components/granite-clipboard/granite-clipboard.html
+similarity index 100%
+rename from .sit/.web/bower_components/granite-clipboard/granite-clipboard.html
+rename to .sit/web/bower_components/granite-clipboard/granite-clipboard.html
+diff --git a/.sit/.web/bower_components/granite-clipboard/index.html b/.sit/web/bower_components/granite-clipboard/index.html
+similarity index 100%
+rename from .sit/.web/bower_components/granite-clipboard/index.html
+rename to .sit/web/bower_components/granite-clipboard/index.html
+diff --git a/.sit/.web/src/merge-request/header.html b/.sit/web/src/merge-request/header.html
+similarity index 100%
+rename from .sit/.web/src/merge-request/header.html
+rename to .sit/web/src/merge-request/header.html
+diff --git a/sit-core/default-files/.reducers/Commented.js b/sit-core/default-files/reducers/Commented.js
+similarity index 100%
+rename from sit-core/default-files/.reducers/Commented.js
+rename to sit-core/default-files/reducers/Commented.js
+diff --git a/sit-core/default-files/.reducers/DetailsChanges.js b/sit-core/default-files/reducers/DetailsChanges.js
+similarity index 100%
+rename from sit-core/default-files/.reducers/DetailsChanges.js
+rename to sit-core/default-files/reducers/DetailsChanges.js
+diff --git a/sit-core/default-files/.reducers/MergeRequested.js b/sit-core/default-files/reducers/MergeRequested.js
+similarity index 100%
+rename from sit-core/default-files/.reducers/MergeRequested.js
+rename to sit-core/default-files/reducers/MergeRequested.js
+diff --git a/sit-core/default-files/.reducers/State.js b/sit-core/default-files/reducers/State.js
+similarity index 100%
+rename from sit-core/default-files/.reducers/State.js
+rename to sit-core/default-files/reducers/State.js
+diff --git a/sit-core/default-files/.reducers/SummaryChanged.js b/sit-core/default-files/reducers/SummaryChanged.js
+similarity index 100%
+rename from sit-core/default-files/.reducers/SummaryChanged.js
+rename to sit-core/default-files/reducers/SummaryChanged.js
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index d795026..aac8135 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -56,7 +56,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
+         };
+         use glob;
+-        let paths = glob::glob(repository.path().join(".reducers/*.js").to_str().unwrap()).unwrap();
++        let paths = glob::glob(repository.path().join("reducers/*.js").to_str().unwrap()).unwrap();
+         let mut reducers = 0;
+         let mut filenames = vec![];
+         let mut functions = vec![];
+@@ -322,8 +322,8 @@ mod tests {
+         let repo = Repository::new(tmp).unwrap();
+         use std::fs;
+         use std::io::Write;
+-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"function(state, record) { return {\"hello\": record.hash}; }").unwrap();
+ 
+         let issue = repo.new_issue().unwrap();
+@@ -341,8 +341,8 @@ mod tests {
+         let repo = Repository::new(tmp).unwrap();
+         use std::fs;
+         use std::io::Write;
+-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
+ 
+         let issue = repo.new_issue().unwrap();
+@@ -360,8 +360,8 @@ mod tests {
+         let repo = Repository::new(tmp).unwrap();
+         use std::fs;
+         use std::io::Write;
+-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"function() {\
+          if (this.counter == undefined) { \
+            this.counter = 1;   \
+@@ -391,10 +391,10 @@ mod tests {
+         let repo = Repository::new(tmp).unwrap();
+         use std::fs;
+         use std::io::Write;
+-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer1.js")).unwrap();
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
+         f.write(b"function(state) { return Object.assign({\"hello\": 1}, state); }").unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer2.js")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer2.js")).unwrap();
+         f.write(b"function(state) { return Object.assign({\"bye\": 2}, state); }").unwrap();
+ 
+         let issue = repo.new_issue().unwrap();
+@@ -413,12 +413,12 @@ mod tests {
+         let repo = Repository::new(tmp).unwrap();
+         use std::fs;
+         use std::io::Write;
+-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
+         let res = DuktapeReducer::<::repository::Record>::new(&repo);
+         assert!(res.is_err());
+-        let reducer_file = repo.path().join(".reducers/reducer.js");
++        let reducer_file = repo.path().join("reducers/reducer.js");
+         let err = res.unwrap_err();
+         match err {
+             Error::CompileError { file, error } => {
+@@ -438,8 +438,8 @@ mod tests {
+         let repo = Repository::new(tmp).unwrap();
+         use std::fs;
+         use std::io::Write;
+-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers").join("reducer.js")).unwrap();
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers").join("reducer.js")).unwrap();
+         f.write(b"function(state) { return Object.assign({\"hello\": record.a}, state); }").unwrap();
+ 
+                 let issue = repo.new_issue().unwrap();
+@@ -449,7 +449,7 @@ mod tests {
+         assert!(state.get("errors").is_some());
+         let errors = state.get("errors").unwrap().as_array().unwrap();
+         assert_eq!(errors[0].as_object().unwrap().get("error").unwrap(), &JsonValue::String("ReferenceError: identifier \'record\' undefined".into()));
+-        assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(repo.path().join(".reducers").join("reducer.js").to_str().unwrap().into()));
++        assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(repo.path().join("reducers").join("reducer.js").to_str().unwrap().into()));
+     }
+ 
+     #[test]
+@@ -459,8 +459,8 @@ mod tests {
+         let repo = Repository::new(tmp).unwrap();
+         use std::fs;
+         use std::io::Write;
+-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"function() {\
+          if (this.counter == undefined) { \
+            this.counter = 1;   \
+@@ -502,8 +502,8 @@ mod tests {
+         let repo = Repository::new(tmp).unwrap();
+         use std::fs;
+         use std::io::Write;
+-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"function() {\
+          if (this.counter == undefined) { \
+            this.counter = 1;   \
+@@ -549,8 +549,8 @@ mod tests {
+         let repo = Repository::new(tmp).unwrap();
+         use std::fs;
+         use std::io::Write;
+-        fs::create_dir_all(repo.path().join(".reducers")).unwrap();
+-        let mut f = fs::File::create(repo.path().join(".reducers/reducer.js")).unwrap();
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
+ 
+         let issue = repo.new_issue().unwrap();
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 7c20938..82f5ace 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -112,7 +112,7 @@ use itertools::Itertools;
+ use sit_core;
+ 
+ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository) {
+-    let assets: PathBuf = repo.path().join(".web").into();
++    let assets: PathBuf = repo.path().join("web").into();
+     start_server(addr, move |request|
+         router!(request,
+         (GET) (/user/config) => {
+-- 
+2.15.0
+
