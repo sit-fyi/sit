@@ -1,0 +1,148 @@
+From 1eec93f0f9f274949a661666d26b2f28fe5bf5c6 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 19 Feb 2018 16:19:42 +0700
+Subject: [PATCH] Problem: no record type to signify a merge
+
+Currently, merged merge requests simply get closed.
+
+Solution: designate Merged type
+---
+ doc/dict/.type/Merged.md                     | 28 ++++++++++++++++++++++++++++
+ doc/toc.md                                   |  1 +
+ scripts/merge-merge-request                  |  4 ++--
+ sit-core/default-files/reducers/Commented.js | 22 +++++++++++++++++++++-
+ sit-core/default-files/reducers/Merged.js    | 20 ++++++++++++++++++++
+ 5 files changed, 72 insertions(+), 3 deletions(-)
+ create mode 100644 doc/dict/.type/Merged.md
+ create mode 100644 sit-core/default-files/reducers/Merged.js
+
+diff --git a/doc/dict/.type/Merged.md b/doc/dict/.type/Merged.md
+new file mode 100644
+index 0000000..69812f8
+--- /dev/null
++++ b/doc/dict/.type/Merged.md
+@@ -0,0 +1,28 @@
++# Merged
++
++Signifies that a patch was merged
++
++## Files
++
++### `record`
++
++Optional.
++
++Contains an encoded record hash (the record that was the source of the
++patch merged).
++
++### `.authors`
++
++Used to derive merge's authorship
++
++### `.timestamp`
++
++Used to derive merge's timestamp
++
++## State Effect
++
++Updates `comments` field with the an array containing
++objects representing comments (three field: `text`, `authors`, `timestamp`)
++
++Appends `merges` field with an object, containng `hash` referencing
++`Merged` record and, optionally, `record` reference.
+\ No newline at end of file
+diff --git a/doc/toc.md b/doc/toc.md
+index 7f2f31d..f078a7d 100644
+--- a/doc/toc.md
++++ b/doc/toc.md
+@@ -6,5 +6,6 @@
+   * [.type/Commented](dict/.type/Commented.md)
+   * [.type/DetailsChanged](dict/.type/DetailsChanged.md)
+   * [.type/MergeRequested](dict/.type/MergeRequested.md)
++  * [.type/Merged](dict/.type/Merged.md)
+   * [.type/Reopened](dict/.type/Reopened.md)
+   * [.type/SummaryChanged](dict/.type/SummaryChanged.md)
+diff --git a/scripts/merge-merge-request b/scripts/merge-merge-request
+index ab23842..967d2d7 100755
+--- a/scripts/merge-merge-request
++++ b/scripts/merge-merge-request
+@@ -34,8 +34,8 @@ git am $(ls ${repo}/issues/${issue}/${mr}/git/*.patch) || exit 2
+ pushd $(pwd) >/dev/null
+ cd "${tmpdir}"
+ 
+-echo "Merged ${mr}" > text
+-${sit} -d ${curdir} record -t Commented,Closed ${issue} text || exit 2
++echo "${mr}" > record
++${sit} -d ${curdir} record -t Merged,Closed ${issue} record || exit 2
+ 
+ popd >/dev/null
+ 
+diff --git a/sit-core/default-files/reducers/Commented.js b/sit-core/default-files/reducers/Commented.js
+index 03e294d..b5a6a65 100644
+--- a/sit-core/default-files/reducers/Commented.js
++++ b/sit-core/default-files/reducers/Commented.js
+@@ -1,4 +1,23 @@
+ function(state, record) {
++    var state = state;
++
++    // Handle Merged as a comment, too
++    if (typeof record.files[".type/Merged"] !== 'undefined') {
++        var comments = this.comments || [];
++        var decoder = new TextDecoder("utf-8");
++        var merge_request = state.merge_request || "";
++        if (typeof record.files["record"] !== 'undefined') {
++            merge_request = decoder.decode(record.files["record"]);
++        }
++        comments.push({
++            text: ("Merged " + merge_request).trim(),
++            authors: decoder.decode(record.files[".authors"]),
++            timestamp: decoder.decode(record.files[".timestamp"]),
++        });
++        this.comments = comments;
++        state = Object.assign(state, {comments: comments});
++    }
++
+     if (typeof record.files[".type/Commented"] !== 'undefined') {
+         var comments = this.comments || [];
+         var decoder = new TextDecoder("utf-8");
+@@ -10,7 +29,8 @@ function(state, record) {
+             merge_request: merge_request,
+         });
+         this.comments = comments;
+-        return Object.assign(state, {comments: comments});
++        state = Object.assign(state, {comments: comments});
+     }
++
+     return state;
+ }
+\ No newline at end of file
+diff --git a/sit-core/default-files/reducers/Merged.js b/sit-core/default-files/reducers/Merged.js
+new file mode 100644
+index 0000000..d009a68
+--- /dev/null
++++ b/sit-core/default-files/reducers/Merged.js
+@@ -0,0 +1,20 @@
++function(state, record) {
++
++    if (typeof record.files[".type/Merged"] !== 'undefined') {
++        var decoder = new TextDecoder("utf-8");
++        var merges = this.merges || [];
++
++        var merge_request = state.merge_request || "";
++
++        if (typeof record.files["record"] !== 'undefined') {
++            merge_request = decoder.decode(record.files["record"]);
++        }
++
++        merges.push({hash: record.hash, record: merge_request});
++
++        this.merges = merges;
++
++        return Object.assign(state, {merges: merges});
++    }
++    return state;
++}
+\ No newline at end of file
+-- 
+2.15.0
+
