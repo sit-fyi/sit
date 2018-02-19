@@ -1,0 +1,4 @@
+It will try to initialize a `.sit` repository
+
+Solution: make it respect supplied repository path
+
