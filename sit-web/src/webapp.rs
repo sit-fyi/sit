@@ -112,7 +112,7 @@ use itertools::Itertools;
 use sit_core;
 
 pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository) {
-    let assets: PathBuf = repo.path().join(".web").into();
+    let assets: PathBuf = repo.path().join("web").into();
     start_server(addr, move |request|
         router!(request,
         (GET) (/user/config) => {
