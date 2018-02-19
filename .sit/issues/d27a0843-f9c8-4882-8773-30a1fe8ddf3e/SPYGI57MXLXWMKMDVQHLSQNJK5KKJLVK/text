@@ -1,0 +1,8 @@
+Default filter means "no filtering".
+
+This means it'll be checked every time against
+the issue or the record, even though the intent
+was to use no filters.
+
+Solution: don't apply filter unless its actually specified
+
