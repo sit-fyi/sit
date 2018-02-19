@@ -281,7 +281,7 @@ fn main_with_result() -> i32 {
 
     if let Some(init_matches) = matches.subcommand_matches("init") {
         let dot_sit_str = matches.value_of("repository").unwrap_or(dot_sit.to_str().unwrap());
-        match sit_core::Repository::new(&dot_sit) {
+        match sit_core::Repository::new(&dot_sit_str) {
             Ok(repo) => {
                 if !init_matches.is_present("dont-populate") {
                     repo.populate_default_files().expect("can't populate default files");
