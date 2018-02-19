@@ -50,6 +50,11 @@ fn main() {
             .short("d")
             .default_value(cwd.to_str().unwrap())
             .help("Working directory"))
+        .arg(Arg::with_name("repository")
+            .short("r")
+            .long("repository")
+            .takes_value(true)
+            .help("Point to a specific directory of SIT's repository"))
         .arg(Arg::with_name("verbosity")
             .short("v")
             .multiple(true)
@@ -93,7 +98,11 @@ fn main() {
         }
     }
 
-    let repo = sit_core::Repository::find_in_or_above(".sit",&working_dir).expect("can't open repository");
+    let repo = matches.value_of("repository")
+        .map(sit_core::Repository::open)
+        .or_else(|| Some(sit_core::Repository::find_in_or_above(".sit",&working_dir)))
+        .unwrap()
+        .expect("can't open repository");
 
     let listen = matches.value_of("listen").unwrap();
     println!("Serving on {}", listen);
