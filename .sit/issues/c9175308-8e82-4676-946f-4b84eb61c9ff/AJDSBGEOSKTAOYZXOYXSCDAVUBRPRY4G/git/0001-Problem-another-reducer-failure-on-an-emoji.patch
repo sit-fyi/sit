@@ -1,0 +1,107 @@
+From bc0c63e0863d6da097a232367f094a6c8e7ae8d4 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 20 Feb 2018 00:53:31 +0700
+Subject: [PATCH] Problem: another reducer failure on an emoji
+
+It's an invalid Unicode problem again, likely
+about CESU-8 again.
+
+Solution: make sure input state JSON is always CESU-8
+
+It was passed as-is, UTF-8. I should have seen and
+checked this the first time I fixed this bug :)
+---
+ sit-core/src/reducers/duktape.rs | 59 +++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 55 insertions(+), 4 deletions(-)
+
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index aac8135..bb1b355 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -183,6 +183,11 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+         let json = serde_json::to_string(&JsonValue::Object(state.clone())).unwrap();
+         unsafe {
+             let ctx = self.context;
++
++            #[cfg(feature = "cesu8")]
++            let cstring = CString::new(cesu8::to_cesu8(&json)).unwrap();
++
++            #[cfg(not(feature = "cesu8"))]
+             let cstring = CString::new(json).unwrap();
+ 
+             // Item (record)
+@@ -543,7 +548,7 @@ mod tests {
+     // encoding. Make sure we convert whatever is produced by Duktape.
+     #[cfg(feature = "cesu8")]
+     #[test]
+-    fn cesu8() {
++    fn cesu8_output() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+         tmp.push(".sit");
+         let repo = Repository::new(tmp).unwrap();
+@@ -551,13 +556,59 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+-        f.write(b"function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
++        f.write(b"function(state, record) { \
++            return Object.assign(state, {hello: new TextDecoder('utf-8').decode(record.files.text)});
++        }").unwrap();
+ 
+         let issue = repo.new_issue().unwrap();
+-        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &"😵😾🤔"[..].as_bytes())].into_iter(), true).unwrap();
++        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &"🙂😵😾🤔".as_bytes()[..])].into_iter(), true).unwrap();
+         let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
+ 
+-        assert_eq!(state.get("hello").unwrap(), &JsonValue::String("😵😾🤔".into()));
++        assert_eq!(state.get("hello").unwrap(), &JsonValue::String("🙂😵😾🤔".into()));
++    }
++
++    #[cfg(feature = "cesu8")]
++    #[test]
++    fn cesu8_input() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
++        f.write(b"function(state, record) {
++          if (typeof record.files['.type/DetailsChanged'] !== 'undefined') {
++              var decoder = new TextDecoder('utf-8');
++              return Object.assign(state, {
++                  details: decoder.decode(record.files.text).trim()
++              });
++          } else {
++              return state;
++          }
++        }").unwrap();
++
++        let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
++        f.write(b"function(state, record) {
++          if (typeof record.files['.type/Commented'] !== 'undefined') {
++            var comments = this.comments || [];
++            var decoder = new TextDecoder('utf-8');
++            comments.push({
++               text: decoder.decode(record.files.text),
++            });
++            this.comments = comments;
++            return Object.assign(state, {comments: comments});
++          }
++          return state;
++        }").unwrap();
++
++        let issue = repo.new_issue().unwrap();
++        issue.new_record(vec![(".type/DetailsChanged", &b""[..]), ("text", &"🙂😵😾🤔   ".as_bytes()[..])].into_iter(), true).unwrap();
++        issue.new_record(vec![(".type/Commented", &b""[..]), ("text", &"test🙂😵".as_bytes()[..])].into_iter(), true).unwrap();
++
++        // SHOULD NOT FAIL
++        issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
+     }
+ 
+ 
+-- 
+2.15.0
+

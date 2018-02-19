@@ -1,0 +1,8 @@
+It's an invalid Unicode problem again, likely
+about CESU-8 again.
+
+Solution: make sure input state JSON is always CESU-8
+
+It was passed as-is, UTF-8. I should have seen and
+checked this the first time I fixed this bug :)
+
