@@ -1,0 +1,42 @@
+From b344d759543d1c3e7671de92f14ab39f8fc20769 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 19 Feb 2018 19:40:00 +0700
+Subject: [PATCH] Problem: can't supply a custom repository path to sit-web
+
+Solution: add -r/--repository option to sit-web
+---
+ sit-web/src/main.rs | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/sit-web/src/main.rs b/sit-web/src/main.rs
+index 1d8764e..2848493 100644
+--- a/sit-web/src/main.rs
++++ b/sit-web/src/main.rs
+@@ -50,6 +50,11 @@ fn main() {
+             .short("d")
+             .default_value(cwd.to_str().unwrap())
+             .help("Working directory"))
++        .arg(Arg::with_name("repository")
++            .short("r")
++            .long("repository")
++            .takes_value(true)
++            .help("Point to a specific directory of SIT's repository"))
+         .arg(Arg::with_name("verbosity")
+             .short("v")
+             .multiple(true)
+@@ -93,7 +98,11 @@ fn main() {
+         }
+     }
+ 
+-    let repo = sit_core::Repository::find_in_or_above(".sit",&working_dir).expect("can't open repository");
++    let repo = matches.value_of("repository")
++        .map(sit_core::Repository::open)
++        .or_else(|| Some(sit_core::Repository::find_in_or_above(".sit",&working_dir)))
++        .unwrap()
++        .expect("can't open repository");
+ 
+     let listen = matches.value_of("listen").unwrap();
+     println!("Serving on {}", listen);
+-- 
+2.15.0
+
