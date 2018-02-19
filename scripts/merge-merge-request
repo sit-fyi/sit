@@ -34,8 +34,8 @@ git am $(ls ${repo}/issues/${issue}/${mr}/git/*.patch) || exit 2
 pushd $(pwd) >/dev/null
 cd "${tmpdir}"
 
-echo "Merged ${mr}" > text
-${sit} -d ${curdir} record -t Commented,Closed ${issue} text || exit 2
+echo "${mr}" > record
+${sit} -d ${curdir} record -t Merged,Closed ${issue} record || exit 2
 
 popd >/dev/null
 

@@ -1,4 +1,23 @@
 function(state, record) {
+    var state = state;
+
+    // Handle Merged as a comment, too
+    if (typeof record.files[".type/Merged"] !== 'undefined') {
+        var comments = this.comments || [];
+        var decoder = new TextDecoder("utf-8");
+        var merge_request = state.merge_request || "";
+        if (typeof record.files["record"] !== 'undefined') {
+            merge_request = decoder.decode(record.files["record"]);
+        }
+        comments.push({
+            text: ("Merged " + merge_request).trim(),
+            authors: decoder.decode(record.files[".authors"]),
+            timestamp: decoder.decode(record.files[".timestamp"]),
+        });
+        this.comments = comments;
+        state = Object.assign(state, {comments: comments});
+    }
+
     if (typeof record.files[".type/Commented"] !== 'undefined') {
         var comments = this.comments || [];
         var decoder = new TextDecoder("utf-8");
@@ -10,7 +29,8 @@ function(state, record) {
             merge_request: merge_request,
         });
         this.comments = comments;
-        return Object.assign(state, {comments: comments});
+        state = Object.assign(state, {comments: comments});
     }
+
     return state;
 }
