@@ -127,9 +127,14 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
             let issues_with_reducers: Vec<_> =  issues.into_iter().map(|i| (i, reducer.clone())).collect();
 
-            let filter = match jmespath::compile(&filter_expr) {
-                Ok(filter) => filter,
-                _ => return Response::empty_400(),
+            let filter_defined = filter_expr != "";
+            let filter = if filter_defined {
+                match jmespath::compile(&filter_expr) {
+                  Ok(filter) => filter,
+                  _ => return Response::empty_400(),
+                }
+            } else {
+                jmespath::compile("`true`").unwrap()
             };
             let query = match jmespath::compile(&query_expr) {
                 Ok(query) => query,
@@ -142,8 +147,13 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                      issue.reduce_with_reducer(&mut reducer).unwrap()
                   }).map(|json| {
                      let data = jmespath::Variable::from(serde_json::Value::Object(json));
-                     let result = filter.search(&data).unwrap();
-                     if result.is_boolean() && result.as_boolean().unwrap() {
+                     let result = if filter_defined {
+                        let res = filter.search(&data).unwrap();
+                        res.is_boolean() && res.as_boolean().unwrap()
+                     } else {
+                        true
+                     };
+                     if result {
                         Some(query.search(&data).unwrap())
                      } else {
                         None
