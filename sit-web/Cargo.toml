@@ -28,3 +28,6 @@ sit-core = { path = "../sit-core" }
 [build-dependencies]
 include_dir = "0.1"
 
+[features]
+windows7 = ["sit-core/windows7"]
+
