@@ -1,3 +1,21 @@
+# 0.1.2
+
+## Breaking changes:
+
+* Duktape reducers will no longer be searched under any sub-directory of
+  `/path/to/repo/reducers`. Only files directly under it will be considered
+  (53fee064-383d-4fbf-a189-40621c95e7b0)
+
+## Bugfixes:
+
+* Fixed handling of Unicode characters (emojis) in some cases (c9175308-8e82-4676-946f-4b84eb61c9ff)
+* `sit init` didn't respect `-r/--repository` argument (d23e95ad-1415-482d-b14a-56b0eb6e22fd)
+
+## Improvements
+
+* Performance improvements in record listing (5aec551f-6d77-4da1-a3f8-cf96f13c7c82)
+* `sit-web` now accepts `-r/--repository` argument (4daaf255-83f3-4cb2-8c3c-bf70647dbeda)
+
 # 0.1.1
 
 ## Breaking changes:

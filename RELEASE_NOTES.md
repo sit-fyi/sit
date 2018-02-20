@@ -1,3 +1,11 @@
+# 0.1.2
+
+Maintenance release. The core highlights are:
+
+* Fixed a bug with handling some Unicode codepoints in certain
+  scenarios.
+* Improved performance.
+
 # 0.1.1
 
 Maintenance release. The core highlights are:
