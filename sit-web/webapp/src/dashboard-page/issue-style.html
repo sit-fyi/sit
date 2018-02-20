@@ -4,11 +4,25 @@
             paper-card {
                 width: 100%;
                 margin: 10pt;
-                --paper-card-header-text: {
-                    font-size: 14pt;
-                    height: 40pt;
-                    text-overflow: ellipsis;
-                }
+            }
+
+            paper-card h4 {
+                font-weight: normal;
+                font-size: 14pt;
+                height: 40pt;
+                padding-left: 4pt;
+                padding-right: 4pt;
+                margin: 0pt;
+                padding-top: 4pt;
+                overflow: auto;
+            }
+          
+            paper-card #note {
+                margin-bottom: 4pt;
+            }
+
+            paper-card #note small {
+                color: gray;
             }
 
             @media only screen and (min-width: 768px) {

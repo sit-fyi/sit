@@ -130,7 +130,7 @@
 
             constructor() {
                 super();
-                this.query = "{id: id, summary: summary, state: state, comments: (comments || `[]`), merge_request: merge_request || false}";
+                this.query = "{id: id, summary: summary, state: state, comments: (comments || `[]`), merge_request: merge_request || false, last_updated_timestamp: last_updated_timestamp}";
             }
 
             handleResponse(evt, req) {

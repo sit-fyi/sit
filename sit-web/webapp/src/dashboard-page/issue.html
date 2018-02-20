@@ -3,6 +3,7 @@
 <link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
 <link rel="import" href="/bower_components/iron-icons/iron-icons.html">
 <link rel="import" href="/bower_components/iron-icons/communication-icons.html">
+<link rel="import" href="/bower_components/from-now/from-now.html">
 <link rel="import" href="issue-style.html">
 
 
@@ -11,8 +12,12 @@
         <style include="issue-style"></style>
         <style is="custom-style" include="iron-flex iron-flex-alignment"></style>
 
-        <paper-card id="card" heading="[[ issue.summary ]]">
+        <paper-card id="card">
+            <h4>[[ issue.summary ]]</h4>
             <div class="card-content">
+                <div id="note">
+                        <small>Updated <from-now use-absolute time="[[ lastUpdated ]]" format="MMM Do YYYY HH:mm"></from-now></small>
+                </div>
                 <div class="horizontal">
                     <span class$="[[ issue.state ]]">[[ issue.state ]]</span>
                     <template is="dom-if" if="[[ isMergeRequest ]]">
@@ -22,7 +27,7 @@
             </div>
             <div class="card-actions">
                 <span class="horizontal">
-                    <paper-icon-button on-click="handleOpen" title="Open" id="open" icon="open-in-browser" alt="open"> </paper-icon-button>
+                   <paper-icon-button on-click="handleOpen" title="Open" id="open" icon="open-in-browser" alt="open"> </paper-icon-button>
                 </span>
                 <span class="horizontal end-aligned">
                     <paper-icon-button on-click="handleOpen" title="Comments" id="comments" icon="communication:comment" alt="inbox"> </paper-icon-button>
@@ -53,6 +58,10 @@
                     isMergeRequest: {
                         type: Boolean,
                         computed: 'computeIsMergeRequest(issue)'
+                    },
+                    lastUpdated: {
+                        type: Number,
+                        computed: 'computeLastUpdated(issue)'
                     }
                 }
             }
@@ -67,6 +76,10 @@
 
             computeIsMergeRequest(issue) {
                 return issue.merge_request;
+            }
+
+            computeLastUpdated(issue) {
+                return new Date(issue.last_updated_timestamp).getTime();
             }
 
             handleOpen() {

@@ -3,7 +3,8 @@ function(state, record) {
         var decoder = new TextDecoder("utf-8");
         return Object.assign(state, {
             authors: state.authors || decoder.decode(record.files[".authors"]),
-            summary: decoder.decode(record.files.text).trim()
+            summary: decoder.decode(record.files.text).trim(),
+            timestamp: state.timestamp || decoder.decode(record.files[".timestamp"]),
         });
     } else {
         return state;
