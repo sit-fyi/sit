@@ -1,0 +1,28 @@
+From 5ba1c3897e9f2653d7097051feb5d6c2cfb0c465 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 20 Feb 2018 18:36:17 +0700
+Subject: [PATCH] Problem: FAQ says there's no way to import from GitHub
+
+Now there is (sit-import project)
+
+Solution: mention it
+---
+ doc/faq.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/doc/faq.md b/doc/faq.md
+index 61c9380..7850686 100644
+--- a/doc/faq.md
++++ b/doc/faq.md
+@@ -77,7 +77,7 @@ are not irreversible.
+ 
+ ## Is there a way to import issues from GitHub?
+ 
+-Not yet, but this is definitely in the pipeline.
++There's [sit-import](https://github.com/sit-it/sit-import) project, check it out.
+ 
+ ## What browsers are supported?
+ 
+-- 
+2.15.0
+
