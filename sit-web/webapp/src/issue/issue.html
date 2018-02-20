@@ -51,7 +51,7 @@
                    <rendered-text text="{{ view.details }}"></rendered-text>
                </div>
 
-               <small>[[ view.authors ]]</small>
+               <small>[[ view.authors ]] on <from-now use-absolute time="[[ time ]]" format="MMM Do YYYY HH:mm"></from-now></small>
            </div>
 
            <div class="card-actions">
@@ -104,6 +104,10 @@
                     isOpen: {
                         type: Boolean,
                         computed: 'checkIfOpen(isClosed)'
+                    },
+                    time: {
+                        type: Number,
+                        computed: 'computeTime(view)'
                     }
                 }
             }
@@ -119,6 +123,11 @@
             checkIfOpen(isClosed) {
                 return !isClosed;
             }
+
+            computeTime(view) {
+                return new Date(view.timestamp).getTime()
+            }
+
 
             filterMergeFiles(files) {
                 return files.filter(function(f) {

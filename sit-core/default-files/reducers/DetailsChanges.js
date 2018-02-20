@@ -5,7 +5,8 @@ function(state, record) {
         return Object.assign(state, {
             authors: state.authors || decoder.decode(record.files[".authors"]),
             merge_request: merge_request,
-            details: decoder.decode(record.files.text).trim()
+            details: decoder.decode(record.files.text).trim(),
+            timestamp: state.timestamp || decoder.decode(record.files[".timestamp"]),
         });
     } else {
         return state;

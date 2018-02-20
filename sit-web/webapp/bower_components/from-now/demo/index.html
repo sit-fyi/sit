@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <title>from-now demo</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=yes">
+    <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+
+    <link rel="import" href="../../iron-demo-helpers/demo-pages-shared-styles.html">
+    <link rel="import" href="../../iron-demo-helpers/demo-snippet.html">
+
+    <link rel="import" href="../from-now.html">
+
+    <custom-style>
+      <style include="demo-pages-shared-styles"></style>
+    </custom-style>
+  </head>
+  <body>
+
+    <div class="vertical-section-container centered">
+
+      <h3>Basic from-now Demo</h3>
+      <demo-snippet>
+        <template>
+          <from-now id="now1"></from-now> | default<br/>
+          <from-now id="now2" idle></from-now> | idle<br/>
+          <from-now id="now3" use-absolute></from-now> | absolute<br/>
+          <from-now id="now4" use-absolute format="YYYY-MM-DD HH:mm"></from-now> | formatted absolute<br/>
+          (mouseover for alternate format)
+          <script>
+            document.getElementById('now1').time = Date.now();
+            document.getElementById('now2').time = Date.now();
+            document.getElementById('now3').time = Date.now();
+            document.getElementById('now4').time = Date.now();
+          </script>
+        </template>
+      </demo-snippet>
+
+      <h3>Using allow-future</h3>
+      <demo-snippet>
+        <template>
+          <from-now time="1800000000000" allow-future></from-now><br/>
+          <from-now time="1800000000000"></from-now>
+        </template>
+      </demo-snippet>
+    </div>
+  </body>
+</html>
