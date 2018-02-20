@@ -77,7 +77,7 @@ are not irreversible.
 
 ## Is there a way to import issues from GitHub?
 
-Not yet, but this is definitely in the pipeline.
+There's [sit-import](https://github.com/sit-it/sit-import) project, check it out.
 
 ## What browsers are supported?
 
