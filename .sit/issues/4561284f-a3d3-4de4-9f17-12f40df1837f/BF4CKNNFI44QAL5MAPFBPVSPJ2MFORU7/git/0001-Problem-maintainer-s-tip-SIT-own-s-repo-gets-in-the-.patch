@@ -1,0 +1,37 @@
+From 378638eaf3a0576d3da96e6c966d21afc0336027 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 20 Feb 2018 17:34:36 +0700
+Subject: [PATCH] Problem: maintainer's tip (SIT own's repo) gets in the way
+
+It goes over the patch header. Usually, not a big deal,
+but still, sometimes it's nice to be able to read it all.
+
+Solution: make the tip almost transparent, switching to opaque
+when hovered over.
+---
+ .sit/web/src/merge-request/header.html | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/.sit/web/src/merge-request/header.html b/.sit/web/src/merge-request/header.html
+index 0b739dd..787a432 100644
+--- a/.sit/web/src/merge-request/header.html
++++ b/.sit/web/src/merge-request/header.html
+@@ -15,11 +15,15 @@
+             paper-card {
+                 position: absolute;
+                 right: 0pt;
++                opacity: 0.2;
+                 --paper-card-header-text: {
+                     background-color: dimgray;
+                     color: whitesmoke;
+                 }
+             }
++            paper-card:hover {
++                    opacity: 1;
++            }
+         </style>
+         <div>
+             <paper-card heading="Maintainer's tip">
+-- 
+2.15.0
+

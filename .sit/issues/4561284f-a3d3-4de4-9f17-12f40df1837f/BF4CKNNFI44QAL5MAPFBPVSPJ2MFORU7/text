@@ -1,0 +1,6 @@
+It goes over the patch header. Usually, not a big deal,
+but still, sometimes it's nice to be able to read it all.
+
+Solution: make the tip almost transparent, switching to opaque
+when hovered over.
+
