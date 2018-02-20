@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use ::Record;
 use duktape;
 use std::ptr;
-use std::ffi::CString;
+use std::ffi::{CString, OsStr};
 use std::path::PathBuf;
 use std::fs;
 
@@ -55,12 +55,12 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
         let context = unsafe {
             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
         };
-        use glob;
-        let paths = glob::glob(repository.path().join("reducers/*.js").to_str().unwrap()).unwrap();
+        let files = fs::read_dir(repository.path().join("reducers")).unwrap();
         let mut reducers = 0;
         let mut filenames = vec![];
         let mut functions = vec![];
-        for file in paths.filter(Result::is_ok).map(Result::unwrap) {
+        for file in files.filter(Result::is_ok).map(Result::unwrap).map(|e| e.path())
+            .filter(|f| f.extension() == Some(OsStr::new("js"))) {
             reducers += 1;
             unsafe {
                 // source code
