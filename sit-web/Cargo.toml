@@ -1,6 +1,6 @@
 [package]
 name = "sit-web"
-version = "0.1.1"
+version = "0.1.2"
 description = "SIT's an Issue Tracker Web Interface"
 authors = ["Yurii Rashkovskii <me@yrashk.com>"]
 license = "MIT/Apache-2.0"
@@ -23,7 +23,7 @@ rayon = "1.0"
 digest = "0.7"
 blake2 = "0.7"
 hex = "0.3"
-sit-core = { path = "../sit-core" }
+sit-core = { version = "0.1.2", path = "../sit-core" }
 
 [build-dependencies]
 include_dir = "0.1"

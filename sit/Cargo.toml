@@ -1,6 +1,6 @@
 [package]
 name = "sit"
-version = "0.1.1"
+version = "0.1.2"
 description = "SIT's an Issue Tracker"
 authors = ["Yurii Rashkovskii <me@yrashk.com>"]
 license = "MIT/Apache-2.0"
@@ -20,7 +20,7 @@ pbr = "1.0"
 tempdir = "0.3"
 glob = "0.2"
 rayon = "1.0"
-sit-core = { path = "../sit-core" }
+sit-core = { version = "0.1.2", path = "../sit-core" }
 
 [features]
 windows7 = ["sit-core/windows7"]
