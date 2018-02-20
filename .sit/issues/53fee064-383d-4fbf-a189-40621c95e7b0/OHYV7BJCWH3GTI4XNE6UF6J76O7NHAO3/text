@@ -1,0 +1,11 @@
+valgrind shows that it takes up to 10% of the time in my use
+cases.
+
+Solution: switch to listing the directory and comparing the extensions
+instead.
+
+This is a slightly breaking behaviour: it will no longer pick up
+.js files that are not directly under `reducers`. This might be a
+longer-term benefit if we enable modules to be loaded, then we
+don't want all files to be picked up automatically.
+
