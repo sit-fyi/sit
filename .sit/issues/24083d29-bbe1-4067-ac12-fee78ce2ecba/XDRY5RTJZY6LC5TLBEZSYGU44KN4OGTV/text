@@ -1,0 +1,6 @@
+This makes it hard to understand when those were
+created.
+
+Solution: render date/time of creation of issues, comments
+and the date and time of last issue update.
+
