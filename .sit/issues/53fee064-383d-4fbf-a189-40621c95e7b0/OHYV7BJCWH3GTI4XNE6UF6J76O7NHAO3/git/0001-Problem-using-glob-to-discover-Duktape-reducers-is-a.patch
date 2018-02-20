@@ -1,0 +1,52 @@
+From aeea373a2a1ac846349d5da6fd629d9f74c59396 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 20 Feb 2018 09:35:37 +0700
+Subject: [PATCH] Problem: using glob to discover Duktape reducers is an
+ overkill
+
+valgrind shows that it takes up to 10% of the time in my use
+cases.
+
+Solution: switch to listing the directory and comparing the extensions
+instead.
+
+This is a slightly breaking behaviour: it will no longer pick up
+.js files that are not directly under `reducers`. This might be a
+longer-term benefit if we enable modules to be loaded, then we
+don't want all files to be picked up automatically.
+---
+ sit-core/src/reducers/duktape.rs | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index bb1b355..2acf5f0 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -6,7 +6,7 @@ use std::marker::PhantomData;
+ use ::Record;
+ use duktape;
+ use std::ptr;
+-use std::ffi::CString;
++use std::ffi::{CString, OsStr};
+ use std::path::PathBuf;
+ use std::fs;
+ 
+@@ -55,12 +55,12 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+         let context = unsafe {
+             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
+         };
+-        use glob;
+-        let paths = glob::glob(repository.path().join("reducers/*.js").to_str().unwrap()).unwrap();
++        let files = fs::read_dir(repository.path().join("reducers")).unwrap();
+         let mut reducers = 0;
+         let mut filenames = vec![];
+         let mut functions = vec![];
+-        for file in paths.filter(Result::is_ok).map(Result::unwrap) {
++        for file in files.filter(Result::is_ok).map(Result::unwrap).map(|e| e.path())
++            .filter(|f| f.extension() == Some(OsStr::new("js"))) {
+             reducers += 1;
+             unsafe {
+                 // source code
+-- 
+2.15.0
+
