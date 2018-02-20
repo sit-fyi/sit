@@ -1,0 +1,4 @@
+Solution: remove the need parse and re-parse path components
+during the discovery process and rely on simply listing directories
+instead.
+
