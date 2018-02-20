@@ -9,6 +9,12 @@
 
 <dom-module id="sit-app">
   <template>
+     <style>
+        dashboard-page, issue-new, issue-view, sit-doc, error-page {
+           max-width: 1024px;
+           margin: 0 auto;
+        }
+    </style>
     <app-location route="{{ route }}"></app-location>
 
     <app-route route="{{route}}" pattern="/issue/:id" data="{{issue}}" active="{{issueActive}}"> </app-route>

@@ -10,32 +10,27 @@
 <dom-module id="sit-issue">
     <template>
         <style include="issue-style"></style>
-        <style is="custom-style" include="iron-flex iron-flex-alignment"></style>
+        <style is="custom-style" include="iron-flex iron-flex-alignment iron-flex-factors"></style>
 
         <paper-card id="card">
-            <h4>[[ issue.summary ]]</h4>
-            <div class="card-content">
+                 <span class="layout horizontal center-aligned title">
+                    <a class="flex-4" id="link" href="/issue/[[issue.id]]">[[ issue.summary ]]</a>
+                    <span class$="[[ issue.state ]] self-end">[[ issue.state ]]</span>
+                    <template is="dom-if" if="[[ isMergeRequest ]]">
+                        <div class="mr layout self-end">MR</div>
+                    </template>
+                    <template is="dom-if" if="[[ hasComments ]]">
+                            <div class="self-end">
+                            <iron-icon title="Comments" id="comments" icon="communication:comment" alt="inbox"></iron-icon>
+                            <paper-badge for="comments" label="[[ commentCount ]]"></paper-badge>
+                            </div>
+                    </template>
+               </span>
+                <div class="card-content">
                 <div id="note">
                         <small>Updated <from-now use-absolute time="[[ lastUpdated ]]" format="MMM Do YYYY HH:mm"></from-now></small>
                 </div>
-                <div class="horizontal">
-                    <span class$="[[ issue.state ]]">[[ issue.state ]]</span>
-                    <template is="dom-if" if="[[ isMergeRequest ]]">
-                        <span class="mr">MR</span>
-                    </template>
-               </div>
-            </div>
-            <div class="card-actions">
-                <span class="horizontal">
-                   <paper-icon-button on-click="handleOpen" title="Open" id="open" icon="open-in-browser" alt="open"> </paper-icon-button>
-                </span>
-                <span class="horizontal end-aligned">
-                    <paper-icon-button on-click="handleOpen" title="Comments" id="comments" icon="communication:comment" alt="inbox"> </paper-icon-button>
-                    <template is="dom-if" if="[[ hasComments ]]">
-                        <paper-badge for="comments" label="[[ commentCount  ]]"></paper-badge>
-                    </template>
-               </span>
-            </div>
+           </div>
         </paper-card>
     </template>
 
@@ -81,12 +76,6 @@
             computeLastUpdated(issue) {
                 return new Date(issue.last_updated_timestamp).getTime();
             }
-
-            handleOpen() {
-                window.history.pushState({}, null, `/issue/${this.issue.id}`);
-                window.dispatchEvent(new CustomEvent('location-changed'));
-            }
-
 
         }
         customElements.define(IssueSummary.is, IssueSummary);
