@@ -1,0 +1,129 @@
+From 49ec3f4e73ddc53deadd8d401008def7edc29d91 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 20 Feb 2018 09:20:44 +0700
+Subject: [PATCH] Problem: iterating records amounts to 30% of total runtime
+
+Solution: remove the need parse and re-parse path components
+during the discovery process and rely on simply listing directories
+instead.
+---
+ sit-core/src/repository.rs | 56 +++++++++++++++++++++-------------------------
+ 1 file changed, 25 insertions(+), 31 deletions(-)
+
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 668be1e..40814f9 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -6,7 +6,7 @@
+ //!
+ 
+ 
+-use std::path::{Component, Path, PathBuf};
++use std::path::{Path, PathBuf};
+ use std::fs;
+ use std::io::{Read, Write};
+ 
+@@ -250,7 +250,7 @@ impl Repository {
+ 
+ use super::Issue as IssueTrait;
+ 
+-use std::ffi::{OsString, OsStr};
++use std::ffi::OsString;
+ 
+ /// An issue residing in a repository
+ #[derive(Debug)]
+@@ -342,20 +342,13 @@ impl<'a> IssueTrait for Issue<'a> {
+ 
+     fn record_iter(&self) -> Result<Self::RecordIter, Self::Error> {
+         let path = self.repository.issues_path.join(PathBuf::from(&self.id()));
+-        let glob_pattern = format!("{}/**/*", path.to_str().unwrap());
+         let dir = fs::read_dir(&path)?.filter(|r| r.is_ok())
+             .map(|e| e.unwrap())
+             .collect();
+-        let files: Vec<_> = glob::glob(&glob_pattern).expect("invalid glob pattern")
+-            .filter(|r| r.is_ok())
+-            .map(|r| r.unwrap())
+-            .map(|f| f.strip_prefix(&path).unwrap().into())
+-            .collect();
+         Ok(IssueRecordIter {
+             issue: self.id.clone(),
+             repository: self.repository,
+             dir,
+-            files,
+             parents: vec![],
+         })
+     }
+@@ -372,7 +365,6 @@ pub struct IssueRecordIter<'a> {
+     issue: OsString,
+     repository: &'a Repository,
+     dir: Vec<fs::DirEntry>,
+-    files: Vec<PathBuf>,
+     parents: Vec<String>,
+ }
+ 
+@@ -382,13 +374,17 @@ impl<'a> Iterator for IssueRecordIter<'a> {
+     fn next(&mut self) -> Option<Self::Item> {
+         // top level
+         if self.parents.len() == 0 {
+-            let result: Vec<_> = self.files.iter()
++            let result: Vec<_> = self.dir.iter()
++                .filter(|e| e.file_type().unwrap().is_dir())
+                 // find issues
+-                .filter(|f|
+-                    f.components().count() == 1)
+                 // that don't have .prev/ID files in them
+-                .filter(|f| !self.files.iter()
+-                    .any(|f1| f1.starts_with(f) && f1.components().any(|c| c == Component::Normal(OsStr::new(".prev")))))
++                .filter(|e|
++                            !fs::read_dir(e.path()).unwrap()
++                                .filter(Result::is_ok)
++                                .map(Result::unwrap)
++                                .any(|e| e.file_name().to_str().unwrap() == ".prev")
++                )
++                .map(|e| e.file_name())
+                 // filter out invalid record names (if any)
+                 .filter(|f| self.repository.config.encoding.decode(f.to_str().unwrap().as_bytes()).is_ok())
+                 .map(|f| Record {
+@@ -406,25 +402,23 @@ impl<'a> Iterator for IssueRecordIter<'a> {
+         } else {
+             let result: Vec<_> = self.dir.iter()
+                 // filter out invalid record names (if any)
+-                .filter(|r| self.repository.config.encoding.decode(r.file_name().to_str().unwrap().as_bytes()).is_ok())
+-                .filter(|r| {
+-                    let links: Vec<_> = self.files.iter()
+-                        .filter(|f| f.starts_with(r.file_name()))
+-                        .filter(|f| {
+-                            let components: Vec<_> = f.components().skip(1).collect();
+-                            components.len() == 2 && components[0] == Component::Normal(OsStr::new(".prev"))
+-                        })
+-                        .map(|f| {
+-                            let components: Vec<_> = f.components().skip(2).collect();
+-                            PathBuf::from(components[0].as_os_str())
+-                        }).collect();
+-                    links.len() > 0 && links.iter().all(|l| self.parents.iter().any(|p| p == &String::from(l.to_str().unwrap())))
++                .filter(|e| self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).is_ok())
++                .filter(|e| {
++                    let links: Vec<_> = match fs::read_dir(e.path().join(".prev")) {
++                        Err(_) => vec![],
++                        Ok(dir) => dir
++                            .filter(Result::is_ok)
++                            .map(Result::unwrap)
++                            .map(|e| String::from(e.file_name().to_str().unwrap()))
++                            .collect(),
++                    };
++                    links.len() > 0 && links.iter().all(|l| self.parents.iter().any(|p| p == l))
+                 })
+-                .map(|r| Record {
+-                    hash: self.repository.config.encoding.decode(r.file_name().to_str().unwrap().as_bytes()).unwrap(),
++                .map(|e| Record {
++                    hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
+                     issue: self.issue.clone(),
+                     repository: self.repository,
+-                    actual_path: self.repository.issues_path().join(&self.issue).join(r.file_name()),
++                    actual_path: self.repository.issues_path().join(&self.issue).join(e.file_name()),
+                 })
+                 .collect();
+             if result.len() == 0 {
+-- 
+2.15.0
+
