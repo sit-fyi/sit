@@ -1,0 +1,319 @@
+From 5e24cc19941ca6f816d7961216dd870f1db346c7 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 20 Feb 2018 17:28:14 +0700
+Subject: [PATCH] Problem: tiles don't work well for listing issues
+
+Firstly, there's a problem with fitting the title into a small
+card, and how one would clip it.
+
+Then, it still falls back to a list on mobiles / narrow browsers.
+
+Solution: list issues in a list
+
+Also, in order to avoid it being hard to scan, limit the entire
+screen width to 1024px.
+---
+ .../src/dashboard-page/dashboard-page-style.html   |  4 ++-
+ .../webapp/src/dashboard-page/dashboard-page.html  |  2 +-
+ sit-web/webapp/src/dashboard-page/issue-style.html | 39 ++++++++++----------
+ sit-web/webapp/src/dashboard-page/issue.html       | 41 ++++++++--------------
+ sit-web/webapp/src/issue/comment-style.html        |  3 +-
+ sit-web/webapp/src/issue/issue-style.html          |  1 +
+ sit-web/webapp/src/issue/new-comment-style.html    |  3 +-
+ sit-web/webapp/src/issue/new-issue-style.html      |  1 +
+ sit-web/webapp/src/sit-app/sit-app.html            |  6 ++++
+ sit-web/webapp/src/sit-doc/rendered-doc.html       |  5 +--
+ sit-web/webapp/src/sit-doc/sit-doc.html            |  8 ++---
+ 11 files changed, 55 insertions(+), 58 deletions(-)
+
+diff --git a/sit-web/webapp/src/dashboard-page/dashboard-page-style.html b/sit-web/webapp/src/dashboard-page/dashboard-page-style.html
+index ef2d0d7..8b5d7db 100644
+--- a/sit-web/webapp/src/dashboard-page/dashboard-page-style.html
++++ b/sit-web/webapp/src/dashboard-page/dashboard-page-style.html
+@@ -1,10 +1,12 @@
+ <dom-module id="dashboard-page-style">
+     <template>
+         <style>
++            :host { display: block; }
++
+             app-header {
+                 background-color: #00897B;
+                 color: #fff;
+             }
+         </style>
+     </template>
+-</dom-module>
+\ No newline at end of file
++</dom-module>
+diff --git a/sit-web/webapp/src/dashboard-page/dashboard-page.html b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+index 18fd1ae..a92758d 100644
+--- a/sit-web/webapp/src/dashboard-page/dashboard-page.html
++++ b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+@@ -51,7 +51,7 @@
+        <template is="dom-if" if="[[ emptyResult ]]">
+            <h1>No matches</h1>
+        </template>
+-       <div class="layout horizontal baseline wrap">
++       <div id="results" class="layout vertical">
+         <template is="dom-repeat" items="{{ issues }}">
+             <sit-issue issue="{{item}}"></sit-issue>
+         </template>
+diff --git a/sit-web/webapp/src/dashboard-page/issue-style.html b/sit-web/webapp/src/dashboard-page/issue-style.html
+index 5939a51..2d0ad5a 100644
+--- a/sit-web/webapp/src/dashboard-page/issue-style.html
++++ b/sit-web/webapp/src/dashboard-page/issue-style.html
+@@ -1,35 +1,32 @@
+ <dom-module id="issue-style">
+     <template>
+-        <style>
+-            paper-card {
++         <style>
++
++           paper-card {
+                 width: 100%;
+-                margin: 10pt;
+-            }
++           }
+ 
+-            paper-card h4 {
+-                font-weight: normal;
+-                font-size: 14pt;
+-                height: 40pt;
++           paper-card .title {
++                font-weight: 500;
+                 padding-left: 4pt;
+                 padding-right: 4pt;
+                 margin: 0pt;
+                 padding-top: 4pt;
+-                overflow: auto;
+-            }
+-          
+-            paper-card #note {
+-                margin-bottom: 4pt;
+-            }
++           }
++
++           paper-card a#link {
++                text-decoration: none;
++                color: black;
++           }
++
++           paper-card .card-content {
++                padding: 4pt;
++           }
+ 
+-            paper-card #note small {
++           paper-card #note small {
+                 color: gray;
+-            }
++           }
+ 
+-            @media only screen and (min-width: 768px) {
+-                paper-card {
+-                    width: 20vw;
+-                }
+-            }
+ 
+             .open {
+                 background-color: darkseagreen;
+diff --git a/sit-web/webapp/src/dashboard-page/issue.html b/sit-web/webapp/src/dashboard-page/issue.html
+index 3ed30c5..9c4d8c3 100644
+--- a/sit-web/webapp/src/dashboard-page/issue.html
++++ b/sit-web/webapp/src/dashboard-page/issue.html
+@@ -10,32 +10,27 @@
+ <dom-module id="sit-issue">
+     <template>
+         <style include="issue-style"></style>
+-        <style is="custom-style" include="iron-flex iron-flex-alignment"></style>
++        <style is="custom-style" include="iron-flex iron-flex-alignment iron-flex-factors"></style>
+ 
+         <paper-card id="card">
+-            <h4>[[ issue.summary ]]</h4>
+-            <div class="card-content">
+-                <div id="note">
+-                        <small>Updated <from-now use-absolute time="[[ lastUpdated ]]" format="MMM Do YYYY HH:mm"></from-now></small>
+-                </div>
+-                <div class="horizontal">
+-                    <span class$="[[ issue.state ]]">[[ issue.state ]]</span>
++                 <span class="layout horizontal center-aligned title">
++                    <a class="flex-4" id="link" href="/issue/[[issue.id]]">[[ issue.summary ]]</a>
++                    <span class$="[[ issue.state ]] self-end">[[ issue.state ]]</span>
+                     <template is="dom-if" if="[[ isMergeRequest ]]">
+-                        <span class="mr">MR</span>
++                        <div class="mr layout self-end">MR</div>
+                     </template>
+-               </div>
+-            </div>
+-            <div class="card-actions">
+-                <span class="horizontal">
+-                   <paper-icon-button on-click="handleOpen" title="Open" id="open" icon="open-in-browser" alt="open"> </paper-icon-button>
+-                </span>
+-                <span class="horizontal end-aligned">
+-                    <paper-icon-button on-click="handleOpen" title="Comments" id="comments" icon="communication:comment" alt="inbox"> </paper-icon-button>
+                     <template is="dom-if" if="[[ hasComments ]]">
+-                        <paper-badge for="comments" label="[[ commentCount  ]]"></paper-badge>
++                            <div class="self-end">
++                            <iron-icon title="Comments" id="comments" icon="communication:comment" alt="inbox"></iron-icon>
++                            <paper-badge for="comments" label="[[ commentCount ]]"></paper-badge>
++                            </div>
+                     </template>
+                </span>
+-            </div>
++                <div class="card-content">
++                <div id="note">
++                        <small>Updated <from-now use-absolute time="[[ lastUpdated ]]" format="MMM Do YYYY HH:mm"></from-now></small>
++                </div>
++           </div>
+         </paper-card>
+     </template>
+ 
+@@ -82,13 +77,7 @@
+                 return new Date(issue.last_updated_timestamp).getTime();
+             }
+ 
+-            handleOpen() {
+-                window.history.pushState({}, null, `/issue/${this.issue.id}`);
+-                window.dispatchEvent(new CustomEvent('location-changed'));
+-            }
+-
+-
+         }
+         customElements.define(IssueSummary.is, IssueSummary);
+     </script>
+-</dom-module>
+\ No newline at end of file
++</dom-module>
+diff --git a/sit-web/webapp/src/issue/comment-style.html b/sit-web/webapp/src/issue/comment-style.html
+index e6a1036..f368334 100644
+--- a/sit-web/webapp/src/issue/comment-style.html
++++ b/sit-web/webapp/src/issue/comment-style.html
+@@ -9,7 +9,7 @@
+                 width: 100%;
+             }
+             rendered-text {
+-                padding: 5pt;
++                padding: 10pt;
+             }
+ 
+             merge-request {
+@@ -25,6 +25,7 @@
+                 margin: 0pt;
+                 padding-top: 10pt;
+                 padding-bottom: 10pt;
++                padding-left: 10pt;
+             }
+ 
+         </style>
+diff --git a/sit-web/webapp/src/issue/issue-style.html b/sit-web/webapp/src/issue/issue-style.html
+index 78d43bc..c5dc0f3 100644
+--- a/sit-web/webapp/src/issue/issue-style.html
++++ b/sit-web/webapp/src/issue/issue-style.html
+@@ -1,6 +1,7 @@
+ <dom-module id="issue-view-style">
+     <template>
+         <style>
++            :host { display: block; }
+             app-header {
+                 background-color: #00897B;
+                 color: #fff;
+diff --git a/sit-web/webapp/src/issue/new-comment-style.html b/sit-web/webapp/src/issue/new-comment-style.html
+index 5b7a837..90e322f 100644
+--- a/sit-web/webapp/src/issue/new-comment-style.html
++++ b/sit-web/webapp/src/issue/new-comment-style.html
+@@ -1,9 +1,10 @@
+ <dom-module id="new-comment-style">
+     <template>
+         <style>
++            :host { display: block; }
+             #commentButton {
+                 background-color: darkseagreen;
+             }
+         </style>
+     </template>
+-</dom-module>
+\ No newline at end of file
++</dom-module>
+diff --git a/sit-web/webapp/src/issue/new-issue-style.html b/sit-web/webapp/src/issue/new-issue-style.html
+index 5d96c85..f6794e4 100644
+--- a/sit-web/webapp/src/issue/new-issue-style.html
++++ b/sit-web/webapp/src/issue/new-issue-style.html
+@@ -1,6 +1,7 @@
+ <dom-module id="new-issue-style">
+     <template>
+         <style>
++            :host { display: block; }
+             app-header {
+                 background-color: #00897B;
+                 color: #fff;
+diff --git a/sit-web/webapp/src/sit-app/sit-app.html b/sit-web/webapp/src/sit-app/sit-app.html
+index 4c63155..b76ef8e 100644
+--- a/sit-web/webapp/src/sit-app/sit-app.html
++++ b/sit-web/webapp/src/sit-app/sit-app.html
+@@ -9,6 +9,12 @@
+ 
+ <dom-module id="sit-app">
+   <template>
++     <style>
++        dashboard-page, issue-new, issue-view, sit-doc, error-page {
++           max-width: 1024px;
++           margin: 0 auto;
++        }
++    </style>
+     <app-location route="{{ route }}"></app-location>
+ 
+     <app-route route="{{route}}" pattern="/issue/:id" data="{{issue}}" active="{{issueActive}}"> </app-route>
+diff --git a/sit-web/webapp/src/sit-doc/rendered-doc.html b/sit-web/webapp/src/sit-doc/rendered-doc.html
+index 9ca34b0..d52eebd 100644
+--- a/sit-web/webapp/src/sit-doc/rendered-doc.html
++++ b/sit-web/webapp/src/sit-doc/rendered-doc.html
+@@ -10,7 +10,8 @@
+     <iron-ajax auto url="/bower_components/prism/components/prism-[[lang]].js" handle-as="text" on-response="loadSyntax"></iron-ajax>
+ 
+     <style>
+-      [slot="markdown-html"] img {
++      :host { display: block; }
++      div[slot="markdown-html"] img {
+         max-width: 100%;
+       }
+     </style>
+@@ -54,4 +55,4 @@
+     }
+     customElements.define(RenderedDoc.is, RenderedDoc);
+   </script>
+-</dom-module>
+\ No newline at end of file
++</dom-module>
+diff --git a/sit-web/webapp/src/sit-doc/sit-doc.html b/sit-web/webapp/src/sit-doc/sit-doc.html
+index f35982c..27e76b7 100644
+--- a/sit-web/webapp/src/sit-doc/sit-doc.html
++++ b/sit-web/webapp/src/sit-doc/sit-doc.html
+@@ -10,6 +10,8 @@
+   <template>
+ 
+     <style>
++      :host { display: block; }
++
+       app-header {
+         background-color: darkseagreen;
+         color: #fff;
+@@ -19,10 +21,6 @@
+         background-color: darkseagreen;
+       }
+ 
+-      #doc {
+-        max-width: 768px;
+-      }
+-
+       @media screen and (min-width: 768px) {
+         #doc {
+           margin-left: 10pt;
+@@ -125,4 +123,4 @@
+ 
+     window.customElements.define(SitDoc.is, SitDoc);
+   </script>
+-</dom-module>
+\ No newline at end of file
++</dom-module>
+-- 
+2.15.0
+
