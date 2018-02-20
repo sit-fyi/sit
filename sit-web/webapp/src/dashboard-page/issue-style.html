@@ -1,35 +1,32 @@
 <dom-module id="issue-style">
     <template>
-        <style>
-            paper-card {
-                width: 100%;
-                margin: 10pt;
-            }
+         <style>
 
-            paper-card h4 {
-                font-weight: normal;
-                font-size: 14pt;
-                height: 40pt;
+           paper-card {
+                width: 100%;
+           }
+
+           paper-card .title {
+                font-weight: 500;
                 padding-left: 4pt;
                 padding-right: 4pt;
                 margin: 0pt;
                 padding-top: 4pt;
-                overflow: auto;
-            }
-          
-            paper-card #note {
-                margin-bottom: 4pt;
-            }
+           }
 
-            paper-card #note small {
+           paper-card a#link {
+                text-decoration: none;
+                color: black;
+           }
+
+           paper-card .card-content {
+                padding: 4pt;
+           }
+
+           paper-card #note small {
                 color: gray;
-            }
+           }
 
-            @media only screen and (min-width: 768px) {
-                paper-card {
-                    width: 20vw;
-                }
-            }
 
             .open {
                 background-color: darkseagreen;

@@ -10,7 +10,8 @@
     <iron-ajax auto url="/bower_components/prism/components/prism-[[lang]].js" handle-as="text" on-response="loadSyntax"></iron-ajax>
 
     <style>
-      [slot="markdown-html"] img {
+      :host { display: block; }
+      div[slot="markdown-html"] img {
         max-width: 100%;
       }
     </style>
