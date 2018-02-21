@@ -1,0 +1,7 @@
+{
+  "exclude": [
+    "*.js",
+    "demo.html",
+    "fonts/**/*"
+  ]
+}
