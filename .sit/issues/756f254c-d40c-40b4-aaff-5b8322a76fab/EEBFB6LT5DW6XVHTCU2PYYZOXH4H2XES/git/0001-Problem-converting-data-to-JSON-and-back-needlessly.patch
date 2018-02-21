@@ -1,0 +1,98 @@
+From 9aee243927e114136afeae7a0d71793ab38b3a0b Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 21 Feb 2018 10:15:01 +0700
+Subject: [PATCH] Problem: converting data to JSON and back needlessly
+
+In our interaction with `jmespath` library, we're converting
+data that we want to query or filter to a JSON string only
+to parse it back to use it.
+
+Solution: remove this unnecessary step
+---
+ sit-web/src/webapp.rs | 10 ++++------
+ sit/src/main.rs       | 11 +++++------
+ 2 files changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 82f5ace..9556a8b 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -78,6 +78,8 @@ use blake2::Blake2b;
+ use digest::{Input, VariableOutput};
+ use hex;
+ 
++use serde_json;
++
+ fn path_to_response<P: Into<PathBuf>>(path: P, request: &Request) -> Response {
+     let path: PathBuf = path.into();
+ 
+@@ -138,11 +140,8 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+             issues_with_reducers.into_par_iter()
+                   .map(|(issue, mut reducer)| {
+                      issue.reduce_with_reducer(&mut reducer).unwrap()
+-                  })
+-                  .map(|reduced| {
+-                     sit_core::serde_json::to_string(&reduced).unwrap()
+                   }).map(|json| {
+-                     let data = jmespath::Variable::from_json(&json).unwrap();
++                     let data = jmespath::Variable::from(serde_json::Value::Object(json));
+                      let result = filter.search(&data).unwrap();
+                      if result.is_boolean() && result.as_boolean().unwrap() {
+                         Some(query.search(&data).unwrap())
+@@ -167,8 +166,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+                 _ => return Response::empty_404(),
+             };
+             let reduced = issue.reduce_with_reducer(&mut reducer).unwrap();
+-            let json = sit_core::serde_json::to_string(&reduced).unwrap();
+-            let data = jmespath::Variable::from_json(&json).unwrap();
++            let data = jmespath::Variable::from(serde_json::Value::Object(reduced));
+             let result = query.search(&data).unwrap();
+             Response::json(&result)
+         },
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 05c6d2d..5ae488b 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -341,8 +341,7 @@ fn main_with_result() -> i32 {
+             issues_with_reducers.into_par_iter()
+                 .map(|(issue, mut reducer)| {
+                     let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
+-                    let json = sit_core::serde_json::to_string(&result).unwrap();
+-                    let data = jmespath::Variable::from_json(&json).unwrap();
++                    let data = jmespath::Variable::from(serde_json::Value::Object(result));
+                     let result = filter.search(&data).unwrap();
+                     if result.as_boolean().unwrap() {
+                         let view = query.search(&data).unwrap();
+@@ -519,7 +518,9 @@ fn main_with_result() -> i32 {
+ 
+                     for record in records {
+                        for rec in record {
++                           // convert to JSON
+                            let json = serde_json::to_string(&rec).unwrap();
++                           // ...and back so that we can treat the record as a plain JSON
+                            let mut json: serde_json::Value = serde_json::from_str(&json).unwrap();
+                            if let serde_json::Value::Object(ref mut map) = json {
+                                let verify = matches.is_present("verify") && rec.path().join(".signature").is_file();
+@@ -573,8 +574,7 @@ fn main_with_result() -> i32 {
+ 
+                            }
+ 
+-                           let json = sit_core::serde_json::to_string(&json).unwrap();
+-                           let data = jmespath::Variable::from_json(&json).unwrap();
++                           let data = jmespath::Variable::from(json);
+                            let result = filter.search(&data).unwrap();
+                            if result.as_boolean().unwrap() {
+                                let view = query.search(&data).unwrap();
+@@ -609,8 +609,7 @@ fn main_with_result() -> i32 {
+ 
+                     let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+                     let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
+-                    let json = sit_core::serde_json::to_string(&result).unwrap();
+-                    let data = jmespath::Variable::from_json(&json).unwrap();
++                    let data = jmespath::Variable::from(serde_json::Value::Object(result));
+                     let view = query.search(&data).unwrap();
+                     if view.is_string() {
+                         println!("{}", view.as_string().unwrap());
+-- 
+2.15.0
+

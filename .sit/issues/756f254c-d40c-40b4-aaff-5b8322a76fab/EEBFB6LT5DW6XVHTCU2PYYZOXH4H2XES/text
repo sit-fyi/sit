@@ -1,0 +1,6 @@
+In our interaction with `jmespath` library, we're converting
+data that we want to query or filter to a JSON string only
+to parse it back to use it.
+
+Solution: remove this unnecessary step
+
