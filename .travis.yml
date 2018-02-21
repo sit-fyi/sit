@@ -7,12 +7,31 @@ matrix:
   - os: osx
   - os: osx
     rust: nightly
-  - env: 
+  - env:
       secure: NEQmng2pL4yPDYBvS16qm9IyXISV0BBsFLALlgNYA1ZSA23IPIEZTHvCPFZEApjEq4IjfHyh0r6Z/Je01LYbuTSddYjhxM8GLEFs8IJJdXtS9Xhhx77CZutKFbsEqdtAPzJdp/eSEymcc2nCnG7cj0Z7aFe814UpW+Rm1RVGPyHY/cTrtHEieH9n6bSoR7mB7YoVc6Y3VbBsB99DKhXfuKJXPJGwogo5ihygVR9qDANgJnvd9j5uP2KENxFC+pY9c6HSF9ez/dY8P0+0nfgL/sJPNco+9GdKfKEVrn8IEsGnecKOC5ws2yf8JUa+v70aqbk+cu6UxOh/Uw/CB3igSKqqLkrp5sEsmi/zOzRe0sYLTcVC82DyHkx4jDY1Ej6YtAC84T2pWpSNg+t9BAP/ly3FkB8z3ggTQuT7/fvy2huett+lx27lLcnEa33DrclIRsHvHq4kCk7cmTga1VawNv1cJtMy97PMH9BNw9gLGbTxeuqvywEcZKsT589yFzYC03ZEJPAV13wOMfA7e3y+GY+oCBdqjTcoHUAarfPf3Lx0FBazRQpyxB48ngaXdewNNQs2KdRkFb2LkxCoExxNX69+X8gxCU56fmiXtNukh7lLZ0LpA/oGGgUs821ReGnJ/I+EhioYFISot81Wecx54xRHsVJ7dOQXBAmpEjp+zWg=
     script:
-      - wget -c https://github.com/alexcrichton/cargo-vendor/releases/download/0.1.13/cargo-vendor-0.1.13-x86_64-unknown-linux-musl.tar.gz
-      - tar xzvfp cargo-vendor-0.1.13-x86_64-unknown-linux-musl.tar.gz
-      - git clone $CARGO_VENDORIZED_REPOSITORY sit-cargo-deps
-      - (cd sit-cargo-deps && cp README.md ../cargo-deps-readme && git rm -rf * && mv ../cargo-deps-readme README.md && git add -f README.md)
-      - cargo-vendor-0.1.13-x86_64-unknown-linux-musl/cargo-vendor vendor sit-cargo-deps
-      - (cd sit-cargo-deps && echo $TRAVIS_COMMIT > COMMIT && git add -f * && git -c user.name="SIT Build Bot" -c user.email="bot@sit-it.org" commit -m "Updated cargo deps for $TRAVIS_COMMIT" && git tag deps-`git rev-parse --short $TRAVIS_COMMIT` && git push && git push --tags)
+    - wget -c https://github.com/alexcrichton/cargo-vendor/releases/download/0.1.13/cargo-vendor-0.1.13-x86_64-unknown-linux-musl.tar.gz
+    - tar xzvfp cargo-vendor-0.1.13-x86_64-unknown-linux-musl.tar.gz
+    - git clone $CARGO_VENDORIZED_REPOSITORY sit-cargo-deps
+    - "(cd sit-cargo-deps && cp README.md ../cargo-deps-readme && git rm -rf * &&
+      mv ../cargo-deps-readme README.md && git add -f README.md)"
+    - cargo-vendor-0.1.13-x86_64-unknown-linux-musl/cargo-vendor vendor sit-cargo-deps
+    - (cd sit-cargo-deps && echo $TRAVIS_COMMIT > COMMIT && git add -f * && git -c
+      user.name="SIT Build Bot" -c user.email="bot@sit-it.org" commit -m "Updated
+      cargo deps for $TRAVIS_COMMIT" && git tag deps-`git rev-parse --short $TRAVIS_COMMIT`
+      && git push && git push --tags)
+    - nodejs: node
+      before_deploy:
+        - npm install -g gh-badges
+        - mkdir -p badges
+        - badge issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " :yellow @flat > badges/issues.svg   
+        - badge "merge requests" " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) " :orange @flat > badges/merge_request.svg   
+      deploy:
+        provider: s3
+        access_key_id: AKIAI3KIOT3XYA5FTR3Q
+        secret_access_key:
+          secure: hkESK942yJRzwc67qn8Tzswhn5Eq1VSBgHTlP0Po5Pw22H/AMwDo/lj+4VitxmQ3iri573WkkhgaHeqIRFfH89EQkFzPeJY3XQDeLZjlLOORT9gROxcbp8sa+FF/T3eoyO7XPjXtGIAOk7eV9vzuZxX+xS2zID1QzhR3YAZEgNNsi/Xc2BROiP3ApOey4TfmIzKokA1diCTCUiJ7S6ucqhnuV+/eppAK4YMxyzXquJLekBVlV71kJYSQKi/Uf/Ll775Rc3EmJhsmpUMRp3DzD0LayZ0C4rqlsfiiytMwHm+yZ9CnVrVQJknq9VYpdDchV317A7Sx2xnxyHgJ9kNhCun4cY21fe+xJ2Rf8bVvoGpyKCqEhhEWxUUu5AWA7+YFRHg5SwNtJfJiz/NwXz2TaWUWpzsuesHXjP/RwwV0BLJwVxI7A4m93LsgoIaIF0lho1IxRdRu43XB/7bCAPD/N9wFs6M2Pq5bg6oBiYrKMp+p19KeVlWJ70ViVzRJSJxIC8vTPm8K7xyphj60OeqVukYs16Xi88p2ZPyCcAqsw4ZRPghOXV+Dwv76zO2Irzb8No9otHyIOarE4gurCTNENAfm2S5ymX+JobZgUfFY5XcJdAPZuGR55I88p8AQhnRjKnzoZwkbmt829cDxXWTB5F2SFjLglf3sJ9PQeIiFiPk=
+        bucket: sit-badges
+        local_dir: badges
+        skip_cleanup: true
+        acl: public_read
