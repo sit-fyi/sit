@@ -21,6 +21,8 @@ matrix:
       cargo deps for $TRAVIS_COMMIT" && git tag deps-`git rev-parse --short $TRAVIS_COMMIT`
       && git push && git push --tags)
   - nodejs: node
+    script:
+      - cargo build
     before_deploy:
       - npm install -g gh-badges
       - mkdir -p badges
