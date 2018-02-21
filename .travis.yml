@@ -20,18 +20,18 @@ matrix:
       user.name="SIT Build Bot" -c user.email="bot@sit-it.org" commit -m "Updated
       cargo deps for $TRAVIS_COMMIT" && git tag deps-`git rev-parse --short $TRAVIS_COMMIT`
       && git push && git push --tags)
-    - nodejs: node
-      before_deploy:
-        - npm install -g gh-badges
-        - mkdir -p badges
-        - badge issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " :yellow @flat > badges/issues.svg   
-        - badge "merge requests" " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) " :orange @flat > badges/merge_request.svg   
-      deploy:
-        provider: s3
-        access_key_id: AKIAI3KIOT3XYA5FTR3Q
-        secret_access_key:
-          secure: hkESK942yJRzwc67qn8Tzswhn5Eq1VSBgHTlP0Po5Pw22H/AMwDo/lj+4VitxmQ3iri573WkkhgaHeqIRFfH89EQkFzPeJY3XQDeLZjlLOORT9gROxcbp8sa+FF/T3eoyO7XPjXtGIAOk7eV9vzuZxX+xS2zID1QzhR3YAZEgNNsi/Xc2BROiP3ApOey4TfmIzKokA1diCTCUiJ7S6ucqhnuV+/eppAK4YMxyzXquJLekBVlV71kJYSQKi/Uf/Ll775Rc3EmJhsmpUMRp3DzD0LayZ0C4rqlsfiiytMwHm+yZ9CnVrVQJknq9VYpdDchV317A7Sx2xnxyHgJ9kNhCun4cY21fe+xJ2Rf8bVvoGpyKCqEhhEWxUUu5AWA7+YFRHg5SwNtJfJiz/NwXz2TaWUWpzsuesHXjP/RwwV0BLJwVxI7A4m93LsgoIaIF0lho1IxRdRu43XB/7bCAPD/N9wFs6M2Pq5bg6oBiYrKMp+p19KeVlWJ70ViVzRJSJxIC8vTPm8K7xyphj60OeqVukYs16Xi88p2ZPyCcAqsw4ZRPghOXV+Dwv76zO2Irzb8No9otHyIOarE4gurCTNENAfm2S5ymX+JobZgUfFY5XcJdAPZuGR55I88p8AQhnRjKnzoZwkbmt829cDxXWTB5F2SFjLglf3sJ9PQeIiFiPk=
-        bucket: sit-badges
-        local_dir: badges
-        skip_cleanup: true
-        acl: public_read
+  - nodejs: node
+    before_deploy:
+      - npm install -g gh-badges
+      - mkdir -p badges
+      - badge issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " :yellow @flat > badges/issues.svg   
+      - badge "merge requests" " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) " :orange @flat > badges/merge_request.svg   
+    deploy:
+      provider: s3
+      access_key_id: AKIAI3KIOT3XYA5FTR3Q
+      secret_access_key:
+        secure: hkESK942yJRzwc67qn8Tzswhn5Eq1VSBgHTlP0Po5Pw22H/AMwDo/lj+4VitxmQ3iri573WkkhgaHeqIRFfH89EQkFzPeJY3XQDeLZjlLOORT9gROxcbp8sa+FF/T3eoyO7XPjXtGIAOk7eV9vzuZxX+xS2zID1QzhR3YAZEgNNsi/Xc2BROiP3ApOey4TfmIzKokA1diCTCUiJ7S6ucqhnuV+/eppAK4YMxyzXquJLekBVlV71kJYSQKi/Uf/Ll775Rc3EmJhsmpUMRp3DzD0LayZ0C4rqlsfiiytMwHm+yZ9CnVrVQJknq9VYpdDchV317A7Sx2xnxyHgJ9kNhCun4cY21fe+xJ2Rf8bVvoGpyKCqEhhEWxUUu5AWA7+YFRHg5SwNtJfJiz/NwXz2TaWUWpzsuesHXjP/RwwV0BLJwVxI7A4m93LsgoIaIF0lho1IxRdRu43XB/7bCAPD/N9wFs6M2Pq5bg6oBiYrKMp+p19KeVlWJ70ViVzRJSJxIC8vTPm8K7xyphj60OeqVukYs16Xi88p2ZPyCcAqsw4ZRPghOXV+Dwv76zO2Irzb8No9otHyIOarE4gurCTNENAfm2S5ymX+JobZgUfFY5XcJdAPZuGR55I88p8AQhnRjKnzoZwkbmt829cDxXWTB5F2SFjLglf3sJ9PQeIiFiPk=
+      bucket: sit-badges
+      local_dir: badges
+      skip_cleanup: true
+      acl: public_read
