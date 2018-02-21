@@ -26,6 +26,8 @@ matrix:
     before_deploy:
       - npm install -g gh-badges
       - mkdir -p badges
+      - echo issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " 
+      - echo merge requests " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) "
       - badge issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " :yellow @flat > badges/issues.svg   
       - badge "merge requests" " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) " :orange @flat > badges/merge_requests.svg   
     deploy:
