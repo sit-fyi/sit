@@ -35,3 +35,4 @@ matrix:
       local_dir: badges
       skip_cleanup: true
       acl: public_read
+      region: us-west-1
