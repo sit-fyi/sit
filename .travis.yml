@@ -5,5 +5,6 @@ rust:
 
 matrix:
   include: 
-    - os: linux
     - os: osx
+    - os: osx
+      rust: nightly
