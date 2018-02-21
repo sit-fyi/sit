@@ -13,6 +13,6 @@ matrix:
       - wget -c https://github.com/alexcrichton/cargo-vendor/releases/download/0.1.13/cargo-vendor-0.1.13-x86_64-unknown-linux-musl.tar.gz
       - tar xzvfp cargo-vendor-0.1.13-x86_64-unknown-linux-musl.tar.gz
       - git clone $CARGO_VENDORIZED_REPOSITORY sit-cargo-deps
-      - (cd sit-cargo-deps && git rm -rf *)
-      - cargo-vendor-0.1.13-x86_64-unknown-linux-musl/cargo-vendor sit-cargo-deps
-      - (cd sit-cargo-deps && git add -f * && git commit -m "Updated cargo deps for $TRAVIS_COMMIT" && git tag $TRAVIS_COMMIT && git push)
+      - (cd sit-cargo-deps && git rm -rf * && git checkout -- README.md)
+       cargo-vendor-0.1.13-x86_64-unknown-linux-musl/cargo-vendor vendor sit-cargo-deps
+      - (cd sit-cargo-deps && git add -f * && git -c user.name "SIT Build Bot" -c user.email "bot@sit-it.org" commit -m "Updated cargo deps for $TRAVIS_COMMIT" && git tag $TRAVIS_COMMIT && git push && git push --tags)
