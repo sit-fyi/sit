@@ -27,7 +27,7 @@ matrix:
       - npm install -g gh-badges
       - mkdir -p badges
       - mkdir -p ~/.config/sit
-      - echo "{\"author\": {\"name\": \"Badge Builder\"}}" > ~/.config/sit/config.json
+      - 'echo "{\"author\": {\"name\": \"Badge Builder\"}}" > ~/.config/sit/config.json'
       - echo issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " 
       - echo merge requests " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) "
       - badge issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " :yellow @flat > badges/issues.svg   
