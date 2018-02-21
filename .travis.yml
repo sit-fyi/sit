@@ -15,4 +15,4 @@ matrix:
       - git clone $CARGO_VENDORIZED_REPOSITORY sit-cargo-deps
       - (cd sit-cargo-deps && cp README.md ../cargo-deps-readme && git rm -rf * && mv ../cargo-deps-readme README.md && git add -f README.md)
       - cargo-vendor-0.1.13-x86_64-unknown-linux-musl/cargo-vendor vendor sit-cargo-deps
-      - (cd sit-cargo-deps && git add -f * && git -c user.name="SIT Build Bot" -c user.email="bot@sit-it.org" commit -m "Updated cargo deps for $TRAVIS_COMMIT" && git tag $TRAVIS_COMMIT && git push && git push --tags)
+      - (cd sit-cargo-deps && git add -f * && git -c user.name="SIT Build Bot" -c user.email="bot@sit-it.org" commit -m "Updated cargo deps for $TRAVIS_COMMIT" && git tag deps-`git rev-parse --short $TRAVIS_COMMIT` && git push && git push --tags)
