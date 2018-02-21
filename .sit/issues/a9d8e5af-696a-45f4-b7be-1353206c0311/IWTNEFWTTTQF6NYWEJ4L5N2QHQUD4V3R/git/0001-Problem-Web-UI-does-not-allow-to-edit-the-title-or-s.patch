@@ -1,0 +1,154 @@
+From be4c5b93c5ec0a26274f9abed66df72cb152867e Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 21 Feb 2018 09:55:29 +0700
+Subject: [PATCH] Problem: Web UI does not allow to edit the title or summary
+
+There has been some reluctance to add this because there's still
+no permissions management convention in SIT (who is allowed
+to override items like this?)
+
+If some reasonable rules as two who is allowed to update in
+absence of permissioning can be formalized, then this should be done.
+
+Solution: forego the reluctance, repurpose "New issue" button
+and enable editing issue's summary and details.
+
+Right now this will allow anybody to edit it, as is really the
+case with the rest of the system (lack of permissioning). I think
+this is fine. Once the permissioning convention is in place
+(whatever that system is, as it might vary in different settings),
+unallowed edits will be discarded by reducers and we can also let
+the reducers produce "who can edit/you can edit" outputs in issue's
+view.
+---
+ sit-web/webapp/src/issue/issue-style.html |  7 ++--
+ sit-web/webapp/src/issue/issue.html       | 59 ++++++++++++++++++++++++++++---
+ 2 files changed, 58 insertions(+), 8 deletions(-)
+
+diff --git a/sit-web/webapp/src/issue/issue-style.html b/sit-web/webapp/src/issue/issue-style.html
+index c5dc0f3..1f83adc 100644
+--- a/sit-web/webapp/src/issue/issue-style.html
++++ b/sit-web/webapp/src/issue/issue-style.html
+@@ -10,9 +10,6 @@
+             paper-card {
+                 width: 100%;
+                 margin-bottom: 10pt;
+-                --paper-card-header-text: {
+-                    font-size: 10pt;
+-                }
+             }
+ 
+             merge-request {
+@@ -36,6 +33,10 @@
+                 color: whitesmoke;
+             }
+ 
++            paper-button#save {
++                background-color: darkseagreen;
++            }
++
+         </style>
+     </template>
+ </dom-module>
+diff --git a/sit-web/webapp/src/issue/issue.html b/sit-web/webapp/src/issue/issue.html
+index 5f5564b..8931cb7 100644
+--- a/sit-web/webapp/src/issue/issue.html
++++ b/sit-web/webapp/src/issue/issue.html
+@@ -5,6 +5,9 @@
+ <link rel="import" href="/bower_components/paper-card/paper-card.html">
+ <link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
+ <link rel="import" href="/bower_components/iron-icons/iron-icons.html">
++<link rel="import" href="/bower_components/paper-input/paper-textarea.html">
++<link rel="import" href="/bower_components/paper-input/paper-input.html">
++<link rel="import" href="/bower_components/paper-button/paper-button.html">
+ 
+ <link rel="import" href="issue-style.html">
+ 
+@@ -21,8 +24,11 @@
+        <app-header reveals>
+            <app-toolbar>
+                <paper-icon-button icon="list" title="Issues" on-click="handleBack"></paper-icon-button>
+-               <div main-title>[[ view.summary ]] <span class$="[[ view.state ]]">[[view.state]]</span></div>
+-               <paper-icon-button icon="create" title="New issue" on-click="handleNew"></paper-icon-button>
++               <div main-title>
++                      [[ view.summary ]]
++                       <span class$="[[ view.state ]]">[[view.state]] </span>
++               </div>
++               <paper-icon-button icon="create" title="Edit issue" on-click="handleEdit"></paper-icon-button>
+            </app-toolbar>
+        </app-header>
+ 
+@@ -48,7 +54,21 @@
+            <div class="card-content">
+ 
+                <div>
++                   <template is="dom-if" if="[[ editing ]]">
++                       <paper-card heading="Edit issue" elevation="5">
++                           <div class="card-content">
++                               <paper-input label="Summary" value="{{ view.summary }}"></paper-input>
++                               <paper-textarea label="Details" value="{{ view.details }}"></paper-textarea>
++                           </div>
++                           <div class="card-actions">
++                               <paper-button id="save" on-click="handleSave">Save</paper-button>
++                               <paper-button on-click="handleCancelEdit">Cancel</paper-button>
++                           </div>
++                       </paper-card>
++                   </template>
++                   <template is="dom-if" if="[[ !editing ]]">
+                    <rendered-text text="{{ view.details }}"></rendered-text>
++                   </template>
+                </div>
+ 
+                <small>[[ view.authors ]] on <from-now use-absolute time="[[ time ]]" format="MMM Do YYYY HH:mm"></from-now></small>
+@@ -108,6 +128,10 @@
+                     time: {
+                         type: Number,
+                         computed: 'computeTime(view)'
++                    },
++                    editing: {
++                        type: Boolean,
++                        value: false
+                     }
+                 }
+             }
+@@ -169,9 +193,34 @@
+                 window.dispatchEvent(new CustomEvent('location-changed'));
+             }
+ 
+-            handleNew() {
+-                window.history.pushState({}, null, "/new");
+-                window.dispatchEvent(new CustomEvent('location-changed'));
++            handleEdit() {
++                this.set("editing", true);
++            }
++
++            handleCancelEdit() {
++                this.set('editing', false);
++                this.reload();
++            }
++
++            handleSave() {
++                this.set('editing', false);
++                let timestamp = (new Date()).toISOString();
++                let summary = new FormData();
++                summary.append("text", new Blob([this.view.summary], {type: "text/plain"}), "text");
++                summary.append(".type/SummaryChanged", new Blob([""], {type: "text/plain"}), ".type/SummaryChanged");
++                summary.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
++                summary.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
++                let details = new FormData();
++                details.append("text", new Blob([this.view.details], {type: "text/plain"}), "text");
++                details.append(".type/DetailsChanged", new Blob([""], {type: "text/plain"}), ".type/DetailsChanged");
++                details.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
++                details.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
++
++                this.set("formdata", summary);
++                this.$.postRequest.generateRequest().completes.then(function() {
++                    this.set("formdata", details);
++                    this.$.postRequest.generateRequest().completes.then(this.reload.bind(this));
++                }.bind(this));
+             }
+ 
+ 
+-- 
+2.15.0
+
