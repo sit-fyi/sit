@@ -1,4 +1,4 @@
-function(state, record) {
+module.exports = function(state, record) {
     if (typeof record.files[".type/SummaryChanged"] !== 'undefined') {
         var decoder = new TextDecoder("utf-8");
         return Object.assign(state, {

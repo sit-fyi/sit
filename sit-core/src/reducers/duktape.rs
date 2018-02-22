@@ -51,6 +51,34 @@ unsafe extern "C" fn fatal_handler(_udata: *mut ::std::os::raw::c_void, msg: *co
 }
 
 impl<'a, R: Record> DuktapeReducer<'a, R> {
+
+    unsafe fn load_module(context: *mut duktape::duk_hthread) {
+        // Now, execute the function with a defined module
+        duktape::duk_require_function(context, -1);
+        duktape::duk_push_object(context); // module
+        duktape::duk_push_object(context); // module.exports
+        let exports_prop = CString::new("exports").unwrap();
+        duktape::duk_put_prop_string(context, -2, exports_prop.as_ptr());
+        // f module
+        duktape::duk_dup_top(context);
+        duktape::duk_require_object(context, -1);
+        duktape::duk_require_object(context, -2);
+        duktape::duk_require_function(context, -3);
+        // f module module
+        duktape::duk_insert(context, -3);
+        duktape::duk_require_object(context, -1);
+        duktape::duk_require_function(context, -2);
+        duktape::duk_require_object(context, -3);
+        // module f module
+        duktape::duk_call(context,1);
+        // module retval
+        duktape::duk_pop(context);
+        // module
+        duktape::duk_get_prop_string(context, -1, exports_prop.as_ptr());
+        // module f'
+        duktape::duk_remove(context, -2);
+        // f'
+    }
     pub fn new(repository: &'a ::Repository) -> Result<Self, Error> {
         let context = unsafe {
             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
@@ -67,6 +95,8 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
                 let mut source = String::new();
                 let mut f = fs::File::open(&file)?;
                 let _ = f.read_to_string(&mut source)?;
+                // prepare the module function
+                source = format!("function (module) {{ {} }}", source);
                 let source = CString::new(source).unwrap();
                 duktape::duk_push_string(context, source.as_ptr());
 
@@ -92,10 +122,8 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
                     // f . .
                     duktape::duk_pop_2(context);
                     // f
-                    duktape::duk_require_function(context, -1);
                     // save bytecode
-                    duktape::duk_push_null(context);
-                    duktape::duk_copy(context, -2, -1);
+                    duktape::duk_dup_top(context);
                     duktape::duk_dump_function(context);
                     let mut sz = 0;
                     let data = duktape::duk_get_buffer(context, -1, &mut sz);
@@ -103,6 +131,15 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
                     ptr::copy_nonoverlapping(data, func.as_mut_ptr() as *mut _, sz);
                     functions.push(func);
                     duktape::duk_pop(context);
+                    // load module
+                    DuktapeReducer::<'a, R>::load_module(context);
+                    // If module.export is not function, bail
+                    if duktape::duk_is_function(context, -1) != 1 {
+                        return Err(Error::CompileError {
+                            file,
+                            error: "module.exports should export a function".into(),
+                        })
+                    }
                 }
 
                 // create reducer's state
@@ -151,6 +188,8 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
                 duktape::duk_push_buffer_raw(context, 0, duktape::DUK_BUF_FLAG_DYNAMIC | duktape::DUK_BUF_FLAG_EXTERNAL);
                 duktape::duk_config_buffer(context, -1, func.as_ptr() as *mut _, func.len());
                 duktape::duk_load_function(context);
+                // obtain the module
+                DuktapeReducer::<'a, R>::load_module(context);
                 // transfer state
                 duktape::duk_push_null(self.context);
                 duktape::duk_copy(self.context, (i * 2 + 1) as i32, -1);
@@ -329,7 +368,7 @@ mod tests {
         use std::io::Write;
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
-        f.write(b"function(state, record) { return {\"hello\": record.hash}; }").unwrap();
+        f.write(b"module.exports = function(state, record) { return {\"hello\": record.hash}; }").unwrap();
 
         let issue = repo.new_issue().unwrap();
         let record = issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
@@ -337,7 +376,6 @@ mod tests {
 
         assert_eq!(state.get("hello").unwrap(), &JsonValue::String(record.encoded_hash()));
     }
-
 
     #[test]
     fn record_contents() {
@@ -348,7 +386,7 @@ mod tests {
         use std::io::Write;
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
-        f.write(b"function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
+        f.write(b"module.exports = function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
 
         let issue = repo.new_issue().unwrap();
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
@@ -367,7 +405,7 @@ mod tests {
         use std::io::Write;
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
-        f.write(b"function() {\
+        f.write(b"module.exports = function() {\
          if (this.counter == undefined) { \
            this.counter = 1;   \
          } else { \
@@ -398,9 +436,9 @@ mod tests {
         use std::io::Write;
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
-        f.write(b"function(state) { return Object.assign({\"hello\": 1}, state); }").unwrap();
+        f.write(b"module.exports = function(state) { return Object.assign({\"hello\": 1}, state); }").unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer2.js")).unwrap();
-        f.write(b"function(state) { return Object.assign({\"bye\": 2}, state); }").unwrap();
+        f.write(b"module.exports = function(state) { return Object.assign({\"bye\": 2}, state); }").unwrap();
 
         let issue = repo.new_issue().unwrap();
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
@@ -412,6 +450,95 @@ mod tests {
     }
 
     #[test]
+    fn module_export_non_function_error() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+        f.write(b"module.exports = 'hello'").unwrap();
+        let res = DuktapeReducer::<::repository::Record>::new(&repo);
+        assert!(res.is_err());
+        let reducer_file = repo.path().join("reducers/reducer.js");
+        let err = res.unwrap_err();
+        match err {
+            Error::CompileError { file, error } => {
+                assert_eq!(file, reducer_file);
+                assert_eq!(error, "module.exports should export a function");
+            },
+            err => {
+                panic!("Wrong type of error {}", err);
+            }
+        }
+    }
+
+    #[test]
+    fn module_export_props() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
+        f.write(b"module.exports = function(state) { return Object.assign({\"hello\": module.exports.data}, state); }; module.exports.data = 1;").unwrap();
+
+        let issue = repo.new_issue().unwrap();
+        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
+
+        use serde_json::Number;
+        assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(1)));
+    }
+
+    #[test]
+    fn module_closure() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
+        f.write(b"var a = 1; module.exports = function(state) { return Object.assign({\"hello\": a}, state); };").unwrap();
+
+        let issue = repo.new_issue().unwrap();
+        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
+
+        use serde_json::Number;
+        assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(1)));
+    }
+
+
+    #[test]
+    fn anonymous_function_error() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+        f.write(b"function(state) { return state }").unwrap();
+        let res = DuktapeReducer::<::repository::Record>::new(&repo);
+        assert!(res.is_err());
+        let reducer_file = repo.path().join("reducers/reducer.js");
+        let err = res.unwrap_err();
+        match err {
+            Error::CompileError { file, error } => {
+                assert_eq!(file, reducer_file);
+                assert_eq!(error, "SyntaxError: function name required (line 1)");
+            },
+            err => {
+                panic!("Wrong type of error {}", err);
+            }
+        }
+    }
+
+    #[test]
     fn invalid_syntax() {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
@@ -420,7 +547,7 @@ mod tests {
         use std::io::Write;
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
-        f.write(b"function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
+        f.write(b"module.exports = function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
         let res = DuktapeReducer::<::repository::Record>::new(&repo);
         assert!(res.is_err());
         let reducer_file = repo.path().join("reducers/reducer.js");
@@ -445,9 +572,9 @@ mod tests {
         use std::io::Write;
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers").join("reducer.js")).unwrap();
-        f.write(b"function(state) { return Object.assign({\"hello\": record.a}, state); }").unwrap();
+        f.write(b"module.exports = function(state) { return Object.assign({\"hello\": record.a}, state); }").unwrap();
 
-                let issue = repo.new_issue().unwrap();
+        let issue = repo.new_issue().unwrap();
         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
         let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
 
@@ -466,7 +593,7 @@ mod tests {
         use std::io::Write;
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
-        f.write(b"function() {\
+        f.write(b"module.exports = function() {\
          if (this.counter == undefined) { \
            this.counter = 1;   \
          } else { \
@@ -509,14 +636,16 @@ mod tests {
         use std::io::Write;
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
-        f.write(b"function() {\
+        f.write(b"\
+        var a = 1;\
+        module.exports = function() {\
          if (this.counter == undefined) { \
-           this.counter = 1;   \
+           this.counter = a;   \
          } else { \
            this.counter++;
          } \
          return {\"hello\": this.counter}; \
-         }").unwrap();
+         };").unwrap();
 
         let issue1 = repo.new_issue().unwrap();
         issue1.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
@@ -556,7 +685,7 @@ mod tests {
         use std::io::Write;
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
-        f.write(b"function(state, record) { \
+        f.write(b"module.exports = function(state, record) { \
             return Object.assign(state, {hello: new TextDecoder('utf-8').decode(record.files.text)});
         }").unwrap();
 
@@ -578,7 +707,7 @@ mod tests {
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
 
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
-        f.write(b"function(state, record) {
+        f.write(b"module.exports = function(state, record) {
           if (typeof record.files['.type/DetailsChanged'] !== 'undefined') {
               var decoder = new TextDecoder('utf-8');
               return Object.assign(state, {
@@ -590,7 +719,7 @@ mod tests {
         }").unwrap();
 
         let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
-        f.write(b"function(state, record) {
+        f.write(b"module.exports = function(state, record) {
           if (typeof record.files['.type/Commented'] !== 'undefined') {
             var comments = this.comments || [];
             var decoder = new TextDecoder('utf-8');
@@ -610,6 +739,5 @@ mod tests {
         // SHOULD NOT FAIL
         issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
     }
-
 
 }
