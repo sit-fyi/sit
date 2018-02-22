@@ -133,7 +133,7 @@ fn main_with_result() -> i32 {
                      .long("filter")
                      .short("f")
                      .takes_value(true)
-                     .help("Filter issues with a JMESPath query (defaults to `type(@) == 'object'`)"))
+                     .help("Filter issues with a JMESPath query"))
             .arg(Arg::with_name("query")
                      .conflicts_with("named-query")
                      .long("query")
@@ -201,7 +201,7 @@ fn main_with_result() -> i32 {
                      .long("filter")
                      .short("f")
                      .takes_value(true)
-                     .help("Filter records with a JMESPath query (defaults to `type(@) == 'object'`)"))
+                     .help("Filter records with a JMESPath query"))
             .arg(Arg::with_name("query")
                      .conflicts_with("named-query")
                      .long("query")
@@ -325,8 +325,11 @@ fn main_with_result() -> i32 {
             let filter_expr = matches.value_of("named-filter")
                 .and_then(|name|
                               get_named_expression(name, &repo, ".issues/filters", &config.issues.filters))
-                .or_else(|| matches.value_of("filter").or_else(|| Some("type(@) == 'object'")).map(String::from))
+                .or_else(|| matches.value_of("filter").or_else(|| Some("`true`")).map(String::from))
                 .unwrap();
+
+            let filter_defined = matches.is_present("named-filter") || matches.is_present("filter");
+
             let query_expr = matches.value_of("named-query")
                 .and_then(|name|
                               get_named_expression(name, &repo, ".issues/queries", &config.issues.queries))
@@ -342,8 +345,12 @@ fn main_with_result() -> i32 {
                 .map(|(issue, mut reducer)| {
                     let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
                     let data = jmespath::Variable::from(serde_json::Value::Object(result));
-                    let result = filter.search(&data).unwrap();
-                    if result.as_boolean().unwrap() {
+                    let result = if filter_defined {
+                        filter.search(&data).unwrap().as_boolean().unwrap()
+                    } else {
+                        true
+                    };
+                    if result {
                         let view = query.search(&data).unwrap();
                         if view.is_string() {
                             Some(view.as_string().unwrap().clone())
@@ -507,6 +514,9 @@ fn main_with_result() -> i32 {
                             get_named_expression(name, &repo, ".records/filters", &config.records.filters))
                         .or_else(|| matches.value_of("filter").or_else(|| Some("type(@) == 'object'")).map(String::from))
                         .unwrap();
+
+                    let filter_defined = matches.is_present("named-filter") || matches.is_present("filter");
+
                     let query_expr = matches.value_of("named-query")
                         .and_then(|name|
                             get_named_expression(name, &repo, ".records/queries", &config.records.queries))
@@ -575,8 +585,12 @@ fn main_with_result() -> i32 {
                            }
 
                            let data = jmespath::Variable::from(json);
-                           let result = filter.search(&data).unwrap();
-                           if result.as_boolean().unwrap() {
+                           let result = if filter_defined {
+                               filter.search(&data).unwrap().as_boolean().unwrap()
+                           } else {
+                               true
+                           };
+                           if result {
                                let view = query.search(&data).unwrap();
                                if view.is_string() {
                                    println!("{}", view.as_string().unwrap());
