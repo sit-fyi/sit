@@ -4,16 +4,18 @@
 <link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
 <link rel="import" href="/bower_components/iron-icons/iron-icons.html">
 
+<link rel="import" href="../styles.html">
+
 <link rel="import" href="rendered-doc.html">
 
 <dom-module id="sit-doc">
   <template>
-
+    <style include="sit-app-style"></style>
     <style>
       :host { display: block; }
 
       app-header {
-        background-color: darkseagreen;
+        background-color: var(--sit-header-color);
         color: #fff;
       }
 

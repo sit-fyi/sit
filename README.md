@@ -1,10 +1,23 @@
+<h1 align="center">
+  <br>
+  <a href="http://sit-it.org"><img src="logo.png" alt="Markdownify" width="150"></a>
+  <br>
+  <br>
+  SIT
+  <br>
+</h1>
+
+<h4 align="center">Offline-first, file-based, highly customizable, SCM-agnostic and merge-friendly<br>issue tracker</h4>
+
+<p align="center">
 [![Gitter chat](https://badges.gitter.im/sit-it/Lobby.png)](https://gitter.im/sit-it/Lobby)
 [![Build Status](https://travis-ci.org/sit-it/sit.svg?branch=master)](https://travis-ci.org/sit-it/sit)
 [![Windows Build status](https://ci.appveyor.com/api/projects/status/0iv6ltgk3pa122hx?svg=true)](https://ci.appveyor.com/project/yrashk/sit)
 ![open/closed issues](https://s3-us-west-1.amazonaws.com/sit-badges/issues.svg?)
 ![open/closed merge requests](https://s3-us-west-1.amazonaws.com/sit-badges/merge_requests.svg?)
+</p>
 
-# SIT Issue Tracker
+
 
 SIT (Standalone Issue Tracker, or Simple Issue Tracker, or simply SIT's an Issue
 Tracker; or whatever else you like) is a small tool to manage project issue
@@ -416,6 +429,10 @@ Please refer to [CONTRIBUTING](https://github.com/sit-it/sit/blob/master/CONTRIB
 SIT is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 
 See LICENSE-APACHE and LICENSE-MIT for details.
+
+## Credits
+
+Shout-out to [Ura Design](https://ura.design/) for designing our logo. They help with [design magic](https://ura.design/request/) for open source projects.
 
 ## Contributing
 
