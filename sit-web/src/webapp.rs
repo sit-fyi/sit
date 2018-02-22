@@ -78,6 +78,8 @@ use blake2::Blake2b;
 use digest::{Input, VariableOutput};
 use hex;
 
+use serde_json;
+
 fn path_to_response<P: Into<PathBuf>>(path: P, request: &Request) -> Response {
     let path: PathBuf = path.into();
 
@@ -138,11 +140,8 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             issues_with_reducers.into_par_iter()
                   .map(|(issue, mut reducer)| {
                      issue.reduce_with_reducer(&mut reducer).unwrap()
-                  })
-                  .map(|reduced| {
-                     sit_core::serde_json::to_string(&reduced).unwrap()
                   }).map(|json| {
-                     let data = jmespath::Variable::from_json(&json).unwrap();
+                     let data = jmespath::Variable::from(serde_json::Value::Object(json));
                      let result = filter.search(&data).unwrap();
                      if result.is_boolean() && result.as_boolean().unwrap() {
                         Some(query.search(&data).unwrap())
@@ -167,8 +166,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                 _ => return Response::empty_404(),
             };
             let reduced = issue.reduce_with_reducer(&mut reducer).unwrap();
-            let json = sit_core::serde_json::to_string(&reduced).unwrap();
-            let data = jmespath::Variable::from_json(&json).unwrap();
+            let data = jmespath::Variable::from(serde_json::Value::Object(reduced));
             let result = query.search(&data).unwrap();
             Response::json(&result)
         },

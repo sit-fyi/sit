@@ -341,8 +341,7 @@ fn main_with_result() -> i32 {
             issues_with_reducers.into_par_iter()
                 .map(|(issue, mut reducer)| {
                     let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
-                    let json = sit_core::serde_json::to_string(&result).unwrap();
-                    let data = jmespath::Variable::from_json(&json).unwrap();
+                    let data = jmespath::Variable::from(serde_json::Value::Object(result));
                     let result = filter.search(&data).unwrap();
                     if result.as_boolean().unwrap() {
                         let view = query.search(&data).unwrap();
@@ -519,7 +518,9 @@ fn main_with_result() -> i32 {
 
                     for record in records {
                        for rec in record {
+                           // convert to JSON
                            let json = serde_json::to_string(&rec).unwrap();
+                           // ...and back so that we can treat the record as a plain JSON
                            let mut json: serde_json::Value = serde_json::from_str(&json).unwrap();
                            if let serde_json::Value::Object(ref mut map) = json {
                                let verify = matches.is_present("verify") && rec.path().join(".signature").is_file();
@@ -573,8 +574,7 @@ fn main_with_result() -> i32 {
 
                            }
 
-                           let json = sit_core::serde_json::to_string(&json).unwrap();
-                           let data = jmespath::Variable::from_json(&json).unwrap();
+                           let data = jmespath::Variable::from(json);
                            let result = filter.search(&data).unwrap();
                            if result.as_boolean().unwrap() {
                                let view = query.search(&data).unwrap();
@@ -609,8 +609,7 @@ fn main_with_result() -> i32 {
 
                     let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
                     let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
-                    let json = sit_core::serde_json::to_string(&result).unwrap();
-                    let data = jmespath::Variable::from_json(&json).unwrap();
+                    let data = jmespath::Variable::from(serde_json::Value::Object(result));
                     let view = query.search(&data).unwrap();
                     if view.is_string() {
                         println!("{}", view.as_string().unwrap());
