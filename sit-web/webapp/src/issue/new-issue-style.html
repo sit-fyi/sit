@@ -1,9 +1,12 @@
+<link rel="import" href="../styles.html">
+
 <dom-module id="new-issue-style">
     <template>
+        <style include="sit-app-style"></style>
         <style>
             :host { display: block; }
             app-header {
-                background-color: #00897B;
+                background-color: var(--sit-header-color);
                 color: #fff;
             }
 
