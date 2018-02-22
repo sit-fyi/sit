@@ -1,4 +1,4 @@
-function(state, record) {
+module.exports = function(state, record) {
     var state = state;
 
     // Handle Merged as a comment, too
