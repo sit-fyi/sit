@@ -31,9 +31,7 @@ matrix:
       - echo issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " 
       - echo merge requests " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) "
       - badge issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " :yellow @flat > badges/issues.svg   
-      - badge issues " $(./target/debug/sit issues -f "state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues | wc -l | xargs) " :yellow @flat .png > badges/issues.png
       - badge "merge requests" " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) " :orange @flat > badges/merge_requests.svg   
-      - badge "merge requests" " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) " :orange @flat .png > badges/merge_requests.png
     deploy:
       provider: s3
       access_key_id: AKIAI3KIOT3XYA5FTR3Q
