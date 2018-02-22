@@ -1,0 +1,16 @@
+Apparently, it is impossible to specify some more involved
+JMESPath expressions, for example, ones that would contain
+`?contains` or a slash in them.
+
+Solution: make sure both frontend use percent encoding
+
+The reason for this malfunction is that, firstly, the frontend part
+didn't encode the URL components being 1) sent to the server 2) updated
+in the location of the page.
+
+Secondly, the backend's library for handling HTTP (rouille) eagerly
+decoded URLs thus rendering it impossible to match on these values
+as `?` or `/` would trigger stops. A forked version of roulle is used
+now. If the [pull request](https://github.com/tomaka/rouille/pull/173)
+will be accepted, can switch back at that time.
+
