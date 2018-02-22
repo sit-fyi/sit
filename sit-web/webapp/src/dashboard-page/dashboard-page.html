@@ -41,7 +41,7 @@
        </paper-dropdown-menu>
        </div>
 
-        <iron-ajax auto url="/api/issues/{{ filter }}/{{ query }}" handle-as="json"
+        <iron-ajax auto url="/api/issues/{{ encodedFilter }}/{{ query }}" handle-as="json"
                    last-response="{{ issues }}"
                    on-error="handleError"
                    on-response="handleResponse"></iron-ajax>
@@ -69,6 +69,10 @@
                     },
                     filterQuery: {
                         type: String
+                    },
+                    encodedFilter: {
+                        type: String,
+                        computed: 'encodeFilter(filter)'
                     },
                     config: {
                         type: Object,
@@ -106,9 +110,13 @@
                 return (issues || []).length === 0;
             }
 
+            encodeFilter(filter) {
+                return encodeURIComponent(filter)
+            }
+
             handleFilter() {
                 this.set("filter", this.filterQuery || "`true`");
-                window.history.pushState({}, null, `/search/${this.filterQuery}`);
+                window.history.pushState({}, null, `/search/${this.encodedFilter}`);
             }
 
             handleNew() {
@@ -125,7 +133,7 @@
                 let filter = this.config.issues.filters[this.$.namedFilter.selectedItemLabel];
                 this.set("filter", filter);
                 this.set("filterQuery", filter);
-                window.history.pushState({}, null, `/search/${filter}`);
+                window.history.pushState({}, null, `/search/${this.encodedFilter}`);
             }
 
             constructor() {
