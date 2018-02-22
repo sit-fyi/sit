@@ -34,6 +34,8 @@ matrix:
       - badge "merge requests" " $(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\` && state == 'open'" | wc -l | xargs)/$(./target/debug/sit issues -f "length(merge_requests || \`[]\`) > \`0\`" | wc -l | xargs) " :orange @flat > badges/merge_requests.svg   
     deploy:
       provider: s3
+      cache_control: no-cache
+      expires: "2017-12-21 00:00:00 -0000"
       access_key_id: AKIAI3KIOT3XYA5FTR3Q
       secret_access_key:
         secure: iSEKoc0zV4oaQsUdG5I+8OTaFruz/lLKFPge6k4A0AHTXF5QclJQm5fcpWcxiYyZ1oTvekAz3fUwGU9ke8RrLpBTaMnGjfymTuiVpVcCajKCD22WiLzbj4eSYF/84Ve876G3qB3bFSvQRjNTiPVdDg+y3njIbQP16NNrRsVpTvt/dh+eC4xY1b+hs0gcqyJ7iBONifTgsF3vD/klcSFUKpO4FS+7UwGfHGk5Em60oRerkKhE0MUbEsMotpwBtmln1vCCXXo/Hww8BqT6b/Sn6vm/PykOoAXTW3DNSVTHqX9ZFUTf0XGRBDFwcVH+Gj8HScv2esOO4S4Hx8Xl2QYGNQMakSOcdzd6kip6gsN//2/lHzwsakxy5oxQGqL5Ln8HoJ1/yQsHcwaziX8VXTzKeYAmnO+zLwga7IXTC4fcRYT2ADs+IkLLCI9sN/Efh3Qb9JwDm7WFSi0eLsDWuTqDZQZX639Qsv8MctgZKR20o0TXp0ssq7Ttr82S73O91ivY32dIso9QcsfFghkPa2sN3Ng/s5CiI7Gy4kfcpx33XYnKO2upNX1LG2vOkY8mE831vi75Ij1F/USU7amOmz+VxdvZeP2/qkjsA6RbJkPNbM/E2VTIUTMNWI8dtqhZismhHiKk7LUiyCFz4Kt/ic2bsQWvrZF82CfofWnGJLliy7Q=
