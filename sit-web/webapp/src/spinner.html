@@ -1,0 +1,74 @@
+<link rel="import" href="/bower_components/polymer/polymer-element.html">
+<dom-module id="sit-spinner">
+    <template>
+        <style>
+            :host {
+                display: block;
+            }
+            @-webkit-keyframes rotating /* Safari and Chrome */ {
+                from {
+                    -webkit-transform: rotate(0deg);
+                    -o-transform: rotate(0deg);
+                    transform: rotate(0deg);
+                    transform-origin: center;
+                }
+                to {
+                    -webkit-transform: rotate(360deg);
+                    -o-transform: rotate(360deg);
+                    transform: rotate(360deg);
+                    transform-origin: center;
+                }
+            }
+            @keyframes rotating {
+                from {
+                    -ms-transform: rotate(0deg);
+                    -moz-transform: rotate(0deg);
+                    -webkit-transform: rotate(0deg);
+                    -o-transform: rotate(0deg);
+                    transform: rotate(0deg);
+                    transform-origin: center;
+
+                }
+                to {
+                    -ms-transform: rotate(360deg);
+                    -moz-transform: rotate(360deg);
+                    -webkit-transform: rotate(360deg);
+                    -o-transform: rotate(360deg);
+                    transform: rotate(360deg);
+                    transform-origin: center;
+                }
+            }
+            .spin {
+                -webkit-animation: rotating 14s linear infinite;
+                -moz-animation: rotating 1s linear infinite;
+                -ms-animation: rotating 1s linear infinite;
+                -o-animation: rotating 1s linear infinite;
+                animation: rotating 1s linear infinite;
+            }
+        </style>
+        <svg class="spin" width="50" height="50" viewBox="0 0 177.61257 177.61256" >
+            <g id="layer1"
+               transform="translate(-118.2661,-79.359196)">
+                <g id="g1664"
+                   transform="matrix(5.2934299,0,0,5.2934299,926.765,633.24869)">
+                    <g transform="matrix(0.35277777,0,0,-0.35277777,-126.01797,-82.889473)"
+                       id="g36">
+                        <path
+                                id="path38"
+                                style="fill:#43b3c2;fill-opacity:1;fill-rule:nonzero;stroke:none"
+                                d="M 0,0 V 28.182 L 14.091,14.091 Z m -28.182,-1.761 c -8.754,0 -15.851,7.097 -15.851,15.852 0,8.755 7.097,15.852 15.851,15.852 8.755,0 15.853,-7.097 15.853,-15.852 0,-8.755 -7.098,-15.852 -15.853,-15.852 m 0,-26.42 -14.089,14.09 h 28.18 z m 0,84.544 14.091,-14.091 h -28.18 z M -56.362,0 -70.453,14.091 -56.362,28.182 Z m 49.317,35.227 v 26.42 h -42.272 v -26.42 h -26.42 V -7.045 h 26.42 v -26.42 h 42.272 v 26.42 h 26.42 v 42.272 z" >
+                        </path>
+                    </g>
+                </g>
+            </g>
+        </svg>
+    </template>
+    <script>
+        class Spinner extends Polymer.Element {
+            static get is() {
+                return 'sit-spinner';
+            }
+        }
+        customElements.define(Spinner.is, Spinner)
+    </script>
+</dom-module>
