@@ -831,7 +831,7 @@ dependencies = [
 [[package]]
 name = "rouille"
 version = "2.0.0"
-source = "git+https://github.com/yrashk/rouille?branch=encoded-urls#53f9af3fbc2c86d34e2690412c0e0f0a53343a93"
+source = "git+https://github.com/yrashk/rouille?branch=encoded-urls#9aa86d24fb013e85c2cc2d429e98fa0cb225ad3a"
 dependencies = [
  "base64 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "brotli2 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
