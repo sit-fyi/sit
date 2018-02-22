@@ -1,0 +1,11 @@
+The culprit is the tini library. This is how it expects comments to look like:
+
+```ini
+; Comment
+```
+
+But this is what gitconfig can use besides semicolon:
+
+```ini
+# Comment
+```
