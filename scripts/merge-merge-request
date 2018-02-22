@@ -2,6 +2,7 @@
 
 issue=$1
 mr=$2
+comment=$3
 tmpdir="$(mktemp -d)"
 curdir=$(pwd)
 editor=${EDITOR:-nano}
@@ -10,12 +11,12 @@ curbranch=$(git rev-parse --abbrev-ref HEAD)
 sit=$(which sit)
 
 if [ -z ${issue} ]; then
-        echo "Usage: merge-merge-request <issue> <mr>"
+        echo "Usage: merge-merge-request <issue> <mr> [comment]"
         exit 1
 fi
 
 if [ -z ${mr} ]; then
-        echo "Usage: merge-merge-request <issue> <mr>"
+        echo "Usage: merge-merge-request <issue> <mr> [comment]"
         exit 1
 fi
 
@@ -35,7 +36,15 @@ pushd $(pwd) >/dev/null
 cd "${tmpdir}"
 
 echo "${mr}" > record
-${sit} -d ${curdir} record -t Merged,Closed ${issue} record || exit 2
+if [ -z "${comment}" ]; then
+        ${sit} -d ${curdir} record -t Merged,Closed ${issue} record || exit 2
+else
+        echo "# Leave a comment below. All lines starting with # will be removed" > text
+        echo "${comment}" >> text
+        $editor text || exit 2
+        sed -i '/^#/ d'  text
+        ${sit} -d ${curdir} record -t Commented,Merged,Closed ${issue} text record || exit 2
+fi
 
 popd >/dev/null
 
