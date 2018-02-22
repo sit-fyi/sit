@@ -1,0 +1,10 @@
+Currently, if I want to leave a comment during a merge process, I'd have
+to create a separate commit for this comment, which is really suboptimal
+experience.
+
+Solution: make merge-merge-request accept comment as an optional
+argument.
+
+If a longer comment is desired, one can start with a simple comment in
+the command line and then expand on it the editor.
+

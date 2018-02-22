@@ -1,0 +1,65 @@
+From f87134d6920a4d6014f197aef10f6e62b1d38268 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 22 Feb 2018 10:52:52 +0700
+Subject: [PATCH] Problem: leaving a comment upon a merge
+
+Currently, if I want to leave a comment during a merge process, I'd have
+to create a separate commit for this comment, which is really suboptimal
+experience.
+
+Solution: make merge-merge-request accept comment as an optional
+argument.
+
+If a longer comment is desired, one can start with a simple comment in
+the command line and then expand on it the editor.
+---
+ scripts/merge-merge-request | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/scripts/merge-merge-request b/scripts/merge-merge-request
+index 967d2d7..1ee41c5 100755
+--- a/scripts/merge-merge-request
++++ b/scripts/merge-merge-request
+@@ -2,6 +2,7 @@
+ 
+ issue=$1
+ mr=$2
++comment=$3
+ tmpdir="$(mktemp -d)"
+ curdir=$(pwd)
+ editor=${EDITOR:-nano}
+@@ -10,12 +11,12 @@ curbranch=$(git rev-parse --abbrev-ref HEAD)
+ sit=$(which sit)
+ 
+ if [ -z ${issue} ]; then
+-        echo "Usage: merge-merge-request <issue> <mr>"
++        echo "Usage: merge-merge-request <issue> <mr> [comment]"
+         exit 1
+ fi
+ 
+ if [ -z ${mr} ]; then
+-        echo "Usage: merge-merge-request <issue> <mr>"
++        echo "Usage: merge-merge-request <issue> <mr> [comment]"
+         exit 1
+ fi
+ 
+@@ -35,7 +36,15 @@ pushd $(pwd) >/dev/null
+ cd "${tmpdir}"
+ 
+ echo "${mr}" > record
+-${sit} -d ${curdir} record -t Merged,Closed ${issue} record || exit 2
++if [ -z "${comment}" ]; then
++        ${sit} -d ${curdir} record -t Merged,Closed ${issue} record || exit 2
++else
++        echo "# Leave a comment below. All lines starting with # will be removed" > text
++        echo "${comment}" >> text
++        $editor text || exit 2
++        sed -i '/^#/ d'  text
++        ${sit} -d ${curdir} record -t Commented,Merged,Closed ${issue} text record || exit 2
++fi
+ 
+ popd >/dev/null
+ 
+-- 
+2.15.0
+
