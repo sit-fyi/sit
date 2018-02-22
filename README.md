@@ -10,11 +10,11 @@
 <h4 align="center">Offline-first, file-based, highly customizable, SCM-agnostic and merge-friendly<br>issue tracker</h4>
 
 <p align="center">
-[![Gitter chat](https://badges.gitter.im/sit-it/Lobby.png)](https://gitter.im/sit-it/Lobby)
-[![Build Status](https://travis-ci.org/sit-it/sit.svg?branch=master)](https://travis-ci.org/sit-it/sit)
-[![Windows Build status](https://ci.appveyor.com/api/projects/status/0iv6ltgk3pa122hx?svg=true)](https://ci.appveyor.com/project/yrashk/sit)
-![open/closed issues](https://s3-us-west-1.amazonaws.com/sit-badges/issues.svg?)
-![open/closed merge requests](https://s3-us-west-1.amazonaws.com/sit-badges/merge_requests.svg?)
+ <a href="https://gitter.im/sit-it/Lobby"><img alt="Chat" src="https://badges.gitter.im/sit-it/Lobby.png"></a>
+ <a href="https://travis-ci.org/sit-it/sit"><img alt="Build status" src="https://travis-ci.org/sit-it/sit.svg?branch=master"></a>
+ <a href="https://ci.appveyor.com/project/yrashk/sit"><img alt="Windows Build status" src="https://ci.appveyor.com/api/projects/status/0iv6ltgk3pa122hx?svg=true"></a>
+ <img alt="issues open/closed" src="https://s3-us-west-1.amazonaws.com/sit-badges/issues.svg?">
+ <img alt="merge requests open/closed" src="https://s3-us-west-1.amazonaws.com/sit-badges/merge_requests.svg?">
 </p>
 
 
