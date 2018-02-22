@@ -1,0 +1,516 @@
+From 88b87565b454d728ef286e60d00de40aaf451a89 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 22 Feb 2018 16:13:13 +0700
+Subject: [PATCH] Problem: Duktape reducer source code type limitation
+
+Duktape reducers are only allowed to be a function. Can't be, say, code
+that returns a function. This is limiting as sometimes it is important
+to allow more freedom in how the reducing function is defined.
+
+For example, how can we define reducer attributes to be
+interpreted by SIT (like, name or idempotency, or references
+to schemas)?
+
+Or, how can we define a lexical environment outside of the function?
+
+(Not to mention future potential support for loading modules)
+
+Solution: require reducers to be exported through `module.exports`
+
+This is not yet a "full" CommonJS module support, rather just one bit of
+it to allow one specific feature. However, in the future, we can
+easily extend it to support `require` and `exports`.
+
+This is a breaking change. Running `sit populate-files` will be
+required to update the reducers.
+---
+ .sit/reducers/Commented.js                        |   2 +-
+ .sit/reducers/DetailsChanges.js                   |   2 +-
+ .sit/reducers/MergeRequested.js                   |   2 +-
+ .sit/reducers/Merged.js                           |   2 +-
+ .sit/reducers/State.js                            |   2 +-
+ .sit/reducers/SummaryChanged.js                   |   2 +-
+ .sit/reducers/activity.js                         |   2 +-
+ README.md                                         |   4 +-
+ sit-core/default-files/reducers/Commented.js      |   2 +-
+ sit-core/default-files/reducers/DetailsChanges.js |   2 +-
+ sit-core/default-files/reducers/MergeRequested.js |   2 +-
+ sit-core/default-files/reducers/Merged.js         |   2 +-
+ sit-core/default-files/reducers/State.js          |   2 +-
+ sit-core/default-files/reducers/SummaryChanged.js |   2 +-
+ sit-core/default-files/reducers/activity.js       |   2 +-
+ sit-core/src/reducers/duktape.rs                  | 168 +++++++++++++++++++---
+ 16 files changed, 164 insertions(+), 36 deletions(-)
+
+diff --git a/.sit/reducers/Commented.js b/.sit/reducers/Commented.js
+index b5a6a65..ded7d61 100644
+--- a/.sit/reducers/Commented.js
++++ b/.sit/reducers/Commented.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     var state = state;
+ 
+     // Handle Merged as a comment, too
+diff --git a/.sit/reducers/DetailsChanges.js b/.sit/reducers/DetailsChanges.js
+index 34e09e4..86e13ef 100644
+--- a/.sit/reducers/DetailsChanges.js
++++ b/.sit/reducers/DetailsChanges.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof record.files[".type/DetailsChanged"] !== 'undefined') {
+         var merge_request = !!record.files[".type/MergeRequested"] ? record.hash : null ;
+         var decoder = new TextDecoder("utf-8");
+diff --git a/.sit/reducers/MergeRequested.js b/.sit/reducers/MergeRequested.js
+index e61b1eb..70bef57 100644
+--- a/.sit/reducers/MergeRequested.js
++++ b/.sit/reducers/MergeRequested.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof record.files[".type/MergeRequested"] !== 'undefined') {
+         var merge_requests = record.merge_requests || [];
+         merge_requests.push(record.hash);
+diff --git a/.sit/reducers/Merged.js b/.sit/reducers/Merged.js
+index d009a68..92564b7 100644
+--- a/.sit/reducers/Merged.js
++++ b/.sit/reducers/Merged.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+ 
+     if (typeof record.files[".type/Merged"] !== 'undefined') {
+         var decoder = new TextDecoder("utf-8");
+diff --git a/.sit/reducers/State.js b/.sit/reducers/State.js
+index 547f8f0..eabf1d8 100644
+--- a/.sit/reducers/State.js
++++ b/.sit/reducers/State.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof this.state == 'undefined') {
+         this.state = 'open';
+     }
+diff --git a/.sit/reducers/SummaryChanged.js b/.sit/reducers/SummaryChanged.js
+index 67d199e..22bfd26 100644
+--- a/.sit/reducers/SummaryChanged.js
++++ b/.sit/reducers/SummaryChanged.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof record.files[".type/SummaryChanged"] !== 'undefined') {
+         var decoder = new TextDecoder("utf-8");
+         return Object.assign(state, {
+diff --git a/.sit/reducers/activity.js b/.sit/reducers/activity.js
+index e4cbd1d..e1c2eea 100644
+--- a/.sit/reducers/activity.js
++++ b/.sit/reducers/activity.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof record.files[".timestamp"] !== 'undefined') {
+         return Object.assign(state, {last_updated_timestamp: new TextDecoder('utf-8').decode(record.files[".timestamp"])})
+     }
+diff --git a/README.md b/README.md
+index 62cab81..99634cf 100644
+--- a/README.md
++++ b/README.md
+@@ -380,11 +380,11 @@ One can look at the state of the issue with the `sit reduce <issue id>` command.
+ By default, standard reducers are added to every new SIT repository, and can be updated
+ from new SIT builds by running `sit populate-files`.
+ 
+-One can write their own reducer by putting an extra file to `.sit/.reducers/FILENAME.js` and
++One can write their own reducer by putting an extra file to `.sit/reducers/FILENAME.js` and
+ implementing this interface:
+ 
+ ```javascript
+-function(state, record) {
++module.exports = function(state, record) {
+   // ...
+   return newState;
+ }
+diff --git a/sit-core/default-files/reducers/Commented.js b/sit-core/default-files/reducers/Commented.js
+index b5a6a65..ded7d61 100644
+--- a/sit-core/default-files/reducers/Commented.js
++++ b/sit-core/default-files/reducers/Commented.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     var state = state;
+ 
+     // Handle Merged as a comment, too
+diff --git a/sit-core/default-files/reducers/DetailsChanges.js b/sit-core/default-files/reducers/DetailsChanges.js
+index 34e09e4..86e13ef 100644
+--- a/sit-core/default-files/reducers/DetailsChanges.js
++++ b/sit-core/default-files/reducers/DetailsChanges.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof record.files[".type/DetailsChanged"] !== 'undefined') {
+         var merge_request = !!record.files[".type/MergeRequested"] ? record.hash : null ;
+         var decoder = new TextDecoder("utf-8");
+diff --git a/sit-core/default-files/reducers/MergeRequested.js b/sit-core/default-files/reducers/MergeRequested.js
+index e61b1eb..70bef57 100644
+--- a/sit-core/default-files/reducers/MergeRequested.js
++++ b/sit-core/default-files/reducers/MergeRequested.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof record.files[".type/MergeRequested"] !== 'undefined') {
+         var merge_requests = record.merge_requests || [];
+         merge_requests.push(record.hash);
+diff --git a/sit-core/default-files/reducers/Merged.js b/sit-core/default-files/reducers/Merged.js
+index d009a68..92564b7 100644
+--- a/sit-core/default-files/reducers/Merged.js
++++ b/sit-core/default-files/reducers/Merged.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+ 
+     if (typeof record.files[".type/Merged"] !== 'undefined') {
+         var decoder = new TextDecoder("utf-8");
+diff --git a/sit-core/default-files/reducers/State.js b/sit-core/default-files/reducers/State.js
+index 547f8f0..eabf1d8 100644
+--- a/sit-core/default-files/reducers/State.js
++++ b/sit-core/default-files/reducers/State.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof this.state == 'undefined') {
+         this.state = 'open';
+     }
+diff --git a/sit-core/default-files/reducers/SummaryChanged.js b/sit-core/default-files/reducers/SummaryChanged.js
+index 67d199e..22bfd26 100644
+--- a/sit-core/default-files/reducers/SummaryChanged.js
++++ b/sit-core/default-files/reducers/SummaryChanged.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof record.files[".type/SummaryChanged"] !== 'undefined') {
+         var decoder = new TextDecoder("utf-8");
+         return Object.assign(state, {
+diff --git a/sit-core/default-files/reducers/activity.js b/sit-core/default-files/reducers/activity.js
+index e4cbd1d..e1c2eea 100644
+--- a/sit-core/default-files/reducers/activity.js
++++ b/sit-core/default-files/reducers/activity.js
+@@ -1,4 +1,4 @@
+-function(state, record) {
++module.exports = function(state, record) {
+     if (typeof record.files[".timestamp"] !== 'undefined') {
+         return Object.assign(state, {last_updated_timestamp: new TextDecoder('utf-8').decode(record.files[".timestamp"])})
+     }
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index 2acf5f0..ab7bf8b 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -51,6 +51,34 @@ unsafe extern "C" fn fatal_handler(_udata: *mut ::std::os::raw::c_void, msg: *co
+ }
+ 
+ impl<'a, R: Record> DuktapeReducer<'a, R> {
++
++    unsafe fn load_module(context: *mut duktape::duk_hthread) {
++        // Now, execute the function with a defined module
++        duktape::duk_require_function(context, -1);
++        duktape::duk_push_object(context); // module
++        duktape::duk_push_object(context); // module.exports
++        let exports_prop = CString::new("exports").unwrap();
++        duktape::duk_put_prop_string(context, -2, exports_prop.as_ptr());
++        // f module
++        duktape::duk_dup_top(context);
++        duktape::duk_require_object(context, -1);
++        duktape::duk_require_object(context, -2);
++        duktape::duk_require_function(context, -3);
++        // f module module
++        duktape::duk_insert(context, -3);
++        duktape::duk_require_object(context, -1);
++        duktape::duk_require_function(context, -2);
++        duktape::duk_require_object(context, -3);
++        // module f module
++        duktape::duk_call(context,1);
++        // module retval
++        duktape::duk_pop(context);
++        // module
++        duktape::duk_get_prop_string(context, -1, exports_prop.as_ptr());
++        // module f'
++        duktape::duk_remove(context, -2);
++        // f'
++    }
+     pub fn new(repository: &'a ::Repository) -> Result<Self, Error> {
+         let context = unsafe {
+             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
+@@ -67,6 +95,8 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+                 let mut source = String::new();
+                 let mut f = fs::File::open(&file)?;
+                 let _ = f.read_to_string(&mut source)?;
++                // prepare the module function
++                source = format!("function (module) {{ {} }}", source);
+                 let source = CString::new(source).unwrap();
+                 duktape::duk_push_string(context, source.as_ptr());
+ 
+@@ -92,10 +122,8 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+                     // f . .
+                     duktape::duk_pop_2(context);
+                     // f
+-                    duktape::duk_require_function(context, -1);
+                     // save bytecode
+-                    duktape::duk_push_null(context);
+-                    duktape::duk_copy(context, -2, -1);
++                    duktape::duk_dup_top(context);
+                     duktape::duk_dump_function(context);
+                     let mut sz = 0;
+                     let data = duktape::duk_get_buffer(context, -1, &mut sz);
+@@ -103,6 +131,15 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+                     ptr::copy_nonoverlapping(data, func.as_mut_ptr() as *mut _, sz);
+                     functions.push(func);
+                     duktape::duk_pop(context);
++                    // load module
++                    DuktapeReducer::<'a, R>::load_module(context);
++                    // If module.export is not function, bail
++                    if duktape::duk_is_function(context, -1) != 1 {
++                        return Err(Error::CompileError {
++                            file,
++                            error: "module.exports should export a function".into(),
++                        })
++                    }
+                 }
+ 
+                 // create reducer's state
+@@ -151,6 +188,8 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
+                 duktape::duk_push_buffer_raw(context, 0, duktape::DUK_BUF_FLAG_DYNAMIC | duktape::DUK_BUF_FLAG_EXTERNAL);
+                 duktape::duk_config_buffer(context, -1, func.as_ptr() as *mut _, func.len());
+                 duktape::duk_load_function(context);
++                // obtain the module
++                DuktapeReducer::<'a, R>::load_module(context);
+                 // transfer state
+                 duktape::duk_push_null(self.context);
+                 duktape::duk_copy(self.context, (i * 2 + 1) as i32, -1);
+@@ -329,7 +368,7 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+-        f.write(b"function(state, record) { return {\"hello\": record.hash}; }").unwrap();
++        f.write(b"module.exports = function(state, record) { return {\"hello\": record.hash}; }").unwrap();
+ 
+         let issue = repo.new_issue().unwrap();
+         let record = issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+@@ -338,7 +377,6 @@ mod tests {
+         assert_eq!(state.get("hello").unwrap(), &JsonValue::String(record.encoded_hash()));
+     }
+ 
+-
+     #[test]
+     fn record_contents() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+@@ -348,7 +386,7 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+-        f.write(b"function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
++        f.write(b"module.exports = function(state, record) { return {\"hello\": new TextDecoder('utf-8').decode(record.files.text)}; }").unwrap();
+ 
+         let issue = repo.new_issue().unwrap();
+         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+@@ -367,7 +405,7 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+-        f.write(b"function() {\
++        f.write(b"module.exports = function() {\
+          if (this.counter == undefined) { \
+            this.counter = 1;   \
+          } else { \
+@@ -398,9 +436,9 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
+-        f.write(b"function(state) { return Object.assign({\"hello\": 1}, state); }").unwrap();
++        f.write(b"module.exports = function(state) { return Object.assign({\"hello\": 1}, state); }").unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer2.js")).unwrap();
+-        f.write(b"function(state) { return Object.assign({\"bye\": 2}, state); }").unwrap();
++        f.write(b"module.exports = function(state) { return Object.assign({\"bye\": 2}, state); }").unwrap();
+ 
+         let issue = repo.new_issue().unwrap();
+         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+@@ -411,6 +449,95 @@ mod tests {
+         assert_eq!(state.get("bye").unwrap(), &JsonValue::Number(Number::from(2)));
+     }
+ 
++    #[test]
++    fn module_export_non_function_error() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
++        f.write(b"module.exports = 'hello'").unwrap();
++        let res = DuktapeReducer::<::repository::Record>::new(&repo);
++        assert!(res.is_err());
++        let reducer_file = repo.path().join("reducers/reducer.js");
++        let err = res.unwrap_err();
++        match err {
++            Error::CompileError { file, error } => {
++                assert_eq!(file, reducer_file);
++                assert_eq!(error, "module.exports should export a function");
++            },
++            err => {
++                panic!("Wrong type of error {}", err);
++            }
++        }
++    }
++
++    #[test]
++    fn module_export_props() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
++        f.write(b"module.exports = function(state) { return Object.assign({\"hello\": module.exports.data}, state); }; module.exports.data = 1;").unwrap();
++
++        let issue = repo.new_issue().unwrap();
++        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
++        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
++
++        use serde_json::Number;
++        assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(1)));
++    }
++
++    #[test]
++    fn module_closure() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
++        f.write(b"var a = 1; module.exports = function(state) { return Object.assign({\"hello\": a}, state); };").unwrap();
++
++        let issue = repo.new_issue().unwrap();
++        issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
++        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
++
++        use serde_json::Number;
++        assert_eq!(state.get("hello").unwrap(), &JsonValue::Number(Number::from(1)));
++    }
++
++
++    #[test]
++    fn anonymous_function_error() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
++        f.write(b"function(state) { return state }").unwrap();
++        let res = DuktapeReducer::<::repository::Record>::new(&repo);
++        assert!(res.is_err());
++        let reducer_file = repo.path().join("reducers/reducer.js");
++        let err = res.unwrap_err();
++        match err {
++            Error::CompileError { file, error } => {
++                assert_eq!(file, reducer_file);
++                assert_eq!(error, "SyntaxError: function name required (line 1)");
++            },
++            err => {
++                panic!("Wrong type of error {}", err);
++            }
++        }
++    }
++
+     #[test]
+     fn invalid_syntax() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+@@ -420,7 +547,7 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+-        f.write(b"function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
++        f.write(b"module.exports = function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
+         let res = DuktapeReducer::<::repository::Record>::new(&repo);
+         assert!(res.is_err());
+         let reducer_file = repo.path().join("reducers/reducer.js");
+@@ -445,9 +572,9 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers").join("reducer.js")).unwrap();
+-        f.write(b"function(state) { return Object.assign({\"hello\": record.a}, state); }").unwrap();
++        f.write(b"module.exports = function(state) { return Object.assign({\"hello\": record.a}, state); }").unwrap();
+ 
+-                let issue = repo.new_issue().unwrap();
++        let issue = repo.new_issue().unwrap();
+         issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+         let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
+ 
+@@ -466,7 +593,7 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+-        f.write(b"function() {\
++        f.write(b"module.exports = function() {\
+          if (this.counter == undefined) { \
+            this.counter = 1;   \
+          } else { \
+@@ -509,14 +636,16 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+-        f.write(b"function() {\
++        f.write(b"\
++        var a = 1;\
++        module.exports = function() {\
+          if (this.counter == undefined) { \
+-           this.counter = 1;   \
++           this.counter = a;   \
+          } else { \
+            this.counter++;
+          } \
+          return {\"hello\": this.counter}; \
+-         }").unwrap();
++         };").unwrap();
+ 
+         let issue1 = repo.new_issue().unwrap();
+         issue1.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+@@ -556,7 +685,7 @@ mod tests {
+         use std::io::Write;
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+-        f.write(b"function(state, record) { \
++        f.write(b"module.exports = function(state, record) { \
+             return Object.assign(state, {hello: new TextDecoder('utf-8').decode(record.files.text)});
+         }").unwrap();
+ 
+@@ -578,7 +707,7 @@ mod tests {
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+ 
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+-        f.write(b"function(state, record) {
++        f.write(b"module.exports = function(state, record) {
+           if (typeof record.files['.type/DetailsChanged'] !== 'undefined') {
+               var decoder = new TextDecoder('utf-8');
+               return Object.assign(state, {
+@@ -590,7 +719,7 @@ mod tests {
+         }").unwrap();
+ 
+         let mut f = fs::File::create(repo.path().join("reducers/reducer1.js")).unwrap();
+-        f.write(b"function(state, record) {
++        f.write(b"module.exports = function(state, record) {
+           if (typeof record.files['.type/Commented'] !== 'undefined') {
+             var comments = this.comments || [];
+             var decoder = new TextDecoder('utf-8');
+@@ -611,5 +740,4 @@ mod tests {
+         issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
+     }
+ 
+-
+ }
+-- 
+2.15.0
+
