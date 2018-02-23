@@ -13,6 +13,7 @@ matrix:
     - 'echo "{\"author\": {\"name\": \"SIT Merge Request CI\"}}" > ~/.config/sit/config.json'
     - git config --global user.name "SIT Merge Request CI"
     - git config --global user.email "bot@sit-it.org"
+    - git checkout -b ci
     - PATH=`pwd`/target/debug:$PATH ./scripts/ci ${TRAVIS_COMMIT_RANGE:-HEAD..HEAD} "cargo test" | tee log
     - chmod 600 sit-inbox
     - cat log | tail -1 | xargs git push git@git.sit-it.org:sit-it/sit-inbox.git
