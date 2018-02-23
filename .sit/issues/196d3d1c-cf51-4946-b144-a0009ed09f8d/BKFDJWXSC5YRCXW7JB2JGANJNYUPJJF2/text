@@ -1,0 +1,56 @@
+Merge request NVIZPKW4MW6336RR7UUBW7QQFHYWJVH2 passed against revision ci
+<details><summary>Log</summary><p>```
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 33 tests
+test hash::tests::blake2 ... ok
+test hash::tests::sha1 ... ok
+test reducers::duktape::tests::invalid_syntax ... ok
+test reducers::duktape::tests::multiple_reducers ... ok
+test reducers::duktape::tests::record_contents ... ok
+test reducers::duktape::tests::record_hash ... ok
+test repository::tests::record_ordering ... ok
+test repository::tests::record_outside_naming_scheme ... ok
+test reducers::duktape::tests::cesu8_output ... ok
+test repository::tests::new_issue ... ok
+test reducers::duktape::tests::runtime_error ... ok
+test reducers::tests::chained_reducer ... ok
+test repository::tests::find_repo ... ok
+test repository::tests::new_named_issue_dup ... ok
+test reducers::duktape::tests::cesu8_input ... ok
+test repository::tests::new_record ... ok
+test repository::tests::new_repo ... ok
+test duktape::bindings::bindgen_test_layout_duk_time_components ... ok
+test repository::tests::new_named_issue ... ok
+test duktape::bindings::bindgen_test_layout_duk_function_list_entry ... ok
+test duktape::bindings::bindgen_test_layout_duk_thread_state ... ok
+test duktape::bindings::bindgen_test_layout_duk_number_list_entry ... ok
+test duktape::bindings::bindgen_test_layout___va_list_tag ... ok
+test duktape::bindings::bindgen_test_layout_duk_memory_functions ... ok
+test repository::tests::new_record_parents_linking ... ok
+test reducers::duktape::tests::reducer_state ... ok
+test repository::tests::new_repo_already_exists ... ok
+test repository::tests::record_filtering ... ok
+test repository::tests::open_repo ... ok
+test repository::tests::record_deterministic_hashing ... ok
+test repository::tests::record_dynamic_hashing ... ok
+test reducers::duktape::tests::resetting_state ... ok
+test reducers::duktape::tests::cloned ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 1 test
+test /home/travis/build/sit-it/sit/target/debug/build/sit-core-2d93b98e8b912895/out/default_files.rs - repository::default_files::Dir::walk (line 105) ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out```
+</p></details>
