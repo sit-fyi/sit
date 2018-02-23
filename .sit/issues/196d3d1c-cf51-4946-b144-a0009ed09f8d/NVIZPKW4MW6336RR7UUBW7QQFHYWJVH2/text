@@ -1,0 +1,6 @@
+This is only necessary during development of sit-web
+to enable code reloading.
+
+Solution: the same can be achieved with symlinking
+with a lot less mess (no need to copy files back and forth)
+

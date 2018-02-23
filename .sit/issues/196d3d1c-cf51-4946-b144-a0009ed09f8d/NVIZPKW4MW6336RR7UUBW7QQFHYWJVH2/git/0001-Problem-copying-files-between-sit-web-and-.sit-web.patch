@@ -1,0 +1,32 @@
+From e67ee4bd6becb367e588d906e37f9b0752034956 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 23 Feb 2018 13:07:30 +0700
+Subject: [PATCH] Problem: copying files between sit-web and .sit/web
+
+This is only necessary during development of sit-web
+to enable code reloading.
+
+Solution: the same can be achieved with symlinking
+with a lot less mess (no need to copy files back and forth)
+---
+ sit-web/README.md | 7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/sit-web/README.md b/sit-web/README.md
+index 9df7c6c..b8fe2a7 100644
+--- a/sit-web/README.md
++++ b/sit-web/README.md
+@@ -3,8 +3,5 @@
+ ## Development process
+ 
+ Currently, the easiest way to develop updates for `webapp` is
+-to copy all files into `.sit/.web` and work on them, since they
+-will be automatically reloaded. Once done, remove everything
+-from `webapp`, copy `.sit/.web`'s content over and re-add it to
+-git. Yes, that includes `bower_components`.
+-
++to symlink files you are working on to `.sit/web` and work on them, since they
++will be automatically reloaded. Once done, remove the symlinks!
+-- 
+2.15.0
+
