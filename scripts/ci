@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+
+range="$1"
+cmd="$2"
+curbranch=$(git rev-parse --abbrev-ref HEAD)
+rev=${3:-${curbranch}}
+sit=$(which sit)
+
+if [ -z "${range}" ] || [ -z "${cmd}" ]; then
+        echo "Usage: $0 COMMIT_RANGE COMMAND [REV]"
+        exit 1
+fi
+
+if [ -z "${sit}" ]; then
+        echo "sit not found"
+        exit 1
+fi
+
+target_rev=$(git rev-parse "${range}" | head -1)
+
+report_branch="ci-$(date +'%s')"
+sit_path=$(${sit} path)
+files=$(git diff --name-only ${range} | sort)
+
+failed_patch () {
+        mkdir -p "${sit_path}/issues/$1"
+        tmp_dir=$(mktemp -d)
+        pushd $(pwd) >/dev/null
+        cd "${tmpdir}"
+
+        echo $2 > record
+        echo "Failed to apply merge request $2 against revision $4" > text
+        ${sit} -r ${sit_path} record -t Commented,MergeRequestVerificationFailed $1 text record || exit 2
+        popd >/dev/null
+
+        rm -rf ${tmp_dir}
+}
+
+failed_ci () {
+        mkdir -p "${sit_path}/issues/$1"
+        tmp_dir=$(mktemp -d)
+        pushd $(pwd) >/dev/null
+        cd "${tmpdir}"
+
+        echo $2 > record
+        printf "Merge request $2 failed against revision $3\n<details><summary>Log</summary><p>\`\`\`\n$4\`\`\`\n</p></details>" > text
+        ${sit} -r ${sit_path} record -t Commented,MergeRequestVerificationFailed $1 text record || exit 2
+        popd >/dev/null
+
+        rm -rf ${tmp_dir}
+}
+
+passed_ci () {
+        mkdir -p "${sit_path}/issues/$1"
+        tmp_dir=$(mktemp -d)
+        pushd $(pwd) >/dev/null
+        cd "${tmpdir}"
+
+        echo $2 > record
+        printf "Merge request $2 passed against revision $3\n<details><summary>Log</summary><p>\`\`\`\n$4\`\`\`\n</p></details>" > text
+        ${sit} -r ${sit_path} record -t Commented,MergeRequestVerificationSucceeded $1 text record || exit 2
+        popd >/dev/null
+
+        rm -rf ${tmp_dir}
+}
+
+check_mr () {
+        git_regex="^\.sit/issues/$1/$2/git/.+\.patch"
+        git checkout -b "${report_branch}-${issue}-${mr}" "${rev}"
+        # Apply patches
+        for file in ${files}; do
+                if [[ "${file}" =~ ${git_regex} ]]; then
+                        git show "${target_rev}":${file} | git am || (git am --abort; failed_patch $1 $2 "${file}" "${rev}")
+                fi
+        done
+        # Check
+        output=$(${cmd} | tee /dev/tty)
+        result=$?
+        if [ $result -eq 0 ]; then
+                passed_ci $1 $2 "${rev}" "${output}"
+        else
+                failed_ci $1 $2 "${rev}" "${output}"
+        fi
+        # Clean up
+        git reset --hard
+        git checkout "${curbranch}"
+        git branch -D "${report_branch}-${issue}-${mr}"
+}
+
+reported_issues=""
+
+for file in ${files}; do
+        if [[ "${file}" =~ ^\.sit/issues/.+/.+/\.type/MergeRequested$ ]]; then 
+                issue=$(echo ${file} | sed -E "s/\.sit\/issues\/([^\/]+)\/.*/\1/")
+                mr=$(echo ${file} | sed -E "s/\.sit\/issues\/[^\/]+\/([^\/]+)\/.*/\1/")
+                echo "Found merge request ${issue}/${mr}" 1>&2
+                check_mr "${issue}" "${mr}"
+                reported_issues="${reported_issues} ${issue}"
+        fi
+done
+
+git checkout -b "${report_branch}"
+
+for report in ${reported_issues}; do
+        git add ${sit_path}/issues/${report}
+done
+
+git commit -m "CI report"
+
+git checkout "${curbranch}"
+
+# This branch can be now sent to the repository via inbox
+# or any other means
+echo "${report_branch}"
