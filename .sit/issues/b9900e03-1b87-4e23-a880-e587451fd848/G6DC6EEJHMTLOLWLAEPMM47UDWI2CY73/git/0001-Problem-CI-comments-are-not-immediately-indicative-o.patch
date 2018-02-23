@@ -1,0 +1,93 @@
+From 7c03b5aaebf2aa31a9ba0ef5436055b33a20a28e Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 23 Feb 2018 15:35:21 +0700
+Subject: [PATCH] Problem: CI comments are not immediately indicative of their
+ status
+
+It's hard to tell quickly if it is a pass or a fail
+
+Solution: color-code these comments with green and red
+---
+ .sit/reducers/Commented.js                   | 5 +++++
+ sit-core/default-files/reducers/Commented.js | 5 +++++
+ sit-web/webapp/src/issue/comment-style.html  | 8 ++++++++
+ sit-web/webapp/src/issue/comment.html        | 2 +-
+ 4 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/.sit/reducers/Commented.js b/.sit/reducers/Commented.js
+index b5a6a65..b9ae1e6 100644
+--- a/.sit/reducers/Commented.js
++++ b/.sit/reducers/Commented.js
+@@ -22,11 +22,16 @@ function(state, record) {
+         var comments = this.comments || [];
+         var decoder = new TextDecoder("utf-8");
+         var merge_request = !!record.files[".type/MergeRequested"] ? record.hash : null;
++        var merge_request_report = !!record.files[".type/MergeRequestVerificationSucceeded"] ?
++            "success" : null;
++        merge_request_report = merge_request_report || (!!record.files[".type/MergeRequestVerificationFailed"] ?
++            "failure" : null);
+         comments.push({
+             text: decoder.decode(record.files.text),
+             authors: decoder.decode(record.files[".authors"]),
+             timestamp: decoder.decode(record.files[".timestamp"]),
+             merge_request: merge_request,
++            merge_request_report: merge_request_report,
+         });
+         this.comments = comments;
+         state = Object.assign(state, {comments: comments});
+diff --git a/sit-core/default-files/reducers/Commented.js b/sit-core/default-files/reducers/Commented.js
+index b5a6a65..a78ccf5 100644
+--- a/sit-core/default-files/reducers/Commented.js
++++ b/sit-core/default-files/reducers/Commented.js
+@@ -22,11 +22,16 @@ function(state, record) {
+         var comments = this.comments || [];
+         var decoder = new TextDecoder("utf-8");
+         var merge_request = !!record.files[".type/MergeRequested"] ? record.hash : null;
++        var merge_request_report = !!record.files[".type/MergeRequestVerificationSucceeded"] ?
++            "success" : null;
++        merge_request_report = merge_request_report || !!record.files[".type/MergeRequestVerificationFailed"] ?
++            "failure" : null;
+         comments.push({
+             text: decoder.decode(record.files.text),
+             authors: decoder.decode(record.files[".authors"]),
+             timestamp: decoder.decode(record.files[".timestamp"]),
+             merge_request: merge_request,
++            merge_request_report: merge_request_report,
+         });
+         this.comments = comments;
+         state = Object.assign(state, {comments: comments});
+diff --git a/sit-web/webapp/src/issue/comment-style.html b/sit-web/webapp/src/issue/comment-style.html
+index f368334..42fdb92 100644
+--- a/sit-web/webapp/src/issue/comment-style.html
++++ b/sit-web/webapp/src/issue/comment-style.html
+@@ -28,6 +28,14 @@
+                 padding-left: 10pt;
+             }
+ 
++            .merge-request-report.success {
++                background-color: darkseagreen;
++            }
++
++            .merge-request-report.failure {
++                background-color: orangered;
++            }
++
+         </style>
+     </template>
+ </dom-module>
+diff --git a/sit-web/webapp/src/issue/comment.html b/sit-web/webapp/src/issue/comment.html
+index 6814ecb..1b0810a 100644
+--- a/sit-web/webapp/src/issue/comment.html
++++ b/sit-web/webapp/src/issue/comment.html
+@@ -14,7 +14,7 @@
+         <style include="comment-style"></style>
+ 
+         <paper-card>
+-            <h4>[[ comment.authors ]] commented on <from-now use-absolute time="[[ time ]]" format="MMM Do YYYY HH:mm"></from-now></h4>
++            <h4 class$="merge-request-report [[ comment.merge_request_report ]]">[[ comment.authors ]] commented on <from-now use-absolute time="[[ time ]]" format="MMM Do YYYY HH:mm"></from-now></h4>
+             <rendered-text text="{{ comment.text }}"></rendered-text>
+             <merge-request issue="[[ issue ]]" record="[[ comment.merge_request ]]"></merge-request>
+         </paper-card>
+-- 
+2.15.0
+
