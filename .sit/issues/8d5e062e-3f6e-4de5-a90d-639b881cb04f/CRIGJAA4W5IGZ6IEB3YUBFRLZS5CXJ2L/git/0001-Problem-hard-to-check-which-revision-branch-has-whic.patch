@@ -1,0 +1,163 @@
+From ce126cf9f536992364e71e12b5b0eeff6ddd549c Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 23 Feb 2018 18:34:24 +0700
+Subject: [PATCH] Problem: hard to check which revision/branch has which MRs
+ merged
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This is mostly a problem when maintaining backports as it is hard
+to tell which merge requests have been ported and which haven't.
+Not impossible, but a lot of (undesirable) routine work.
+
+Solution: develop a script (./scripts/mr-compare) that does it
+
+Here's an example output:
+
+```
+ $ ./scripts/mr-compare (git rev-parse 0.1) | column --table -s "||"
+10b96fb1-563d-481b-8191-ac104b537c38      Problem: SIT's logo is too complex & amateurish                          [✓]      [-]
+196d3d1c-cf51-4946-b144-a0009ed09f8d      Problem: copying files between sit-web and .sit/web                      [ ]      [-]
+24083d29-bbe1-4067-ac12-fee78ce2ecba      Problem: issues and comments show no time information                    [✓]      [-]
+4561284f-a3d3-4de4-9f17-12f40df1837f      Problem: maintainer's tip (SIT own's repo) gets in the way               [✓]      [-]
+4ad0f090-ad93-48d6-993b-d8cca001d955      Problem: sometimes it is not clear how to use SIT                        [✓]      [-]
+583e7d7e-ec44-4abf-84c3-09d19b00586c      Problem: typo in README                                                  [✓]      [-]
+70d145c6-ee36-4be5-9767-2db4b72b0d94      Problem: app-layout component fetches Roboto from Google                 [✓]      [-]
+74555349-9b61-4945-a07e-c9538ae61b4a      Problem: screenshots become out of date very quickly                     [✓]      [-]
+756f254c-d40c-40b4-aaff-5b8322a76fab      Problem: converting data to JSON and back needlessly                     [✓]      [-]
+7ffa58e7-462a-4f7a-91a0-1c3e742ded82      Problem: UI shows "No matches" while requesting issues                   [✓]      [-]
+855d0ce8-9206-42c6-b1ba-f0460d7ef021      Problem: FAQ says there's no way to import from GitHub                   [✓]      [-]
+9aa81b08-bb6c-429d-ae76-178076094561      Problem: some questions are more common than others                      [✓]      [-]
+a77c723b-ef47-495a-8346-ce61885a0687      Problem: sit-web's handling of complex filters                           [✓]      [-]
+a9d8e5af-696a-45f4-b7be-1353206c0311      Problem: Web UI does not allow to edit the title or summary              [✓]      [ ]
+adb78a69-fba3-483d-991f-521b15997350      Problem: rendered-text element is already defined                        [✓]      [-]
+b1673054-473b-4910-8b6c-2ecffc5551a6      Problem: leaving a comment upon a merge                                  [✓]      [-]
+b9900e03-1b87-4e23-a880-e587451fd848      Problem: CI comments are not immediately indicative of their status      [ ]      [-]
+c23bdabc-0d25-4019-a7c8-56af4cb1e1ca      Problem: no record type to signify a merge                               [✓]      [-]
+cabb9ba2-e77f-404d-842c-57e269cf3b24      Problem: tiles don't work well for listing issues                        [✓]      [-]
+d27a0843-f9c8-4882-8773-30a1fe8ddf3e      Problem: default filter is set to an expression                          [✓]      [-]
+e5e21640-383a-4e8f-9e98-996f7a20dbe8      Problem: Duktape reducer source code type limitation                     [ ]      [-]
+ebbea792-a6b8-48aa-add0-70444088f40d      Problem: prepare-merge-request is not flexible                           [✓]      [-]
+f7c0886a-223b-4c44-b1ec-631ad7b42e89      Problem: search icon on filter input is a bit confusing                  [✓]      [-]
+fd93f222-92ff-4369-89fc-a735bd39c46d      Problem: not entirely clear how to prepare merge requests                [✓]      [-]
+```
+
+Rightmost column represents the revision we're comparing against, and the colimn to
+the left is the "host" column.
+
+[✓] stands for closed
+[ ] stands for open
+[-] stands for "not present"
+---
+ scripts/mr-compare | 66 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ sit/src/main.rs    |  6 ++---
+ 2 files changed, 69 insertions(+), 3 deletions(-)
+ create mode 100755 scripts/mr-compare
+
+diff --git a/scripts/mr-compare b/scripts/mr-compare
+new file mode 100755
+index 0000000..83c3ac7
+--- /dev/null
++++ b/scripts/mr-compare
+@@ -0,0 +1,66 @@
++#!/usr/bin/env bash
++
++root=$(git rev-parse --show-toplevel)
++currev=$(git rev-parse HEAD)
++rev=$1
++
++if [ -z "${rev}" ]; then
++        echo "Usage: $0 REV"
++        exit 1
++fi
++
++rename () {
++        case "$1" in
++                open*) 
++                        echo -n " "
++                        ;;
++                close*)
++                        echo -n "✓"
++                        ;;
++                none*)
++                        echo -n "-"
++                        ;;
++        esac
++}
++
++sit=$(which sit)
++
++if [ -z "${sit}" ]; then
++        echo "sit not found"
++        exit 1
++fi
++
++sit_path=$(${sit} path)
++rsit_path=$(realpath "${sit_path}" --relative-to="${root}")
++
++tmpdir=$(mktemp -d)
++
++git clone "${root}" "${tmpdir}" >/dev/null 2>/dev/null
++
++issues=$(git -C "${tmpdir}" diff ${currev}..${rev} --name-only | grep -e "^${rsit_path/./\\.}/issues" | cut -d/ -f3 | uniq)
++
++git -C "${tmpdir}" checkout -qf "${rev}"
++
++for issue in ${issues}; do
++        mr_p="merge_requests != null"
++        mr=$(${sit} -r "${sit_path}" reduce "${issue}" -q "${mr_p}" 2>/dev/null || echo)
++        mr1=$(${sit} -r "${tmpdir}/${rsit_path}" reduce "${issue}" -q "${mr_p}" 2>/dev/null || echo)
++        mr=${mr:-${mr1}}
++
++        if [ "${mr}" == "true" ]; then 
++                ours=$(${sit} -r "${sit_path}" reduce "${issue}" -q state 2>/dev/null || echo none)
++                theirs=$(${sit} -r "${tmpdir}/${rsit_path}" reduce "${issue}" -q state 2>/dev/null || echo none)
++                summary=$(${sit} -r "${sit_path}" reduce "${issue}" -q summary)
++                summary1=$(${sit} -r "${sit_path}" reduce "${issue}" -q summary)
++                summary=${summary:-${summary1}}
++                if [ "${ours}" == "${theirs}" ]; then
++                        true
++                else
++                        ours=$(rename ${ours})
++                        theirs=$(rename ${theirs})
++                        echo "${issue} || ${summary} || [${ours}] || [${theirs}]"
++                fi
++        fi
++done
++
++rm -rf "${tmpdir}"
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index f0906cb..a2476bf 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -372,7 +372,7 @@ fn main_with_result() -> i32 {
+             let id = matches.value_of("id").unwrap();
+             match issues.find(|i| i.id() == id) {
+                 None => {
+-                    println!("Issue {} not found", id);
++                    eprintln!("Issue {} not found", id);
+                     return 1;
+                 },
+                 Some(mut issue) => {
+@@ -503,7 +503,7 @@ fn main_with_result() -> i32 {
+             let id = matches.value_of("id").unwrap();
+             match issues.find(|i| i.id() == id) {
+                 None => {
+-                    println!("Issue {} not found", id);
++                    eprintln!("Issue {} not found", id);
+                     return 1;
+                 },
+                 Some(issue) => {
+@@ -609,7 +609,7 @@ fn main_with_result() -> i32 {
+             let id = matches.value_of("id").unwrap();
+             match issues.find(|i| i.id() == id) {
+                 None => {
+-                    println!("Issue {} not found", id);
++                    eprintln!("Issue {} not found", id);
+                     return 1;
+                 },
+                 Some(issue) => {
+-- 
+2.15.0
+

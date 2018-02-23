@@ -1,0 +1,43 @@
+This is mostly a problem when maintaining backports as it is hard
+to tell which merge requests have been ported and which haven't.
+Not impossible, but a lot of (undesirable) routine work.
+
+Solution: develop a script (./scripts/mr-compare) that does it
+
+Here's an example output:
+
+```
+ $ ./scripts/mr-compare (git rev-parse 0.1) | column --table -s "||"
+10b96fb1-563d-481b-8191-ac104b537c38      Problem: SIT's logo is too complex & amateurish                          [✓]      [-]
+196d3d1c-cf51-4946-b144-a0009ed09f8d      Problem: copying files between sit-web and .sit/web                      [ ]      [-]
+24083d29-bbe1-4067-ac12-fee78ce2ecba      Problem: issues and comments show no time information                    [✓]      [-]
+4561284f-a3d3-4de4-9f17-12f40df1837f      Problem: maintainer's tip (SIT own's repo) gets in the way               [✓]      [-]
+4ad0f090-ad93-48d6-993b-d8cca001d955      Problem: sometimes it is not clear how to use SIT                        [✓]      [-]
+583e7d7e-ec44-4abf-84c3-09d19b00586c      Problem: typo in README                                                  [✓]      [-]
+70d145c6-ee36-4be5-9767-2db4b72b0d94      Problem: app-layout component fetches Roboto from Google                 [✓]      [-]
+74555349-9b61-4945-a07e-c9538ae61b4a      Problem: screenshots become out of date very quickly                     [✓]      [-]
+756f254c-d40c-40b4-aaff-5b8322a76fab      Problem: converting data to JSON and back needlessly                     [✓]      [-]
+7ffa58e7-462a-4f7a-91a0-1c3e742ded82      Problem: UI shows "No matches" while requesting issues                   [✓]      [-]
+855d0ce8-9206-42c6-b1ba-f0460d7ef021      Problem: FAQ says there's no way to import from GitHub                   [✓]      [-]
+9aa81b08-bb6c-429d-ae76-178076094561      Problem: some questions are more common than others                      [✓]      [-]
+a77c723b-ef47-495a-8346-ce61885a0687      Problem: sit-web's handling of complex filters                           [✓]      [-]
+a9d8e5af-696a-45f4-b7be-1353206c0311      Problem: Web UI does not allow to edit the title or summary              [✓]      [ ]
+adb78a69-fba3-483d-991f-521b15997350      Problem: rendered-text element is already defined                        [✓]      [-]
+b1673054-473b-4910-8b6c-2ecffc5551a6      Problem: leaving a comment upon a merge                                  [✓]      [-]
+b9900e03-1b87-4e23-a880-e587451fd848      Problem: CI comments are not immediately indicative of their status      [ ]      [-]
+c23bdabc-0d25-4019-a7c8-56af4cb1e1ca      Problem: no record type to signify a merge                               [✓]      [-]
+cabb9ba2-e77f-404d-842c-57e269cf3b24      Problem: tiles don't work well for listing issues                        [✓]      [-]
+d27a0843-f9c8-4882-8773-30a1fe8ddf3e      Problem: default filter is set to an expression                          [✓]      [-]
+e5e21640-383a-4e8f-9e98-996f7a20dbe8      Problem: Duktape reducer source code type limitation                     [ ]      [-]
+ebbea792-a6b8-48aa-add0-70444088f40d      Problem: prepare-merge-request is not flexible                           [✓]      [-]
+f7c0886a-223b-4c44-b1ec-631ad7b42e89      Problem: search icon on filter input is a bit confusing                  [✓]      [-]
+fd93f222-92ff-4369-89fc-a735bd39c46d      Problem: not entirely clear how to prepare merge requests                [✓]      [-]
+```
+
+Rightmost column represents the revision we're comparing against, and the colimn to
+the left is the "host" column.
+
+[✓] stands for closed
+[ ] stands for open
+[-] stands for "not present"
+
