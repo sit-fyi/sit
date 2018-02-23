@@ -22,11 +22,16 @@ function(state, record) {
         var comments = this.comments || [];
         var decoder = new TextDecoder("utf-8");
         var merge_request = !!record.files[".type/MergeRequested"] ? record.hash : null;
+        var merge_request_report = !!record.files[".type/MergeRequestVerificationSucceeded"] ?
+            "success" : null;
+        merge_request_report = merge_request_report || (!!record.files[".type/MergeRequestVerificationFailed"] ?
+            "failure" : null);
         comments.push({
             text: decoder.decode(record.files.text),
             authors: decoder.decode(record.files[".authors"]),
             timestamp: decoder.decode(record.files[".timestamp"]),
             merge_request: merge_request,
+            merge_request_report: merge_request_report,
         });
         this.comments = comments;
         state = Object.assign(state, {comments: comments});
