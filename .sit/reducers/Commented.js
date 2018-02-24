@@ -1,4 +1,4 @@
-function(state, record) {
+module.exports = function(state, record) {
     if (typeof record.files[".type/Commented"] !== 'undefined') {
         var comments = this.comments || [];
         var decoder = new TextDecoder("utf-8");

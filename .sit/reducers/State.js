@@ -1,4 +1,4 @@
-function(state, record) {
+module.exports = function(state, record) {
     if (typeof this.state == 'undefined') {
         this.state = 'open';
     }

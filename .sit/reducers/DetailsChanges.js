@@ -1,4 +1,4 @@
-function(state, record) {
+module.exports = function(state, record) {
     if (typeof record.files[".type/DetailsChanged"] !== 'undefined') {
         var merge_request = !!record.files[".type/MergeRequested"] ? record.hash : null ;
         var decoder = new TextDecoder("utf-8");

@@ -363,11 +363,11 @@ One can look at the state of the issue with the `sit reduce <issue id>` command.
 By default, standard reducers are added to every new SIT repository, and can be updated
 from new SIT builds by running `sit populate-files`.
 
-One can write their own reducer by putting an extra file to `.sit/.reducers/FILENAME.js` and
+One can write their own reducer by putting an extra file to `.sit/reducers/FILENAME.js` and
 implementing this interface:
 
 ```javascript
-function(state, record) {
+module.exports = function(state, record) {
   // ...
   return newState;
 }
