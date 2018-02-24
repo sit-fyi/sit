@@ -1,0 +1,27 @@
+From 31bc014c8396e788b8cb6a4d93f33c0f1cc2fe98 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 24 Feb 2018 15:26:00 +0700
+Subject: [PATCH] Problem: "read only" indication badge goes under the heading
+
+If the viewport is too narrow, it is rendered below the app heading.
+
+Solution: elevate its z-index
+---
+ sit-web/webapp/src/sit-app/sit-app.html | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sit-web/webapp/src/sit-app/sit-app.html b/sit-web/webapp/src/sit-app/sit-app.html
+index 3471194..7c258c8 100644
+--- a/sit-web/webapp/src/sit-app/sit-app.html
++++ b/sit-web/webapp/src/sit-app/sit-app.html
+@@ -22,6 +22,7 @@
+           background-color: darkorange;
+           padding: 5pt;
+           color: #0a3142;
++          z-index: 1000;
+         }
+         .readonly.false {
+           display: none;
+-- 
+2.15.0
+

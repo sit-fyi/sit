@@ -1,0 +1,4 @@
+If the viewport is too narrow, it is rendered below the app heading.
+
+Solution: elevate its z-index
+
