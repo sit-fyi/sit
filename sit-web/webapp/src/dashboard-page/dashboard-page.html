@@ -19,11 +19,17 @@
 
        <app-header reveals>
            <app-toolbar>
-               <paper-icon-button icon="create" title="New issue" on-click="handleNew"></paper-icon-button>
+               <template is="dom-if" if="[[ !instanceConfig.readonly ]]">
+                   <paper-icon-button icon="create" title="New issue" on-click="handleNew"></paper-icon-button>
+               </template>
                <div main-title>SIT</div>
                <paper-icon-button icon="help" title="Help" on-click="handleHelp"></paper-icon-button>
            </app-toolbar>
        </app-header>
+
+       <iron-ajax auto url="/config" handle-as="json"
+                  last-response="{{ instanceConfig }}">
+       </iron-ajax>
 
        <iron-ajax auto url="/user/config" handle-as="json"
                   last-response="{{ config }}">

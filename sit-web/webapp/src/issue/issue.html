@@ -28,7 +28,9 @@
                       [[ view.summary ]]
                        <span class$="[[ view.state ]]">[[view.state]] </span>
                </div>
-               <paper-icon-button icon="create" title="Edit issue" on-click="handleEdit"></paper-icon-button>
+               <template is="dom-if" if="[[ !instanceConfig.readonly ]]">
+                   <paper-icon-button icon="create" title="Edit issue" on-click="handleEdit"></paper-icon-button>
+               </template>
            </app-toolbar>
        </app-header>
 
@@ -36,6 +38,10 @@
        <iron-ajax id="request"
                    auto url="/api/issue/{{ id }}/{{ query }}" handle-as="json"
                    last-response="{{ view }}"></iron-ajax>
+
+       <iron-ajax auto url="/config" handle-as="json"
+                  last-response="{{ instanceConfig }}">
+       </iron-ajax>
 
        <iron-ajax auto
                   url="/user/config"
@@ -60,10 +66,10 @@
                                <paper-input label="Summary" value="{{ view.summary }}"></paper-input>
                                <paper-textarea label="Details" value="{{ view.details }}"></paper-textarea>
                            </div>
-                           <div class="card-actions">
-                               <paper-button id="save" on-click="handleSave">Save</paper-button>
-                               <paper-button on-click="handleCancelEdit">Cancel</paper-button>
-                           </div>
+                               <div class="card-actions">
+                                   <paper-button id="save" on-click="handleSave">Save</paper-button>
+                                   <paper-button on-click="handleCancelEdit">Cancel</paper-button>
+                               </div>
                        </paper-card>
                    </template>
                    <template is="dom-if" if="[[ !editing ]]">
@@ -74,17 +80,20 @@
                <small>[[ view.authors ]] on <from-now use-absolute time="[[ time ]]" format="MMM Do YYYY HH:mm"></from-now></small>
            </div>
 
-           <div class="card-actions">
-               <div class="horizontal justified">
-                   <template is="dom-if" if="[[ isClosed ]]">
-                     <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"></paper-icon-button>
-                   </template>
-                   <template is="dom-if" if="[[ isOpen ]]">
-                     <paper-icon-button on-click="handleClose" title="Close" id="close" icon="close" alt="close"></paper-icon-button>
-                   </template>
-                </div>
 
-           </div>
+           <template is="dom-if" if="[[ !instanceConfig.readonly ]]">
+               <div class="card-actions">
+                   <div class="horizontal justified">
+                       <template is="dom-if" if="[[ isClosed ]]">
+                           <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"></paper-icon-button>
+                       </template>
+                       <template is="dom-if" if="[[ isOpen ]]">
+                           <paper-icon-button on-click="handleClose" title="Close" id="close" icon="close" alt="close"></paper-icon-button>
+                       </template>
+                   </div>
+
+               </div>
+           </template>
        </paper-card>
 
 
@@ -95,7 +104,9 @@
        </template>
 
 
-       <issue-new-comment on-new-comment="reload" issue="{{ id }}" is-open="[[ isOpen ]]"></issue-new-comment>
+       <template is="dom-if" if="[[ !instanceConfig.readonly ]]">
+           <issue-new-comment on-new-comment="reload" issue="{{ id }}" is-open="[[ isOpen ]]"></issue-new-comment>
+       </template>
     </template>
 
     <script>

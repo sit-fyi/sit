@@ -13,6 +13,7 @@ use clap::{Arg, App};
 
 extern crate serde;
 extern crate serde_json;
+#[macro_use] extern crate serde_derive;
 
 extern crate config;
 use sit_core::cfg;
@@ -64,6 +65,9 @@ fn main() {
             .long("config")
             .takes_value(true)
             .help("Config file (overrides default)"))
+        .arg(Arg::with_name("readonly")
+             .long("readonly")
+             .help("Read-only instance of sit-web (no new issues or records can be created)"))
         .arg(Arg::with_name("listen")
             .default_value("127.0.0.1:8080")
             .help("Listen on IP:PORT"))
@@ -105,6 +109,7 @@ fn main() {
         .expect("can't open repository");
 
     let listen = matches.value_of("listen").unwrap();
+    let readonly = matches.is_present("readonly");
     println!("Serving on {}", listen);
-    webapp::start(listen, config, repo);
+    webapp::start(listen, config, repo, readonly);
 }

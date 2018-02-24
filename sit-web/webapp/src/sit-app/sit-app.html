@@ -1,6 +1,7 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
 <link rel="import" href="/bower_components/app-route/app-location.html">
 <link rel="import" href="/bower_components/app-route/app-route.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
 <link rel="import" href="../dashboard-page/dashboard-page.html">
 <link rel="import" href="../issue/issue.html">
 <link rel="import" href="../issue/new.html">
@@ -14,8 +15,26 @@
            max-width: 1024px;
            margin: 0 auto;
         }
+        .readonly.true {
+          position: fixed;
+          right: 0px;
+          top: 0px;
+          background-color: darkorange;
+          padding: 5pt;
+          color: #0a3142;
+        }
+        .readonly.false {
+          display: none;
+        }
     </style>
     <app-location route="{{ route }}"></app-location>
+
+    <iron-ajax auto url="/config" handle-as="json"
+               last-response="{{ instanceConfig }}">
+    </iron-ajax>
+    <div class$="readonly [[instanceConfig.readonly]]">
+      [ read only ]
+    </div>
 
     <app-route route="{{route}}" pattern="/issue/:id" data="{{issue}}" active="{{issueActive}}"> </app-route>
     <app-route route="{{route}}" pattern="/new" active="{{newIssueActive}}"> </app-route>

@@ -113,12 +113,23 @@ fn path_to_response<P: Into<PathBuf>>(path: P, request: &Request) -> Response {
 use itertools::Itertools;
 use sit_core;
 
-pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository) {
+#[derive(Serialize)]
+struct Config {
+    readonly: bool,
+}
+
+pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository, readonly: bool) {
     let assets: PathBuf = repo.path().join("web").into();
+    let repo_config = Config {
+      readonly,
+    };
     start_server(addr, move |request|
         router!(request,
         (GET) (/user/config) => {
           Response::json(&config)
+        },
+        (GET) (/config) => {
+           Response::json(&repo_config)
         },
         (GET) (/api/issues/{filter_expr: String}/{query_expr: String}) => {
             use jmespath;
@@ -194,11 +205,13 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             Response::json(&files)
         },
         (POST) (/api/issue) => {
+           if readonly { return Response::empty_404(); }
            use sit_core::Issue;
            let issue = repo.new_issue().expect("can't create issue");
            Response::json(&issue.id())
         },
         (POST) (/api/issue/{id: String}/records) => {
+           if readonly { return Response::empty_404(); }
            use sit_core::{Issue, Record};
            let mut issue = match repo.issue_iter().unwrap().find(|i| i.id() == id) {
                 Some(issue) => issue,
