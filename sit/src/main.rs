@@ -372,7 +372,7 @@ fn main_with_result() -> i32 {
             let id = matches.value_of("id").unwrap();
             match issues.find(|i| i.id() == id) {
                 None => {
-                    println!("Issue {} not found", id);
+                    eprintln!("Issue {} not found", id);
                     return 1;
                 },
                 Some(mut issue) => {
@@ -503,7 +503,7 @@ fn main_with_result() -> i32 {
             let id = matches.value_of("id").unwrap();
             match issues.find(|i| i.id() == id) {
                 None => {
-                    println!("Issue {} not found", id);
+                    eprintln!("Issue {} not found", id);
                     return 1;
                 },
                 Some(issue) => {
@@ -609,7 +609,7 @@ fn main_with_result() -> i32 {
             let id = matches.value_of("id").unwrap();
             match issues.find(|i| i.id() == id) {
                 None => {
-                    println!("Issue {} not found", id);
+                    eprintln!("Issue {} not found", id);
                     return 1;
                 },
                 Some(issue) => {

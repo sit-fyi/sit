@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+
+root=$(git rev-parse --show-toplevel)
+currev=$(git rev-parse HEAD)
+rev=$1
+
+if [ -z "${rev}" ]; then
+        echo "Usage: $0 REV"
+        exit 1
+fi
+
+rename () {
+        case "$1" in
+                open*) 
+                        echo -n " "
+                        ;;
+                close*)
+                        echo -n "✓"
+                        ;;
+                none*)
+                        echo -n "-"
+                        ;;
+        esac
+}
+
+sit=$(which sit)
+
+if [ -z "${sit}" ]; then
+        echo "sit not found"
+        exit 1
+fi
+
+sit_path=$(${sit} path)
+rsit_path=$(realpath "${sit_path}" --relative-to="${root}")
+
+tmpdir=$(mktemp -d)
+
+git clone "${root}" "${tmpdir}" >/dev/null 2>/dev/null
+
+issues=$(git -C "${tmpdir}" diff ${currev}..${rev} --name-only | grep -e "^${rsit_path/./\\.}/issues" | cut -d/ -f3 | uniq)
+
+git -C "${tmpdir}" checkout -qf "${rev}"
+
+for issue in ${issues}; do
+        mr_p="merge_requests != null"
+        mr=$(${sit} -r "${sit_path}" reduce "${issue}" -q "${mr_p}" 2>/dev/null || echo)
+        mr1=$(${sit} -r "${tmpdir}/${rsit_path}" reduce "${issue}" -q "${mr_p}" 2>/dev/null || echo)
+        mr=${mr:-${mr1}}
+
+        if [ "${mr}" == "true" ]; then 
+                ours=$(${sit} -r "${sit_path}" reduce "${issue}" -q state 2>/dev/null || echo none)
+                theirs=$(${sit} -r "${tmpdir}/${rsit_path}" reduce "${issue}" -q state 2>/dev/null || echo none)
+                summary=$(${sit} -r "${sit_path}" reduce "${issue}" -q summary)
+                summary1=$(${sit} -r "${sit_path}" reduce "${issue}" -q summary)
+                summary=${summary:-${summary1}}
+                if [ "${ours}" == "${theirs}" ]; then
+                        true
+                else
+                        ours=$(rename ${ours})
+                        theirs=$(rename ${theirs})
+                        echo "${issue} || ${summary} || [${ours}] || [${theirs}]"
+                fi
+        fi
+done
+
+rm -rf "${tmpdir}"
