@@ -1,0 +1,280 @@
+From 7c24ac86d3cd16418cc571ba176837a11e08abbc Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 24 Feb 2018 14:32:23 +0700
+Subject: [PATCH] Problem: running a public instance of sit-web
+
+Since sit-web allows creating issues and records,
+exposing that without integrating these records with
+actual user identity is pointless.
+
+However, it would have been nice to refer to issues
+hosted online (in an absence of autenticating and
+user-separating version of sit-web).
+
+Solution: designate a read-only mode for sit-web
+
+Under this mode, it will not allow creating anything
+and will also expose the fact of it being read-only
+to the frontend.
+
+This patch also makes UI take that into an account
+and removes composing/editing UI based on this setting.
+---
+ Cargo.lock                                         |  1 +
+ sit-web/Cargo.toml                                 |  1 +
+ sit-web/src/main.rs                                |  7 +++-
+ sit-web/src/webapp.rs                              | 15 +++++++-
+ .../webapp/src/dashboard-page/dashboard-page.html  |  8 +++-
+ sit-web/webapp/src/issue/issue.html                | 43 ++++++++++++++--------
+ sit-web/webapp/src/sit-app/sit-app.html            | 19 ++++++++++
+ 7 files changed, 75 insertions(+), 19 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index c80af11..74a26ea 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1018,6 +1018,7 @@ dependencies = [
+  "rayon 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "rouille 2.0.0 (git+https://github.com/yrashk/rouille?branch=encoded-urls)",
+  "serde 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
++ "serde_derive 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde_json 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
+  "sit-core 0.2.0",
+  "tempdir 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
+diff --git a/sit-web/Cargo.toml b/sit-web/Cargo.toml
+index 151aeec..9969164 100644
+--- a/sit-web/Cargo.toml
++++ b/sit-web/Cargo.toml
+@@ -12,6 +12,7 @@ tempfile = "2.2"
+ tempdir = "0.3"
+ config = { version = "0.8", features = ["json"] }
+ serde = "1.0"
++serde_derive = "1.0"
+ serde_json = "1.0"
+ xdg = "2.1"
+ jmespath = { version = "0.2", features = ["sync"] }
+diff --git a/sit-web/src/main.rs b/sit-web/src/main.rs
+index 2848493..669741e 100644
+--- a/sit-web/src/main.rs
++++ b/sit-web/src/main.rs
+@@ -13,6 +13,7 @@ use clap::{Arg, App};
+ 
+ extern crate serde;
+ extern crate serde_json;
++#[macro_use] extern crate serde_derive;
+ 
+ extern crate config;
+ use sit_core::cfg;
+@@ -64,6 +65,9 @@ fn main() {
+             .long("config")
+             .takes_value(true)
+             .help("Config file (overrides default)"))
++        .arg(Arg::with_name("readonly")
++             .long("readonly")
++             .help("Read-only instance of sit-web (no new issues or records can be created)"))
+         .arg(Arg::with_name("listen")
+             .default_value("127.0.0.1:8080")
+             .help("Listen on IP:PORT"))
+@@ -105,6 +109,7 @@ fn main() {
+         .expect("can't open repository");
+ 
+     let listen = matches.value_of("listen").unwrap();
++    let readonly = matches.is_present("readonly");
+     println!("Serving on {}", listen);
+-    webapp::start(listen, config, repo);
++    webapp::start(listen, config, repo, readonly);
+ }
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index c2ea4f6..9611681 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -113,13 +113,24 @@ fn path_to_response<P: Into<PathBuf>>(path: P, request: &Request) -> Response {
+ use itertools::Itertools;
+ use sit_core;
+ 
+-pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository) {
++#[derive(Serialize)]
++struct Config {
++    readonly: bool,
++}
++
++pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository, readonly: bool) {
+     let assets: PathBuf = repo.path().join("web").into();
++    let repo_config = Config {
++      readonly,
++    };
+     start_server(addr, move |request|
+         router!(request,
+         (GET) (/user/config) => {
+           Response::json(&config)
+         },
++        (GET) (/config) => {
++           Response::json(&repo_config)
++        },
+         (GET) (/api/issues/{filter_expr: String}/{query_expr: String}) => {
+             use jmespath;
+             use sit_core::issue::IssueReduction;
+@@ -194,11 +205,13 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+             Response::json(&files)
+         },
+         (POST) (/api/issue) => {
++           if readonly { return Response::empty_404(); }
+            use sit_core::Issue;
+            let issue = repo.new_issue().expect("can't create issue");
+            Response::json(&issue.id())
+         },
+         (POST) (/api/issue/{id: String}/records) => {
++           if readonly { return Response::empty_404(); }
+            use sit_core::{Issue, Record};
+            let mut issue = match repo.issue_iter().unwrap().find(|i| i.id() == id) {
+                 Some(issue) => issue,
+diff --git a/sit-web/webapp/src/dashboard-page/dashboard-page.html b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+index 7c19364..ee9ab71 100644
+--- a/sit-web/webapp/src/dashboard-page/dashboard-page.html
++++ b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+@@ -19,12 +19,18 @@
+ 
+        <app-header reveals>
+            <app-toolbar>
+-               <paper-icon-button icon="create" title="New issue" on-click="handleNew"></paper-icon-button>
++               <template is="dom-if" if="[[ !instanceConfig.readonly ]]">
++                   <paper-icon-button icon="create" title="New issue" on-click="handleNew"></paper-icon-button>
++               </template>
+                <div main-title>SIT</div>
+                <paper-icon-button icon="help" title="Help" on-click="handleHelp"></paper-icon-button>
+            </app-toolbar>
+        </app-header>
+ 
++       <iron-ajax auto url="/config" handle-as="json"
++                  last-response="{{ instanceConfig }}">
++       </iron-ajax>
++
+        <iron-ajax auto url="/user/config" handle-as="json"
+                   last-response="{{ config }}">
+        </iron-ajax>
+diff --git a/sit-web/webapp/src/issue/issue.html b/sit-web/webapp/src/issue/issue.html
+index 8931cb7..e809d55 100644
+--- a/sit-web/webapp/src/issue/issue.html
++++ b/sit-web/webapp/src/issue/issue.html
+@@ -28,7 +28,9 @@
+                       [[ view.summary ]]
+                        <span class$="[[ view.state ]]">[[view.state]] </span>
+                </div>
+-               <paper-icon-button icon="create" title="Edit issue" on-click="handleEdit"></paper-icon-button>
++               <template is="dom-if" if="[[ !instanceConfig.readonly ]]">
++                   <paper-icon-button icon="create" title="Edit issue" on-click="handleEdit"></paper-icon-button>
++               </template>
+            </app-toolbar>
+        </app-header>
+ 
+@@ -37,6 +39,10 @@
+                    auto url="/api/issue/{{ id }}/{{ query }}" handle-as="json"
+                    last-response="{{ view }}"></iron-ajax>
+ 
++       <iron-ajax auto url="/config" handle-as="json"
++                  last-response="{{ instanceConfig }}">
++       </iron-ajax>
++
+        <iron-ajax auto
+                   url="/user/config"
+                   handle-as="json"
+@@ -60,10 +66,10 @@
+                                <paper-input label="Summary" value="{{ view.summary }}"></paper-input>
+                                <paper-textarea label="Details" value="{{ view.details }}"></paper-textarea>
+                            </div>
+-                           <div class="card-actions">
+-                               <paper-button id="save" on-click="handleSave">Save</paper-button>
+-                               <paper-button on-click="handleCancelEdit">Cancel</paper-button>
+-                           </div>
++                               <div class="card-actions">
++                                   <paper-button id="save" on-click="handleSave">Save</paper-button>
++                                   <paper-button on-click="handleCancelEdit">Cancel</paper-button>
++                               </div>
+                        </paper-card>
+                    </template>
+                    <template is="dom-if" if="[[ !editing ]]">
+@@ -74,17 +80,20 @@
+                <small>[[ view.authors ]] on <from-now use-absolute time="[[ time ]]" format="MMM Do YYYY HH:mm"></from-now></small>
+            </div>
+ 
+-           <div class="card-actions">
+-               <div class="horizontal justified">
+-                   <template is="dom-if" if="[[ isClosed ]]">
+-                     <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"></paper-icon-button>
+-                   </template>
+-                   <template is="dom-if" if="[[ isOpen ]]">
+-                     <paper-icon-button on-click="handleClose" title="Close" id="close" icon="close" alt="close"></paper-icon-button>
+-                   </template>
+-                </div>
+ 
+-           </div>
++           <template is="dom-if" if="[[ !instanceConfig.readonly ]]">
++               <div class="card-actions">
++                   <div class="horizontal justified">
++                       <template is="dom-if" if="[[ isClosed ]]">
++                           <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"></paper-icon-button>
++                       </template>
++                       <template is="dom-if" if="[[ isOpen ]]">
++                           <paper-icon-button on-click="handleClose" title="Close" id="close" icon="close" alt="close"></paper-icon-button>
++                       </template>
++                   </div>
++
++               </div>
++           </template>
+        </paper-card>
+ 
+ 
+@@ -95,7 +104,9 @@
+        </template>
+ 
+ 
+-       <issue-new-comment on-new-comment="reload" issue="{{ id }}" is-open="[[ isOpen ]]"></issue-new-comment>
++       <template is="dom-if" if="[[ !instanceConfig.readonly ]]">
++           <issue-new-comment on-new-comment="reload" issue="{{ id }}" is-open="[[ isOpen ]]"></issue-new-comment>
++       </template>
+     </template>
+ 
+     <script>
+diff --git a/sit-web/webapp/src/sit-app/sit-app.html b/sit-web/webapp/src/sit-app/sit-app.html
+index b76ef8e..3471194 100644
+--- a/sit-web/webapp/src/sit-app/sit-app.html
++++ b/sit-web/webapp/src/sit-app/sit-app.html
+@@ -1,6 +1,7 @@
+ <link rel="import" href="/bower_components/polymer/polymer-element.html">
+ <link rel="import" href="/bower_components/app-route/app-location.html">
+ <link rel="import" href="/bower_components/app-route/app-route.html">
++<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+ <link rel="import" href="../dashboard-page/dashboard-page.html">
+ <link rel="import" href="../issue/issue.html">
+ <link rel="import" href="../issue/new.html">
+@@ -14,9 +15,27 @@
+            max-width: 1024px;
+            margin: 0 auto;
+         }
++        .readonly.true {
++          position: fixed;
++          right: 0px;
++          top: 0px;
++          background-color: darkorange;
++          padding: 5pt;
++          color: #0a3142;
++        }
++        .readonly.false {
++          display: none;
++        }
+     </style>
+     <app-location route="{{ route }}"></app-location>
+ 
++    <iron-ajax auto url="/config" handle-as="json"
++               last-response="{{ instanceConfig }}">
++    </iron-ajax>
++    <div class$="readonly [[instanceConfig.readonly]]">
++      [ read only ]
++    </div>
++
+     <app-route route="{{route}}" pattern="/issue/:id" data="{{issue}}" active="{{issueActive}}"> </app-route>
+     <app-route route="{{route}}" pattern="/new" active="{{newIssueActive}}"> </app-route>
+     <app-route route="{{route}}" pattern="/search/:filter" data="{{search}}" active="{{searchActive}}"> </app-route>
+-- 
+2.15.0
+

@@ -1,0 +1,17 @@
+Since sit-web allows creating issues and records,
+exposing that without integrating these records with
+actual user identity is pointless.
+
+However, it would have been nice to refer to issues
+hosted online (in an absence of autenticating and
+user-separating version of sit-web).
+
+Solution: designate a read-only mode for sit-web
+
+Under this mode, it will not allow creating anything
+and will also expose the fact of it being read-only
+to the frontend.
+
+This patch also makes UI take that into an account
+and removes composing/editing UI based on this setting.
+
