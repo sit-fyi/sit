@@ -1,3 +1,9 @@
+# 0.1.3
+
+Maintenance release, made to make sure there's a release
+version that can work with ongoing development of 0.2-compatible
+repositories. `sit populate-files` must be run on pre-0.1.3 repositories.
+
 # 0.1.2
 
 Maintenance release. The core highlights are:

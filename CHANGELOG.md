@@ -1,3 +1,10 @@
+# 0.1.3
+
+## Breaking changes
+
+* Duktape reducers now must export their function through `module.export`
+  (e5e21640-383a-4e8f-9e98-996f7a20dbe8)
+
 # 0.1.2
 
 ## Breaking changes:
