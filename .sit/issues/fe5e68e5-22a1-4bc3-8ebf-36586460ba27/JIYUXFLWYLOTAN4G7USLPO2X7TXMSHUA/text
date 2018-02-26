@@ -1,0 +1,1 @@
+Problem: calling .flatten() from itertools fails on nightly

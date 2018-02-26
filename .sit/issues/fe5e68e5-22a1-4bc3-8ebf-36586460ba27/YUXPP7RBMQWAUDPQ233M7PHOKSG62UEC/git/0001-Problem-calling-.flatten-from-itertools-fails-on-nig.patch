@@ -1,0 +1,40 @@
+From 337628552ddfe1b87a9f6e5ed9afabb3ed66adf8 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 26 Feb 2018 11:33:46 +0700
+Subject: [PATCH] Problem: calling .flatten() from itertools fails on nightly
+
+```
+   --> sit-web/src/webapp.rs:202:32
+       |
+   202 |             let record = match sit_core::repository::IssueRecordIter::flatten(issue.record_iter().unwrap()).find(|r| r.encoded_hash() == record) {
+       |                                                                       ^^^^^^^ multiple `flatten` found
+       |
+       = note: candidate #1 is defined in an impl of the trait `std::iter::Iterator` for the type `sit_core::repository::IssueRecordIter<'_>`
+       = note: candidate #2 is defined in an impl of the trait `itertools::Itertools` for the type `_`
+       = note: candidate #3 is defined in the trait `rayon::iter::ParallelIterator`
+```
+
+This is, perhaps, related to the addition of the [`iterator_flatten`
+nightly feature](https://github.com/rust-lang/rust/issues/48213).
+
+Solution: use itertools' version explicitly
+---
+ sit-web/src/webapp.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index f8780f1..62e01d3 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -199,7 +199,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+                 Some(issue) => issue,
+                 None => return Response::empty_404(),
+             };
+-            let record = match issue.record_iter().unwrap().flatten().find(|r| r.encoded_hash() == record) {
++            let record = match ::itertools::Itertools::flatten(issue.record_iter().unwrap()).find(|r| r.encoded_hash() == record) {
+                Some(record) => record,
+                None => return Response::empty_404(),
+             };
+-- 
+2.15.0
+
