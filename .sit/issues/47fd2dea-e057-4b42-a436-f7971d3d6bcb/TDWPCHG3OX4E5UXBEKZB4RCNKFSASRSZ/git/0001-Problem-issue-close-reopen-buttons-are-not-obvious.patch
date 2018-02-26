@@ -1,0 +1,48 @@
+From e6b259a8de791b161423a42b5d0c8ea35de91322 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 26 Feb 2018 16:48:47 +0700
+Subject: [PATCH] Problem: issue close/reopen buttons are not obvious
+
+It takes time to figure out what these icons mean
+
+Solution: make them text buttons
+---
+ sit-web/webapp/src/issue/issue-style.html | 4 ++--
+ sit-web/webapp/src/issue/issue.html       | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/sit-web/webapp/src/issue/issue-style.html b/sit-web/webapp/src/issue/issue-style.html
+index 52ed973..f5855a7 100644
+--- a/sit-web/webapp/src/issue/issue-style.html
++++ b/sit-web/webapp/src/issue/issue-style.html
+@@ -31,8 +31,8 @@
+                 padding: 4pt;
+             }
+ 
+-            #close {
+-                background-color: darkred;
++            #reopen {
++                background-color: darkseagreen;
+                 color: whitesmoke;
+             }
+ 
+diff --git a/sit-web/webapp/src/issue/issue.html b/sit-web/webapp/src/issue/issue.html
+index e809d55..f61f8c6 100644
+--- a/sit-web/webapp/src/issue/issue.html
++++ b/sit-web/webapp/src/issue/issue.html
+@@ -85,10 +85,10 @@
+                <div class="card-actions">
+                    <div class="horizontal justified">
+                        <template is="dom-if" if="[[ isClosed ]]">
+-                           <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"></paper-icon-button>
++                           <paper-button on-click="handleReopen" id="reopen" raised>Reopen issue</paper-button>
+                        </template>
+                        <template is="dom-if" if="[[ isOpen ]]">
+-                           <paper-icon-button on-click="handleClose" title="Close" id="close" icon="close" alt="close"></paper-icon-button>
++                           <paper-button on-click="handleClose" id="close" raised>Close issue</paper-button>
+                        </template>
+                    </div>
+ 
+-- 
+2.15.0
+
