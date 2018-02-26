@@ -2,6 +2,11 @@
 
 ## Development process
 
-Currently, the easiest way to develop updates for `webapp` is
-to symlink files you are working on to `.sit/web` and work on them, since they
-will be automatically reloaded. Once done, remove the symlinks!
+In order to enable sit-web to pick up the changes you are
+making to `sit-web/webapp`, run sit-web with an `-o/--overlay`
+argument:
+
+```
+sit-web -o sit-web/webapp
+```
+

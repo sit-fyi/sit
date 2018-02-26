@@ -68,6 +68,12 @@ fn main() {
         .arg(Arg::with_name("readonly")
              .long("readonly")
              .help("Read-only instance of sit-web (no new issues or records can be created)"))
+        .arg(Arg::with_name("overlay")
+            .short("o")
+            .long("overlay")
+            .takes_value(true)
+            .multiple(true)
+            .help("Path to an additional [besides .sit/web] web overlay"))
         .arg(Arg::with_name("listen")
             .default_value("127.0.0.1:8080")
             .help("Listen on IP:PORT"))
@@ -110,6 +116,7 @@ fn main() {
 
     let listen = matches.value_of("listen").unwrap();
     let readonly = matches.is_present("readonly");
+    let overlays: Vec<_> = matches.values_of("overlay").unwrap_or(clap::Values::default()).collect();
     println!("Serving on {}", listen);
-    webapp::start(listen, config, repo, readonly);
+    webapp::start(listen, config, repo, readonly, overlays);
 }
