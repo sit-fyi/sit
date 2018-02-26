@@ -1,0 +1,13 @@
+For every change to be made, a symlink to a file
+or to a containing directory must be made and
+subsequently removed to avoid the clutter.
+
+Solution: add `-o/--overlay` argument to
+sit-web so that its actual source code can
+be used as an overlay.
+
+This feature will also enable other sit-web
+users to introduce multiple overlays to enable
+"mixin" overlays to enable or disable certain
+features.
+

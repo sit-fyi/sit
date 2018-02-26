@@ -1,0 +1,118 @@
+From b26d9d1538ba276883fb9dab92566fb72040e1f0 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 26 Feb 2018 11:08:08 +0700
+Subject: [PATCH] Problem: developing sit-web's UI is painful
+
+For every change to be made, a symlink to a file
+or to a containing directory must be made and
+subsequently removed to avoid the clutter.
+
+Solution: add `-o/--overlay` argument to
+sit-web so that its actual source code can
+be used as an overlay.
+
+This feature will also enable other sit-web
+users to introduce multiple overlays to enable
+"mixin" overlays to enable or disable certain
+features.
+---
+ sit-web/README.md     | 11 ++++++++---
+ sit-web/src/main.rs   |  9 ++++++++-
+ sit-web/src/webapp.rs | 21 ++++++++++++++-------
+ 3 files changed, 30 insertions(+), 11 deletions(-)
+
+diff --git a/sit-web/README.md b/sit-web/README.md
+index b8fe2a7..4377310 100644
+--- a/sit-web/README.md
++++ b/sit-web/README.md
+@@ -2,6 +2,11 @@
+ 
+ ## Development process
+ 
+-Currently, the easiest way to develop updates for `webapp` is
+-to symlink files you are working on to `.sit/web` and work on them, since they
+-will be automatically reloaded. Once done, remove the symlinks!
++In order to enable sit-web to pick up the changes you are
++making to `sit-web/webapp`, run sit-web with an `-o/--overlay`
++argument:
++
++```
++sit-web -o sit-web/webapp
++```
++
+diff --git a/sit-web/src/main.rs b/sit-web/src/main.rs
+index 669741e..bdfe067 100644
+--- a/sit-web/src/main.rs
++++ b/sit-web/src/main.rs
+@@ -68,6 +68,12 @@ fn main() {
+         .arg(Arg::with_name("readonly")
+              .long("readonly")
+              .help("Read-only instance of sit-web (no new issues or records can be created)"))
++        .arg(Arg::with_name("overlay")
++            .short("o")
++            .long("overlay")
++            .takes_value(true)
++            .multiple(true)
++            .help("Path to an additional [besides .sit/web] web overlay"))
+         .arg(Arg::with_name("listen")
+             .default_value("127.0.0.1:8080")
+             .help("Listen on IP:PORT"))
+@@ -110,6 +116,7 @@ fn main() {
+ 
+     let listen = matches.value_of("listen").unwrap();
+     let readonly = matches.is_present("readonly");
++    let overlays: Vec<_> = matches.values_of("overlay").unwrap_or(clap::Values::default()).collect();
+     println!("Serving on {}", listen);
+-    webapp::start(listen, config, repo, readonly);
++    webapp::start(listen, config, repo, readonly, overlays);
+ }
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 9611681..f8780f1 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -118,8 +118,10 @@ struct Config {
+     readonly: bool,
+ }
+ 
+-pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository, readonly: bool) {
++pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository, readonly: bool, overlays: Vec<&str>) {
++    let mut overlays: Vec<_> = overlays.iter().map(|o| PathBuf::from(o)).collect();
+     let assets: PathBuf = repo.path().join("web").into();
++    overlays.insert(0, assets);
+     let repo_config = Config {
+       readonly,
+     };
+@@ -349,9 +351,11 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+             return Response::empty_404()
+         }
+         // Serve built-in or overridden assets
+-        let overriden_path = assets.join(&request.url()[1..]);
+-        if overriden_path.is_file() {
+-           return path_to_response(overriden_path, request)
++        let overriden_path =
++        overlays.iter().map(|o| o.join(&request.url()[1..]))
++                .find(|p| p.is_file());
++        if let Some(path) = overriden_path {
++           return path_to_response(path, request)
+         } else {
+             if let Some(file) = ASSETS.get(&PathBuf::from(&request.url()[1..])) {
+                 let (response, hash) = file.into();
+@@ -359,9 +363,12 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+             }
+         }
+         // Route the rest to /index.html for the web app to figure out
+-        let custom_index = assets.join("index.html");
+-        if custom_index.is_file() {
+-           path_to_response(custom_index, request)
++        let custom_index =
++        overlays.iter().map(|o| o.join("index.html"))
++                .find(|p| p.is_file());
++
++        if let Some(index) = custom_index {
++           path_to_response(index, request)
+         } else {
+            let (response, hash) = ASSETS.get(&PathBuf::from("index.html")).unwrap().into();
+            response.with_etag(request, hash)
+-- 
+2.15.0
+
