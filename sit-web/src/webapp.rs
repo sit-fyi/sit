@@ -118,8 +118,10 @@ struct Config {
     readonly: bool,
 }
 
-pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository, readonly: bool) {
+pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository, readonly: bool, overlays: Vec<&str>) {
+    let mut overlays: Vec<_> = overlays.iter().map(|o| PathBuf::from(o)).collect();
     let assets: PathBuf = repo.path().join("web").into();
+    overlays.insert(0, assets);
     let repo_config = Config {
       readonly,
     };
@@ -349,9 +351,11 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             return Response::empty_404()
         }
         // Serve built-in or overridden assets
-        let overriden_path = assets.join(&request.url()[1..]);
-        if overriden_path.is_file() {
-           return path_to_response(overriden_path, request)
+        let overriden_path =
+        overlays.iter().map(|o| o.join(&request.url()[1..]))
+                .find(|p| p.is_file());
+        if let Some(path) = overriden_path {
+           return path_to_response(path, request)
         } else {
             if let Some(file) = ASSETS.get(&PathBuf::from(&request.url()[1..])) {
                 let (response, hash) = file.into();
@@ -359,9 +363,12 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             }
         }
         // Route the rest to /index.html for the web app to figure out
-        let custom_index = assets.join("index.html");
-        if custom_index.is_file() {
-           path_to_response(custom_index, request)
+        let custom_index =
+        overlays.iter().map(|o| o.join("index.html"))
+                .find(|p| p.is_file());
+
+        if let Some(index) = custom_index {
+           path_to_response(index, request)
         } else {
            let (response, hash) = ASSETS.get(&PathBuf::from("index.html")).unwrap().into();
            response.with_etag(request, hash)
