@@ -85,10 +85,10 @@
                <div class="card-actions">
                    <div class="horizontal justified">
                        <template is="dom-if" if="[[ isClosed ]]">
-                           <paper-icon-button on-click="handleReopen" title="Re-open" id="open" icon="undo" alt="re-open"></paper-icon-button>
+                           <paper-button on-click="handleReopen" id="reopen" raised>Reopen issue</paper-button>
                        </template>
                        <template is="dom-if" if="[[ isOpen ]]">
-                           <paper-icon-button on-click="handleClose" title="Close" id="close" icon="close" alt="close"></paper-icon-button>
+                           <paper-button on-click="handleClose" id="close" raised>Close issue</paper-button>
                        </template>
                    </div>
 
