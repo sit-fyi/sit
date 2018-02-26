@@ -199,7 +199,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                 Some(issue) => issue,
                 None => return Response::empty_404(),
             };
-            let record = match issue.record_iter().unwrap().flatten().find(|r| r.encoded_hash() == record) {
+            let record = match ::itertools::Itertools::flatten(issue.record_iter().unwrap()).find(|r| r.encoded_hash() == record) {
                Some(record) => record,
                None => return Response::empty_404(),
             };
