@@ -1,0 +1,13 @@
+Scenario:
+
+1. Open an issue
+2. Scroll to the bottom
+3. Press "Comment" (or "Comment and close")
+
+Outcome: silence and an error in console.log (HTTP 500 for "Comment" and "Uncaught TypeError: Cannot read property 'append' of undefined" for "Comment and close")
+
+Proposed solutions: 
+
+1. Disable commenting buttons unless there's text to comment with
+2. Submit actual empty comments
+2.1. Disabling commenting but enable commenting and closing and do just closing if "Comment and close" was clicked.

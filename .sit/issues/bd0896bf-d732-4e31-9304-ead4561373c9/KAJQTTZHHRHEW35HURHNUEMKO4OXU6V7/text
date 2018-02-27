@@ -1,0 +1,3 @@
+Neither UI nor CLI have an option to sort issues in any way. However, this is a very useful feature to have.
+
+One of the challenges that can come up with regards to this feature is that currently, when listing issues, we reduce them concurrently to improve performance. Having to sort them will remove the immediacy of result output (as it's being streamed in CLI). This is less of an issue in `sit-web` since we're not streaming the list of issues (but we might do that one day if we switch from plain AJAX requests to websockets). It'd be interesting to see if there's any way we can mitigate this downside of sorting. 

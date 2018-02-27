@@ -1,0 +1,8 @@
+Scenario:
+
+1. Initiate writing a new issue
+2. Click "Create"
+
+Outcome: HTTP 500
+
+Expected outcome: either an empty issue or (more practical) indicate that the Summary **must** be specified

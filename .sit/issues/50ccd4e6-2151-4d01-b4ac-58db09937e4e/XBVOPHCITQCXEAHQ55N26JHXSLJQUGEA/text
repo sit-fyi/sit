@@ -1,0 +1,5 @@
+Currently,  the schemas used by reducers is implicit -- whatever they generate, the tools that build on that output (such as sit-web) have to have an intimate knowledge of it.
+
+To make the matter worse, there's no good way for reducers to avoid clashes between their independent schemas.
+
+Proposed direction: define schemas explicitly and make reducers indicate them in some way.

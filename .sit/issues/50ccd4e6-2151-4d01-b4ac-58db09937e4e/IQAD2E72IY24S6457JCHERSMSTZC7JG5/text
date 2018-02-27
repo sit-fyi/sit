@@ -1,0 +1,20 @@
+I've started some experimental work on this. In my current prototype, reducers are expected to produce something like:
+
+```json
+{
+  "http://sit-it.org/doc/schemas/issue.json": {
+     "summary": "Test issue",
+     "details": "No details yet"
+  },
+  "http://sit-it.org/doc/schemas/merge_request.json": {
+    "record": "...."
+  },
+ "http://sit-it.org/doc/schemas/comments.json": [ ...]
+}
+```
+
+As you can see, this approach also solves the problem with conflicting key names. Since they are all namespaced, there could be no conflicts.
+
+The prototype works and I even did some initial experimenting with rewiring `sit-web` to render issues based on these "schema namespaces". It's actually pretty cool in terms of extensibility.
+
+However, there are still some unanswered issues that I'd rather find answers for prior to such a big change. One of the biggest roadblocks so far is that this convention makes JMESPath filters and queries much longer -- they require a lot more typing (and, in shell, quote escaping!). They are still usable, but they are much harder to write, which is quite a downside.
