@@ -63,6 +63,15 @@ line of your commit to be a one-line problem statement
 empty and the rest to be a description (you can see
 an example right above).
 
+If you would prefer to attach your merge request to
+an existing issue (for example, there's a bug report,
+or a problem statement already recorded), simply
+extend the above command to this:
+
+```
+./scripts/prepare-merge-requests <BRANCH> <ISSUE-ID>
+```
+
 Then, at the end, it will give you a command line
 to copy-paste to push the request out (make sure
 you set up `issue` remote as per suggestion in [README](README.md#send-it-to-upstream)
