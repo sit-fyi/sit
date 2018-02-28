@@ -6,6 +6,7 @@ use tini::Ini;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Author {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
 }
 
@@ -35,10 +36,16 @@ impl Author {
 use std::collections::HashMap;
 #[derive(Default, Serialize, Deserialize)]
 pub struct JMESPathConfig {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub filters: HashMap<String, String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub queries: HashMap<String, String>,
+}
+
+impl JMESPathConfig {
+    pub fn is_empty(&self) -> bool {
+        self.filters.is_empty() && self.queries.is_empty()
+    }
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -51,13 +58,20 @@ pub struct Signing {
     pub gnupg: Option<String>,
 }
 
+impl Signing {
+    pub fn is_none(&self) -> bool {
+        !self.enabled && self.key.is_none() && self.gnupg.is_none()
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Configuration {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author: Option<Author>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "JMESPathConfig::is_empty")]
     pub issues: JMESPathConfig,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "JMESPathConfig::is_empty")]
     pub records: JMESPathConfig,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Signing::is_none")]
     pub signing: Signing,
 }

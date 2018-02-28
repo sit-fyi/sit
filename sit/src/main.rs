@@ -39,6 +39,8 @@ extern crate glob;
 extern crate rayon;
 use rayon::prelude::*;
 
+extern crate question;
+
 use std::collections::HashMap;
 fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
@@ -273,9 +275,35 @@ fn main_with_result() -> i32 {
         } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
             config.author = Some(author);
         } else {
-            eprintln!("Authorship hasn't been configured. Update your {} config file\n\
-            to include `author` object with `name` and `email` properties specified", config_path);
-            return 1;
+            println!("SIT needs your authorship identity to be configured\n");
+            use question::{Question, Answer};
+            let name = loop {
+                match Question::new("What is your name?").ask() {
+                    None => continue,
+                    Some(Answer::RESPONSE(value)) => {
+                        if value.trim() == "" {
+                            continue;
+                        } else {
+                            break value;
+                        }
+                    },
+                    Some(answer) => panic!("Invalid answer {:?}", answer),
+                }
+            };
+            let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
+                None => None,
+                Some(Answer::RESPONSE(value)) => {
+                    if value.trim() == "" {
+                        None
+                    } else {
+                        Some(value)
+                    }
+                },
+                Some(answer) => panic!("Invalid answer {:?}", answer),
+            };
+            config.author = Some(cfg::Author { name, email });
+            let file = fs::File::create(config_path).expect("can't open config file for writing");
+            serde_json::to_writer_pretty(file, &config).expect("can't write config");
         }
     }
 

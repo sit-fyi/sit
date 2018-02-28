@@ -20,6 +20,7 @@ pbr = "1.0"
 tempdir = "0.3"
 glob = "0.2"
 rayon = "1.0"
+question = "0.2"
 sit-core = { path = "../sit-core", version = "0.2.0" }
 
 [features]
