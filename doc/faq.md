@@ -8,9 +8,9 @@ Seriously, though, there is a number of reasons. One of the original
 motivations was to couple issues (as a form of communication
 and record) with the code it is about so that for any revision
 of that we can see the snapshot of the entire space of issues
-at precisly that time.
+at precisely that time.
 
-Another reason was to remove dependencies on external services or products. 
+Another reason was to remove dependencies on external services or products.
 Those became extremely popular recently. They are convenient, but
 you lose direct control over your data. Often time it is hard
 to take it offline and work on it in a meaningful way. Even when
@@ -73,7 +73,7 @@ for this over time. However, the important point here is that
 the final state of the issue is a result of reduction of all
 its records over the state, so it is always possible to filter out
 unwanted changed. All changes are saved, and therefore, actions
-are not irreversible. 
+are not irreversible.
 
 ## Is there a way to import issues from GitHub?
 
@@ -87,7 +87,7 @@ to that is Chrome/Chromium. Next one is, apparently, Opera. Then, it is
 Safari, followed by Firefox and Edge. We have received reports of malfunctioning
 components in Firefox but were unable to reproduce them in Firefox 58 just yet
 (please note, however, that performance in Firefox is severely impaired comparing
-to, say, Chrome). 
+to, say, Chrome).
 
 Our hope and expectation is that Web Components' take-up will be steady and
 the support will be more even.
@@ -97,4 +97,3 @@ in this case it was decided that it was worth a short. Web Components give
 some interesting customization capabilities and work (except when they don't
 in browsers in weaker Web Components support) in the browsers as is
 without any backend processing, which is useful in our case. Time will tell.
-

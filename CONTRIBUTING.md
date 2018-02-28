@@ -55,7 +55,7 @@ be longer than one line.
 
 Once you have a branch (BRANCH) with your patch ready:
 
-Run `./scripts/prepare-merge-request <BRANCH>` script 
+Run `./scripts/prepare-merge-request <BRANCH>` script
 and either use the suggested text as is or edit it.
 Please keep in mind that currently it expects the first
 line of your commit to be a one-line problem statement
@@ -74,11 +74,11 @@ extend the above command to this:
 
 Then, at the end, it will give you a command line
 to copy-paste to push the request out (make sure
-you set up `issue` remote as per suggestion in [README](README.md#send-it-to-upstream)
+you set up `issue` remote as per suggestion in [README](README.md#send-updates-to-upstream)
 
 <img src="doc/merge_request.gif">
 
-**Alternatively**, you can use a manual route:
+**Alternatively**, you can use a manual route (for the truly brave ones):
 
 1. Create a new issue: `sit issue` and take a note of the generated ID.
 2. Generate patches: `rm -rf git && git format-patch $(git merge-base --fork-point master <BRANCH>)..<BRANCH> -o git` (cleaning `git` assures there are no leftover patches)

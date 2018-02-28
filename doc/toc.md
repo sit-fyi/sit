@@ -1,5 +1,6 @@
 * Introduction
   * [Getting Started](getting_started.md)
+  * [Architecture Overview](architecture_overview.md)
 * [FAQ](faq.md)
 * File Convention Dictionary
   * [.type/Closed](dict/.type/Closed.md)
