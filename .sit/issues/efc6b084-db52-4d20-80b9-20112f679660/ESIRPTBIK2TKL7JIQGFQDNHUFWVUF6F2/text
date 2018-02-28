@@ -1,0 +1,10 @@
+Currently, if SIT can't figure out authorship information
+from the config file or a Git repository, it'll just abort
+and ask the user to edit the config file.
+
+This is clearly an adoption barrier as it requires the user
+to figure things out and open an editor.
+
+Solution: if authorship information can't be figured out,
+ask the user to enter this information during the same session
+and save it to the configuration file.

@@ -1,0 +1,179 @@
+From 34f051bdc60ff6d142c69d6a5bad090e8d25369d Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 28 Feb 2018 14:49:27 +0700
+Subject: [PATCH] Problem: SIT requires to specify authorship
+
+Currently, if SIT can't figure out authorship information
+from the config file or a Git repository, it'll just abort
+and ask the user to edit the config file.
+
+This is clearly an adoption barrier as it requires the user
+to figure things out and open an editor.
+
+Solution: if authorship information can't be figured out,
+ask the user to enter this information during the same session
+and save it to the configuration file.
+---
+ Cargo.lock          |  7 +++++++
+ sit-core/src/cfg.rs | 24 +++++++++++++++++++-----
+ sit/Cargo.toml      |  1 +
+ sit/src/main.rs     | 34 +++++++++++++++++++++++++++++++---
+ 4 files changed, 58 insertions(+), 8 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 74a26ea..c7793ba 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -743,6 +743,11 @@ dependencies = [
+  "unicase 1.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ ]
+ 
++[[package]]
++name = "question"
++version = "0.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
+ [[package]]
+ name = "quote"
+ version = "0.3.15"
+@@ -964,6 +969,7 @@ dependencies = [
+  "glob 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
+  "jmespath 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "pbr 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
++ "question 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+  "rayon 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde_json 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
+@@ -1416,6 +1422,7 @@ dependencies = [
+ "checksum phf_codegen 0.7.21 (registry+https://github.com/rust-lang/crates.io-index)" = "d62594c0bb54c464f633175d502038177e90309daf2e0158be42ed5f023ce88f"
+ "checksum phf_generator 0.7.21 (registry+https://github.com/rust-lang/crates.io-index)" = "6b07ffcc532ccc85e3afc45865469bf5d9e4ef5bfcf9622e3cfe80c2d275ec03"
+ "checksum phf_shared 0.7.21 (registry+https://github.com/rust-lang/crates.io-index)" = "07e24b0ca9643bdecd0632f2b3da6b1b89bbb0030e0b992afc1113b23a7bc2f2"
++"checksum question 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d8cd16f7171d3c3d246b994e491d105f0dba9559e9b925c54ad136c49b2f6146"
+ "checksum quote 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)" = "7a6e920b65c65f10b2ae65c831a81a073a89edd28c7cce89475bff467ab4167a"
+ "checksum rand 0.3.22 (registry+https://github.com/rust-lang/crates.io-index)" = "15a732abf9d20f0ad8eeb6f909bf6868722d9a06e1e50802b6a70351f40b4eb1"
+ "checksum rand 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "eba5f8cb59cc50ed56be8880a5c7b496bfd9bd26394e176bc67884094145c2c5"
+diff --git a/sit-core/src/cfg.rs b/sit-core/src/cfg.rs
+index 8c245b6..fa7071f 100644
+--- a/sit-core/src/cfg.rs
++++ b/sit-core/src/cfg.rs
+@@ -6,6 +6,7 @@ use tini::Ini;
+ #[derive(Clone, Serialize, Deserialize)]
+ pub struct Author {
+     pub name: String,
++    #[serde(skip_serializing_if = "Option::is_none")]
+     pub email: Option<String>,
+ }
+ 
+@@ -35,12 +36,18 @@ impl Author {
+ use std::collections::HashMap;
+ #[derive(Default, Serialize, Deserialize)]
+ pub struct JMESPathConfig {
+-    #[serde(default)]
++    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+     pub filters: HashMap<String, String>,
+-    #[serde(default)]
++    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+     pub queries: HashMap<String, String>,
+ }
+ 
++impl JMESPathConfig {
++    pub fn is_empty(&self) -> bool {
++        self.filters.is_empty() && self.queries.is_empty()
++    }
++}
++
+ #[derive(Default, Serialize, Deserialize)]
+ pub struct Signing {
+     #[serde(default)]
+@@ -51,13 +58,20 @@ pub struct Signing {
+     pub gnupg: Option<String>,
+ }
+ 
++impl Signing {
++    pub fn is_none(&self) -> bool {
++        !self.enabled && self.key.is_none() && self.gnupg.is_none()
++    }
++}
++
+ #[derive(Serialize, Deserialize)]
+ pub struct Configuration {
++    #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub author: Option<Author>,
+-    #[serde(default)]
++    #[serde(default, skip_serializing_if = "JMESPathConfig::is_empty")]
+     pub issues: JMESPathConfig,
+-    #[serde(default)]
++    #[serde(default, skip_serializing_if = "JMESPathConfig::is_empty")]
+     pub records: JMESPathConfig,
+-    #[serde(default)]
++    #[serde(default, skip_serializing_if = "Signing::is_none")]
+     pub signing: Signing,
+ }
+\ No newline at end of file
+diff --git a/sit/Cargo.toml b/sit/Cargo.toml
+index 259ea6e..1a02e47 100644
+--- a/sit/Cargo.toml
++++ b/sit/Cargo.toml
+@@ -20,6 +20,7 @@ pbr = "1.0"
+ tempdir = "0.3"
+ glob = "0.2"
+ rayon = "1.0"
++question = "0.2"
+ sit-core = { path = "../sit-core", version = "0.2.0" }
+ 
+ [features]
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index a2476bf..6f5e49c 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -39,6 +39,8 @@ extern crate glob;
+ extern crate rayon;
+ use rayon::prelude::*;
+ 
++extern crate question;
++
+ use std::collections::HashMap;
+ fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
+                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
+@@ -273,9 +275,35 @@ fn main_with_result() -> i32 {
+         } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
+             config.author = Some(author);
+         } else {
+-            eprintln!("Authorship hasn't been configured. Update your {} config file\n\
+-            to include `author` object with `name` and `email` properties specified", config_path);
+-            return 1;
++            println!("SIT needs your authorship identity to be configured\n");
++            use question::{Question, Answer};
++            let name = loop {
++                match Question::new("What is your name?").ask() {
++                    None => continue,
++                    Some(Answer::RESPONSE(value)) => {
++                        if value.trim() == "" {
++                            continue;
++                        } else {
++                            break value;
++                        }
++                    },
++                    Some(answer) => panic!("Invalid answer {:?}", answer),
++                }
++            };
++            let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
++                None => None,
++                Some(Answer::RESPONSE(value)) => {
++                    if value.trim() == "" {
++                        None
++                    } else {
++                        Some(value)
++                    }
++                },
++                Some(answer) => panic!("Invalid answer {:?}", answer),
++            };
++            config.author = Some(cfg::Author { name, email });
++            let file = fs::File::create(config_path).expect("can't open config file for writing");
++            serde_json::to_writer_pretty(file, &config).expect("can't write config");
+         }
+     }
+ 
+-- 
+2.15.0
+
