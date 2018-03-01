@@ -7,278 +7,121 @@
   <br>
 </h1>
 
-<h4 align="center">Offline-first, file-based, highly customizable, SCM-agnostic and merge-friendly<br>issue tracker</h4>
+<h4 align="center">Serverless issue tracker for decentralized teams</h4>
 
 <p align="center">
+ <a href="https://github.com/sit-it/sit/releases"><img alt="Release" src="https://img.shields.io/github/release/sit-it/sit.svg"></a>
  <a href="https://gitter.im/sit-it/Lobby"><img alt="Chat" src="https://badges.gitter.im/sit-it/Lobby.png"></a>
  <a href="https://travis-ci.org/sit-it/sit"><img alt="Build status" src="https://travis-ci.org/sit-it/sit.svg?branch=master"></a>
  <a href="https://ci.appveyor.com/project/yrashk/sit"><img alt="Windows Build status" src="https://ci.appveyor.com/api/projects/status/0iv6ltgk3pa122hx?svg=true"></a>
- <img alt="issues open/closed" src="https://s3-us-west-1.amazonaws.com/sit-badges/issues.svg?refresh">
- <img alt="merge requests open/closed" src="https://s3-us-west-1.amazonaws.com/sit-badges/merge_requests.svg?refresh">
+ <img alt="issues open/total" src="https://s3-us-west-1.amazonaws.com/sit-badges/issues.svg?refresh">
+ <img alt="merge requests open/total" src="https://s3-us-west-1.amazonaws.com/sit-badges/merge_requests.svg?refresh">
 </p>
 
+<p align="center">
+  [
+    <a href="https://github.com/sit-it/sit/releases"><b>Download</b></a> |
+    <a href="doc/getting_started.md"><b>Getting Started</b></a> |
+    <a href="doc/overview.md"><b>Overview</b></a> |
+    <a href="#questions-bug-reports-etc"><b>Issues & Merge Requests</b></a>
+  ]
+</p>
+
+SIT is a compact tool to track and share project issues in and between
+decentralized teams. Its goal is to lower the barrier for having an independently
+operated, shared issue tracker. Instead of having to setup and maintain a server
+and a database, or having to rely on services of an external third party, SIT can
+be initialized and started as simply as this:
+
+```
+$ sit init && sit-web
+```
+
+That's it. Now you can check out the [Getting Started](doc/getting_started.md) guide.
+
+<center>
+<p align="center">
+<img src="doc/webui_example.png">
+<small><i>(An example of running sit-web)</i></small>
+</p>
+</center>
 
 
-SIT (Standalone Issue Tracker, or Simple Issue Tracker, or simply SIT's an Issue
-Tracker; or whatever else you like) is a small tool to manage project issue
-artifacts on a filesystem. Its goal is to make such artifacts
-as bug reports, problem statements, discussions (and others) surive the lifetime of
-the project. Instead of depending on a third-party provider (such as GitHub), it
-ensures that its database is not going to be lost if a third-party provider goes
-out of business, loses data, or if you fall in love with a new SCM and decide to
-migrate over.
+## Why Should I Care?
 
-Its core properties are:
+As far as analogies go, we're doing to issue tracking what Git did to version control systems. But let us
+further elaborate on a few benefits to consider:
 
-* All artifacts are stored in a file system
-* All records are immutable and ordered
-* It's SCM-agnostic (and, in fact, will work without one just fine)
-* Its layout is purposefully merge-friendly (who likes merge conflicts?)
-* It's extensible
-
-SIT's design allows us to have some interesting features, such as:
-
-* Branch-local issues (useful for managing branch-local todo lists, for example)
-* Branch-specific issue states (for example, "fixed in the branch, but not in the master")
-
-SIT also features a [**highly customizable Web UI**](#web-ui).
+* **Works offline**. You can synchronize the issues, go offline and work
+  on them without needing a connection. You can synchronize at any time later.
+* **Contextualizes state**. When used together with an SCM (such as Git), you can see the
+  state and status of any issue at any given revision (*"what release branches is this
+  closed on?"*)
+* **Continuously localizes data**. You can access the data at any time. No API rate limits. It's on your filesystem.
+* **Adapts to your team topology**. Synchronization can be done over Git, Dropbox, Keybase,
+  USB flash drives or anything else that allows you to copy files between computers.
+* **Malleable**. You can make it handle workflows and payloads original authors never anticipated. The customization
+  is in its blood.
 
 ## Project Status
 
-Is it ready to use? Kind of. It is still very new, definitely has bugs and can
-be outright intimidating. There's no polish yet. Not to mention having to get a buy-in!
+It is in the early adopter stage. It's usable but not everything is done yet and
+some things will change. We're publishing releases regularly but always encourage
+trying out the latest and greatest master branch.
 
-However, the core prototyping is done and there's a rudimentary Web UI.
-
-## Motivation
-
-Oh, why another issue tracker, let alone file-based, you ask? There's GitHub, JIRA,
-Trello, Bugzilla, Redmine and hundreds of other trackers, including file-based
-ones as well (in various stages of abandonment).
-
-The core motivation for developing SIT was an understanding that these records
-of issues aren't auxiliary. If they are maintained with at least some
-degree of responsibility, they carry a lot of important information. Besides
-things like backlog or current status, these records provide valuable insight
-into decision making by exposing all notes and conversations around particular
-changes, defects or issues.
-
-The idea was to build a tool that works nicely with SCMs (centralized or not)
-but ultimately does not depend on them and can live without one. A tool that
-will allow the contents of the project to contain this entire body of knowledge,
-decreasing the risk of its loss.
-
-Hence the experiment to build SIT.
-
-## Downloading
+## Obtaining SIT
 
 All our releases are hosted on [GitHub](https://github.com/sit-it/sit/releases)
 and binary files can be downloaded from there.
 
 ## Build Instructions
 
-Make sure you have Rust 1.24 or higher installed and run this:
+As SIT is currently in its early days, sometimes it might make sense to use a pre-release build. We encourage that. It helps us building a better product.
 
-```shell
+Firstly, you will need to install Rust 1.24. Luckily
+it is typically a very simple process. You can find
+instructions on [Rust's website](https://www.rust-lang.org/en-US/install.html).
+
+Now, after that has been taken care of, time to check
+out SIT and build it:
+
+```
+git clone https://github.com/sit-it/sit
+cd sit
 cargo build --release
 ```
 
-The resulting binary can be found at `./target/release/sit`. Put it in your
-`PATH` to be able to access it in your environment.
+Now, you can copy `target/release/sit` and `target/release/sit-web` to your
+`PATH` or add `/path/to/target/release` to `PATH` to always have the most
+recent version available.
 
-## Overview
+## Questions, Bug Reports, etc.?
 
-<center>
-<p align="center">
-<img src="doc/overview.png" width="266" height="543">
-</p>
-</center>
+SIT's is using SIT for tracking issues (duh!) and because of this, GitHub
+issues are turned off. It's a good excuse to try out SIT if you have an
+issue to file!
 
-### Preparation
+You will get all issue updates when you fetch this git repository. All updates
+will come through it as well.
 
-Before using SIT for the first time, please create `$HOME/.config/sit/config.json`
-file and record your information:
+Simply run `sit-web` in this repository's clone and open it in the browser.
 
-```json
-{
-  "author": {
-    "name": "Your Name",
-    "email": "your@email"
-  }
-}
-```
+#### Send Updates to Upstream
 
-Currently, SIT will refuse to start without this information specified as it is used
-to record authorship in issues.
+Once you've used sit-web or `./scripts/prepare-merge-request` to work on the issues,
+you can send the updates to this repository:
 
-It is also **highly recommended** to sign your records. To enable this, add the following
-to your config file:
-
-```json
-"signing": {
-   "enabled": true,
-   "key": "key you are going to use"
-}
-```
-
-
-### Repository
-
-Repository is a collection of issues. By default, such directory is called
-`.sit` and is found by the tooling by scanning the working directory and upwards
-until such directory is found.
-
-Each repository has `config.json` file which contains its configuration.
-The convention for this file is to contain all configurable items to avoid
-potential breakage of behaviour if some defaults are to be changed going
-forward.
-
-One can initialize a SIT repository in their working directory using `sit init`
-command. It will create `.sit` directory.
-
-### Issue
-
-Issue is a topic or a problem for debate, discussion and resolution (aka "ticket")
-and is represented by a uniquely named directory within a repository. While some
-issues might be named manually (might be a great way to establish some
-conventions), it is generally recommended that a globally unique identifier is
-generated for every new issue (such as UUID, which is the default employed by
-SIT)
-
-Because of SIT's extensible nature, issue can be also be used to represent a
-wild variety of entities. For example, a Kanban board with its records
-representing movement of other issues into, across and out of the board.
-
-Each issue is comprised of zero or more records (although issues with zero
-records aren't very practical).
-
-You can view, create and comment on issues by launching `sit-web` (`./target/release/sit-web`)
-and exploring the [Web UI](http://localhost:8080).
-
-You can also create a new issue using `sit issue` command and you can list IDs
-of all issues using `sit issues**.
-
-#### Listing issues
-
-**NB**: This section is using the "plumbing" command line interface. It helps with
-understanding how SIT works but ultimately most common interactive workflows should be
-done using `sit-web`:
-
-<center>
-<p align="center">
-<img src="doc/webui_example.png">
-</p>
-</center>
-
-By default, `sit issues` will list all issues by their IDs. However,
-this is hardly practical if you just want to see a list of issues you want to be able
-to process quickly, or if you want to search for specific kinds of issues.
-
-Luckily, sit integrates [JMESPath](http://jmespath.org) filter and querying. This allows
-us to achieve a lot.
-
-For example, we can list all issues with their ID and summary using processing query (`--query/-q`):
-
-```
-$ sit issues -q "join(' | ', [id, summary])"
-a59dfc1e-cf88-4c18-a728-23baab41f7d2 | Problem: no way to discuss issues
-efc6b084-db52-4d20-80b9-20112f679660 | Problem: sit requires to specify authorship
-885a8af0-22ff-455c-89a6-68a13597dd53 | Problem: SIT is not very ergonomic for day-to-day use
-6913711b-34ab-471f-9e83-77a719e0697a | Problem: no record authorship preserved
-09274126-7d3c-4a32-9338-a5501e1bfb84 | Problem: issue state does not account for unauthorized editing
-```
-
-(The above output is just an example so that you can see what it can produce)
-
-If you want to filter out closed issues, a filtering query (`--filter/-f`) will come in handy:
-
-```
-$ sit issues -f "state != 'closed'" -q "join(' | ', [id, summary])"
-```
-
-You can list issues in their entirety as well:
-
-```
-$ sit issues -q @
-```
-
-But of course, this is not ideal as you'd have to remember and re-type
-specific queries or filters to address your needs. For this, named filters
-and queries should be used.
-
-They can be defined either per SIT-repository, or in sit config. In repository,
-filters they are defined with files named `.issues/filters/NAME`, and
-queries are defined with files named `.issues/queries/NAME. Their content
-should be the expression to be evaluated.
-
-If you want to define filters or queries in your sit config instead (so it is local
-to you, but not shared with other SIT repository users), you can
-specify them in `issues.filters` and `issues.queries` properties:
-
-```json
-
-{
- "issues": {
-    "queries": {
-       "overview": "join(' | ', [id, summary])"
-    },
-    "filters": {
-       "not-closed": "state != 'closed'"
-    }
- }
-}
-```
-
-These queries can be used with the `--named-query/-Q` flag and filters
-with `--named-filter/-F` flag.
-
-#### Open an issue
-
-**NB**: This section is using the "plumbing" command line interface. It helps with
-understanding how SIT works but ultimately most common interactive workflows should be
-done using `sit-web`.
-
-1. Run `sit issue`, note the ID generated by it
-2. Edit temporary `text` file to prepare a **one-line summary (title) only**.
-   It is important to name the file `text` and not something else.
-   Within SIT project we kindly request to use the "problem statement"
-   summary as in: `Problem: something doesn't work` whenever possible.
-3. Take ID from the first step and run `sit record -t SummaryChanged <id> text`
-4. Edit temporary `text` file to prepare details.
-   Provide detailed information for your issue so that others can fully
-   understand it. It is a good etiquette to have one or a few paragraphs.
-5. Take ID from the first step and run `sit record -t DetailsChanged <id> text`
-6. You can check if everything is correct by running `sit reduce <id>`.
-   It will show the current state of the issue as a JSON.
-
-#### Comment on an issue
-
-**NB**: This section is using the "plumbing" command line interface. It helps with
-understanding how SIT works but ultimately most common interactive workflows should be
-done using `sit-web`.
-
-1. Edit a temporary `text` file to prepare your comment.
-   It is important to name the file `text` and not something else.
-2. Take ID of your issue and run `sit record -t Commented <id> text`
-
-#### Send it to upstream
-
-Now, this is something Web UI (at least currently) is not capable of doing as (similarly to
-sit's core technology) it is made SCM-agnostic.
-
-Now that your issue is recorded locally, you can send it to this repository:
-
-1. Create a branch (as a convention, you can use your issue ID as a branch name)
-2. Add new files in `.sit` and commit them. Commit message can be simply "Added issue ISSUE-ID"
-   or, say, "Commented on issue ISSUE-ID"
-3. Push it out to the inbox: `GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit-it.org:sit-it/sit-inbox.git <branch>`
-4. If the commit only contains new records (nothing else permitted!) the inbox
-   will accept the push and immediately push it out to sit's master repository on GitHub.
+1. Create a branch (as a convention, you can use your issue ID or an added record ID as a branch name, but free to choose anything else, preferrably unique)
+2. Add new files in `.sit` and commit them. Commit message can be simply "Added issue <ISSUE-ID>"
+   or, say, "Commented on issue <ISSUE-ID>"
+3. Push it out to the Inbox: `GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit-it.org:sit-it/sit-inbox.git <branch>`
+4. If the commit only contains new records (nothing else is permitted!) the Inbox
+   will accept the push and immediately forward it to sit's master repository on GitHub.
    Otherwise, the push will be rejected.
-   
+
 To further simplify the process of sending records to the upstream,
 it's highly recommended to add a remote (such as `issues`) for `git@git.sit-it.org:sit-it/sit-inbox.git`
-and add this to your `~/.ssh/config`:
+and this to your `~/.ssh/config`:
 
 ```
 host git.sit-it.org
@@ -288,137 +131,6 @@ host git.sit-it.org
 ```
 
 This way, pushing out, will be as nice as `git push issues <branch>`
-
-### Record
-
-Record is an immutable collection of files. Record is identified by a
-deterministic hash of its content (for each file, hash relative file name and
-then hash its content to get a cumulative hash). A record is typically linked to
-a previous record via previous record's hash, unless this record is considered
-to be one of the first records.
-
-Record is used to represent an "event" that is applied to its container. For
-example, a record might represent changing an issue's title, stating a problem
-or adding an attachment (or just about anything else). By convention, `.type/TYPE`
-file within a record is used to describe the type of the record. Multiple types
-are allowed to describe the same record from different perspectives (could be
-a generic issue description submission, such as `.type/DescriptionChanged`,
-and can also be seen as a problem statement, for example, `.type/ProblemStated`)
-
-A record is represented by a directory named after its deterministic hash (by
-default, Base32-encoded), with the content hashed inside of this record.
-
-A record is typically linked to a previous record via previous record's hash,
-unless this record is considered to be one of the first records. A record can be
-linked to more than one previous record, effectively "joining" them.
-These links are represented by empty `.prev/[previous-record-id]` files.
-
-This allows to establish non-exclusive ordering of records and allow records to
-be prepared independently without having to synchronize their naming (for
-example, in a fork or over email). By convention, if there is more than one of
-the last records, when a new record needs to be added, it is appended to all of
-them.
-
-Below you can see an artificial example that shows ordering of records:
-
-<center>
-<p align="center">
-<img src="doc/records.png" width="525" height="543">
-</p>
-</center>
-
-(Here `H5JFAN2QSAPYX34SGTK66YFUTFS55V2` is the first record and `56AGOFFETK2KFQP2FX5OF5B2RULCAUB2`
-is the last one and it "joins" `ORV3F2MEBQEDHIM4A6ATLQJKQ7OMEMT6` and `ORV3F2MEBQEDHIM4A6ATLQJKQ7OMEMT6`)
-
-This approach allows us to preserve the totality of the changes occured, without
-having to rely on SCM capabilities. That's right, even if one is to lose the
-actual repository, but to keep the source code tree, nothing will be lost on
-SIT's side. The directory layout described is chosen in favour of plain text
-append-only files for two reasons:
-
-1. It's far more merge-friendly (one wouldn't incur merge conflicts)
-2. It's an easier mechanism for managing record's supplemental files (no need to both include files and list them in
-   a file, just including a file is sufficient)
-  
-Below is the list of some record files conventions:
-  
-| Filename   | Description                                                                                                        | Notes                                                                                                |
-|------------|--------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
-| .type/TYPE | Record type. Open-ended, unknown types must be ignored.                                                            | Required, more than one entry is allowed. Case-insensitive to allow for case-insensitive filesystems |
-| .prev/ID   | Link to a previous record ID.                                                                                      | Optional, more than one entry is allowed                                                             |
-| .timestamp | ISO-8601 timestamp, always with zero UTF offset (`YYYY-MM-DDTHH:mm:ss.sssZ`).                                      | Optional but generally encouraged                                                                    |
-| .authors   | List of record authors (one per line, `John Doe <john@doe>` format is recommended, `John Doe` is also acceptable ) | Recommended                                                                                          |
-| .signature | ASCII PGP signature of the encoded hash of the record without this file (`gpg --sign --armor`)                     | Recommended                                                                                          |
-
-You can create a record using `sit record <issue id> [FILE]..` command.
-
-### Reducers
-
-Reducer is a very important concept in SIT. By themselves, records are cool but of little
-practical value as they don't allow us to observe the current state of any issue but
-only its history. 
-
-The naming comes from [fold, or reduce function](https://en.wikipedia.org/wiki/Fold_(higher-order_function))
-
-In a nutshell, a reducer takes current state and an item to process and returns an update state:
-
-```
-Reducer(State, Item) -> State1;
-```
-
-In practicular terms, a reducer takes a state of the issue (a JSON object), and a record
-and returns an updated JSON object with the state of the issue. In order to produce a meaningful
-representation of an issue, we must iterate records in order to get a valid result. One of the
-interesting features here is the ability to process records up to a certain point to see how
-an issue looked back then.
-
-Currently, the core dictionary processed by SIT is very small (but it is expected to grow) and
-can be found in [documentation](doc/dict).
-
-One can look at the state of the issue with the `sit reduce <issue id>` command.
-
-By default, standard reducers are added to every new SIT repository, and can be updated
-from new SIT builds by running `sit populate-files`.
-
-One can write their own reducer by putting an extra file to `.sit/reducers/FILENAME.js` and
-implementing this interface:
-
-```javascript
-module.exports = function(state, record) {
-  // ...
-  return newState;
-}
-```
-
-This function will be invoked with an object bound to `this** so that the state can be saved
-across invocations, per issue.
-
-## Web UI
-
-**Status**: fresh out of the oven, rough on the edges.
-
-SIT features a sub-project called `sit-web` which allows to access the issues over a web interface. 
-While it is currently quite rudimentary features-wise and has zero styling, it has been built with
-local customization in mind. It's built using [Web Components](https://webcomponents.org) and
-[Polymer 2.0](https://www.polymer-project.org/).
-
-By default, it embeds all necessary files into its own binary from [sit-web/src/webapp](sit-web/src/webapp),
-however, one can override ANY file by putting a replacement file into `.sit/.web/FILE/TO/BE/REPLACED`.
-This file will be automatically served instead of the original one. The original files can be still accessed
-by using /super/FILE/TO/BE/REPLACED path.
-
-This tool is intended to be used by a local user over an existing repository. There's currently no
-version of `sit-web` that can be hosted publicly but that'll likely change in the future.
-
-## Got questions, bug reports, etc?
-
-SIT's is using SIT for tracking issues (duh!) and because of this, GitHub
-issues are turned off. It's a good excuse to try out SIT if you have an
-issue to file!
-
-### Getting updates
-
-You will get all issue updates when you fetch this git repository.
 
 ### Preparing a merge request
 
