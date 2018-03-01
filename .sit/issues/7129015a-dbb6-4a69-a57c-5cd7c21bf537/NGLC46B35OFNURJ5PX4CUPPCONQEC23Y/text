@@ -1,0 +1,5 @@
+This results in broken images and reload flickering comparing
+to images passed in markdown.
+
+Solution: handle <img> tags
+
