@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use ::Record;
 use duktape;
 use std::ptr;
-use std::ffi::{CString, OsStr};
+use std::ffi::{CString, CStr, OsStr};
 use std::path::PathBuf;
 use std::fs;
 
@@ -32,6 +32,10 @@ unsafe impl<'a, R: Record> Send for DuktapeReducer<'a, R> {}
 pub enum Error {
     IoError(::std::io::Error),
     #[error(no_from, non_std)]
+    ExecutionError {
+        error: String,
+    },
+    #[error(no_from, non_std)]
     CompileError {
         file: PathBuf,
         error: String,
@@ -52,7 +56,7 @@ unsafe extern "C" fn fatal_handler(_udata: *mut ::std::os::raw::c_void, msg: *co
 
 impl<'a, R: Record> DuktapeReducer<'a, R> {
 
-    unsafe fn load_module(context: *mut duktape::duk_hthread) {
+    unsafe fn load_module(context: *mut duktape::duk_hthread) -> Result<(), Error> {
         // Now, execute the function with a defined module
         duktape::duk_require_function(context, -1);
         duktape::duk_push_object(context); // module
@@ -70,7 +74,12 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
         duktape::duk_require_function(context, -2);
         duktape::duk_require_object(context, -3);
         // module f module
-        duktape::duk_call(context,1);
+        let res = duktape::duk_pcall(context,1);
+        if res as u32 == duktape::DUK_EXEC_ERROR {
+            let err_str = CStr::from_ptr(duktape::duk_to_string(context, -1));
+            let error = err_str.to_str().unwrap().into();
+            return Err(Error::ExecutionError { error });
+        }
         // module retval
         duktape::duk_pop(context);
         // module
@@ -78,12 +87,60 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
         // module f'
         duktape::duk_remove(context, -2);
         // f'
+        Ok(())
     }
+
+
+    #[cfg(feature = "duktape-require")]
+    unsafe extern "C" fn mod_search(context: *mut duktape::duk_hthread) -> duktape::duk_ret_t {
+        // module id
+        let id = CStr::from_ptr(duktape::duk_get_string(context, 0));
+        // path to reducers
+        let str_path_prop = CString::new("path").unwrap();
+        let str_duktape = CString::new("Duktape").unwrap();
+        duktape::duk_get_global_string(context, str_duktape.as_ptr());
+        duktape::duk_get_prop_string(context, -1,str_path_prop.as_ptr());
+        let path = CStr::from_ptr(duktape::duk_get_string(context, -1));
+        duktape::duk_pop_2(context);
+        // find the module
+        let prefix = PathBuf::from(path.to_str().unwrap());
+        let mod_path = prefix.join(id.to_str().unwrap());
+        if mod_path.is_file() && mod_path.strip_prefix(&prefix).is_ok() {
+            let mut f = fs::File::open(mod_path).unwrap();
+            let mut s = String::new();
+            f.read_to_string(&mut s).unwrap();
+            let src = CString::new(s).unwrap();
+            duktape::duk_push_string(context, src.as_ptr());
+            return 1;
+        } else {
+            duktape::duk_error_raw(context, duktape::DUK_ERR_ERROR as i32, ptr::null_mut(), 0,CString::new(format!("module not found: {:?}", id)).unwrap().as_ptr());
+            return duktape::DUK_RET_ERROR;
+        }
+    }
+
     pub fn new(repository: &'a ::Repository) -> Result<Self, Error> {
         let context = unsafe {
             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
         };
-        let files = fs::read_dir(repository.path().join("reducers")).unwrap();
+        let reducers_path = repository.path().join("reducers");
+        #[cfg(feature = "duktape-require")]
+        unsafe {
+            let str_duktape = CString::new("Duktape").unwrap();
+            let str_mod_search = CString::new("modSearch").unwrap();
+            let str_path = CString::new(reducers_path.to_str().unwrap()).unwrap();
+            let str_path_prop = CString::new("path").unwrap();
+            duktape::duk_module_duktape_init(context);
+            duktape::duk_get_global_string(context, str_duktape.as_ptr());
+            // path reducers
+            duktape::duk_push_string(context, str_path_prop.as_ptr());
+            duktape::duk_push_string(context, str_path.as_ptr());
+            duktape::duk_def_prop(context, -3, duktape::DUK_DEFPROP_HAVE_VALUE);
+            // function
+            duktape::duk_push_c_function(context, Some(DuktapeReducer::<'a, R>::mod_search), 4);
+            duktape::duk_put_prop_string(context, -2, str_mod_search.as_ptr());
+           duktape::duk_pop(context);
+        }
+        let files = fs::read_dir(reducers_path).unwrap();
         let mut reducers = 0;
         let mut filenames = vec![];
         let mut functions = vec![];
@@ -139,7 +196,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
                     functions.push(func);
                     duktape::duk_pop(context);
                     // load module
-                    DuktapeReducer::<'a, R>::load_module(context);
+                    DuktapeReducer::<'a, R>::load_module(context)?;
                     // If module.export is not function, bail
                     if duktape::duk_is_function(context, -1) != 1 {
                         return Err(Error::CompileError {
@@ -196,7 +253,7 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
                 duktape::duk_config_buffer(context, -1, func.as_ptr() as *mut _, func.len());
                 duktape::duk_load_function(context);
                 // obtain the module
-                DuktapeReducer::<'a, R>::load_module(context);
+                DuktapeReducer::<'a, R>::load_module(context).unwrap(); // since it's a clone we assume the first load went fine
                 // transfer state
                 duktape::duk_push_null(self.context);
                 duktape::duk_copy(self.context, (i * 2 + 1) as i32, -1);
@@ -802,5 +859,102 @@ mod tests {
         // SHOULD NOT FAIL
         issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
     }
+
+    #[cfg(feature = "duktape-require")]
+    #[test]
+    fn require() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join("reducers").join("reducer")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+        f.write(b"module.exports = require(\"reducer/index.js\");").unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer/index.js")).unwrap();
+        f.write(b"module.exports = function(state, record) { return {\"hello\": record.hash}; }").unwrap();
+
+        let issue = repo.new_issue().unwrap();
+        let record = issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
+
+        assert_eq!(state.get("hello").unwrap(), &JsonValue::String(record.encoded_hash()));
+    }
+
+    #[cfg(feature = "duktape-require")]
+    #[test]
+    fn require_path_modification() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join("reducers").join("reducer")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+        f.write(b"Duktape.path = Duktape.path + '/reducer'; module.exports = require(\"index.js\");").unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer/index.js")).unwrap();
+        f.write(b"module.exports = function(state, record) { return {\"hello\": record.hash}; }").unwrap();
+
+        let err_str = "Error: module not found: \"index.js\"";
+        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        Err(Error::ExecutionError { ref error }) if error == err_str);
+    }
+
+
+    #[cfg(feature = "duktape-require")]
+    #[test]
+    fn require_not_found() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join("reducers").join("reducer")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+        f.write(b"module.exports = require(\"reducer/index.js\");").unwrap();
+
+        let err_str = "Error: module not found: \"reducer/index.js\"";
+        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        Err(Error::ExecutionError { ref error }) if error == err_str);
+    }
+
+
+    #[cfg(feature = "duktape-require")]
+    #[test]
+    fn require_external_relative() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+        f.write(b"module.exports = require(\"../reducer.js\");").unwrap();
+
+        let mut f = fs::File::create(repo.path().join("reducer.js")).unwrap();
+        f.write(b"module.exports = function() {};").unwrap();
+
+        let err_str = "TypeError: cannot resolve module id: ../reducer.js";
+        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        Err(Error::ExecutionError { ref error }) if error == err_str);
+    }
+
+    #[cfg(feature = "duktape-require")]
+    #[test]
+    fn require_external_absolute() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(tmp).unwrap();
+        use std::fs;
+        use std::io::Write;
+        fs::create_dir_all(repo.path().join("reducers")).unwrap();
+        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+        f.write(b"module.exports = require(\"/reducer.js\");").unwrap();
+
+        let err_str = "TypeError: cannot resolve module id: /reducer.js";
+        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        Err(Error::ExecutionError { ref error }) if error == err_str);
+    }
+
 
 }
