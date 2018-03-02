@@ -1,0 +1,99 @@
+From a46f26783e75ce2b3e5db67e5c5879133195ddc5 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 2 Mar 2018 14:12:17 +0700
+Subject: [PATCH] Problem: all issues are rendered at once
+
+When listing issues, all of them are rendered at once. This might have
+performance implications, especially when listing a larger number of
+issues (especially considering that we don't have pagination at the
+moment).
+
+Solution: use "virtual infinite list" component (iron-list) to render
+enough issues to fill the viewport.
+
+As a side note, the elevation of the paper-cards was changed to zero,
+because with iron-list, there was an unfortunate visual "glitch" where
+once in a while a border between two items was thicker that others. I
+assume this was happening precisely because of the rendering technique.
+Elevation set to zero removed borders altogether. I think it actually
+looks better and lighter this way anyway.
+---
+ sit-web/webapp/bower.json                                   |  3 ++-
+ sit-web/webapp/src/dashboard-page/dashboard-page-style.html |  4 ++++
+ sit-web/webapp/src/dashboard-page/dashboard-page.html       | 11 ++++++-----
+ sit-web/webapp/src/dashboard-page/issue.html                |  2 +-
+ 4 files changed, 13 insertions(+), 7 deletions(-)
+
+diff --git a/sit-web/webapp/bower.json b/sit-web/webapp/bower.json
+index ea20d42..95d1182 100644
+--- a/sit-web/webapp/bower.json
++++ b/sit-web/webapp/bower.json
+@@ -19,7 +19,8 @@
+     "neon-animation": "^2.1.0",
+     "web-animations-js": "^2.3.1",
+     "from-now": "jifalops/from-now#^1.0.1",
+-    "font-roboto": "PolymerElements/font-roboto-local#^1.1.0"
++    "font-roboto": "PolymerElements/font-roboto-local#^1.1.0",
++    "iron-list": "^2.0.12"
+   },
+   "devDependencies": {
+     "web-component-tester": "Polymer/web-component-tester#^6.0.0",
+diff --git a/sit-web/webapp/src/dashboard-page/dashboard-page-style.html b/sit-web/webapp/src/dashboard-page/dashboard-page-style.html
+index 8ae1ca5..81dea20 100644
+--- a/sit-web/webapp/src/dashboard-page/dashboard-page-style.html
++++ b/sit-web/webapp/src/dashboard-page/dashboard-page-style.html
+@@ -15,6 +15,10 @@
+                 margin: 0 auto;
+                 width: 50px;
+             }
++
++            iron-list {
++                height: 100vh;
++            }
+         </style>
+     </template>
+ </dom-module>
+diff --git a/sit-web/webapp/src/dashboard-page/dashboard-page.html b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+index ee9ab71..082fd3b 100644
+--- a/sit-web/webapp/src/dashboard-page/dashboard-page.html
++++ b/sit-web/webapp/src/dashboard-page/dashboard-page.html
+@@ -1,5 +1,6 @@
+ <link rel="import" href="/bower_components/polymer/polymer-element.html">
+ <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
++<link rel="import" href="/bower_components/iron-list/iron-list.html">
+ <link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
+ <link rel="import" href="/bower_components/app-layout/app-layout.html">
+ <link rel="import" href="/bower_components/paper-search/paper-search.html">
+@@ -63,11 +64,11 @@
+                <h1>No matches</h1>
+            </template>
+        </template>
+-      <div id="results" class="layout vertical">
+-        <template is="dom-repeat" items="{{ issues }}">
+-            <sit-issue issue="{{item}}"></sit-issue>
+-        </template>
+-       </div>
++       <iron-list items="[[ issues ]]" scroll-target="document">
++           <template>
++               <sit-issue issue="[[ item ]]"></sit-issue>
++           </template>
++       </iron-list>
+     </template>
+ 
+     <script>
+diff --git a/sit-web/webapp/src/dashboard-page/issue.html b/sit-web/webapp/src/dashboard-page/issue.html
+index 9c4d8c3..1fdb52f 100644
+--- a/sit-web/webapp/src/dashboard-page/issue.html
++++ b/sit-web/webapp/src/dashboard-page/issue.html
+@@ -12,7 +12,7 @@
+         <style include="issue-style"></style>
+         <style is="custom-style" include="iron-flex iron-flex-alignment iron-flex-factors"></style>
+ 
+-        <paper-card id="card">
++        <paper-card id="card" elevation="0">
+                  <span class="layout horizontal center-aligned title">
+                     <a class="flex-4" id="link" href="/issue/[[issue.id]]">[[ issue.summary ]]</a>
+                     <span class$="[[ issue.state ]] self-end">[[ issue.state ]]</span>
+-- 
+2.15.0
+

@@ -1,0 +1,15 @@
+When listing issues, all of them are rendered at once. This might have
+performance implications, especially when listing a larger number of
+issues (especially considering that we don't have pagination at the
+moment).
+
+Solution: use "virtual infinite list" component (iron-list) to render
+enough issues to fill the viewport.
+
+As a side note, the elevation of the paper-cards was changed to zero,
+because with iron-list, there was an unfortunate visual "glitch" where
+once in a while a border between two items was thicker that others. I
+assume this was happening precisely because of the rendering technique.
+Elevation set to zero removed borders altogether. I think it actually
+looks better and lighter this way anyway.
+
