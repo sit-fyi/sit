@@ -1,5 +1,6 @@
 <link rel="import" href="/bower_components/polymer/polymer-element.html">
 <link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="/bower_components/iron-list/iron-list.html">
 <link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
 <link rel="import" href="/bower_components/app-layout/app-layout.html">
 <link rel="import" href="/bower_components/paper-search/paper-search.html">
@@ -63,11 +64,11 @@
                <h1>No matches</h1>
            </template>
        </template>
-      <div id="results" class="layout vertical">
-        <template is="dom-repeat" items="{{ issues }}">
-            <sit-issue issue="{{item}}"></sit-issue>
-        </template>
-       </div>
+       <iron-list items="[[ issues ]]" scroll-target="document">
+           <template>
+               <sit-issue issue="[[ item ]]"></sit-issue>
+           </template>
+       </iron-list>
     </template>
 
     <script>
