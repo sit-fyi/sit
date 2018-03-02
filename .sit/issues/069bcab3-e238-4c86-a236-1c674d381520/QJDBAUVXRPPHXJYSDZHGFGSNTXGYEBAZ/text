@@ -1,0 +1,8 @@
+After further consideration, it appears as if this `sup` functionality can be built on top of reducers, re-using much of its functionality. The main addition here would be serialization of the internal state maintained by reducers. I was debating whether this `sup` type of functionality would need to record which records the reducers were applied to, but I think it is best to leave this logic to those reducers completely, so they can decide if it is worth skipping a record or not (what if configuration has changed?)
+
+So far, this can be perhaps done as an extension of `sit reduce` where one would be able to:
+
+1. Specify custom path to reducers (instead of default `SIT-REPO/reducers`)
+2. Specify if their state has to be preserved.
+
+One missing step here is how would those reducers be able to get their configuration. The not-so-nice but working way would be to just let the user edit the source code of the reducer to change the configuration. However, that doesn't help upgradeability of those reducers if they come from a third party. Another way would be to start adding basic `require` functionality that would allow reducers to load files under their own containing directory (so that nothing else can be loaded). This could be very useful for all kinds of reducers.

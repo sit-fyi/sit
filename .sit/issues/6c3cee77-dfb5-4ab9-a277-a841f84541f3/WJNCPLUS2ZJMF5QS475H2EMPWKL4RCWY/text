@@ -1,0 +1,3 @@
+As previously mentioned, this issue will likely to be at least partially resolved with ec48c0fa-6085-444f-aebb-0fe5da468164. Other techniques might come in handy, too (for example, storing issues as single-file mountable filesystems-in-file?). 
+
+Closing this issue.

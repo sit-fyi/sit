@@ -1,0 +1,9 @@
+Currently, both issues and records have fairly long identifiers, thus making them harder to communicate between people, especially when non-exact transports are used: say, "over a phone" or just in a conversation. With traditional issue trackers, it's so convenient to say "have you looked at issue 1256?".
+
+Proposed solution: use Git's approach for ["Short SHA-1"](https://git-scm.com/book/en/v2/Git-Tools-Revision-Selection): whatever identifier that can unambiguously expand to the full one should be expanded to one. 
+
+This will be especially useful when rendering an issue: show the short identifier by default so it can be easily captured and communicated. This short identifier can also be used for addressing an issue or a record (say, in `sit reduce`).
+
+One concern here is that one would use these short identifiers in immutable content (in a comment, a summary, etc) and what once was unambiguous, could become ambiguous at a later point. There are a few mitigation strategies I can think of: 1) if a reference found to be ambiguous, present user with a choice 2) upon creation of content, if the software handling it is aware of the fact that a particular piece of content is actually a reference, change it to a full reference before adding the record.
+
+P.S. This issue reminds me of a very similar argument on Subversion vs Git -- Subversion too had very simple, easy to understand, incremental revision numbers.

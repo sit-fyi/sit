@@ -1,0 +1,18 @@
+Merge requests are now automatically tested thanks to newly introduced `scripts/ci` and this snippet in .travis.yml:
+
+```yaml
+  - script:                                                                                                                                                                                                                        
+    - cargo build                                                                                                                                                                                                                  
+    - mkdir -p ~/.config/sit                                                                                                                                                                                                       
+    - 'echo "{\"author\": {\"name\": \"SIT Merge Request CI\"}}" > ~/.config/sit/config.json'                                                                                                                                     
+    - git config --global user.name "SIT Merge Request CI"                                                                                                                                                                        
+    - git config --global user.email "bot@sit-it.org"                                                                                                                                                                             
+    - git checkout -b ci                                                                                                                                                                                                          
+    - PATH=`pwd`/target/debug:$PATH ./scripts/ci ${TRAVIS_COMMIT_RANGE:-HEAD..HEAD} "cargo test" `git rev-parse HEAD` | tee log                                                                                                   
+    - chmod 600 sit-inbox                                                                                                                                                                                                         
+    - cat log | tail -1 | xargs git push git@git.sit-it.org:sit-it/sit-inbox.git                                                                                                                                                  
+    env:                                                                                                                                                                                                                          
+    - GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -i sit-inbox"                  
+```
+
+This is a pretty portable way to do basic CI.

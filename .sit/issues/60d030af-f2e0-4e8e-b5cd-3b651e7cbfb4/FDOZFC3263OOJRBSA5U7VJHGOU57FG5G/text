@@ -1,0 +1,3 @@
+Location of config (and other) files might not be following proper paths on different operating systems
+
+Proposed solution: Use https://github.com/soc/directories-rs crate
