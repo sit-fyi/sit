@@ -1,0 +1,785 @@
+From 2bd32e078f3e531d909f994a755c6b65044ee90e Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 2 Mar 2018 17:13:31 +0700
+Subject: [PATCH] Problem: reducers can't use other modules
+
+This severely limits their options for code reuse and their ability to
+use external libraries when necessary.
+
+Solution: allow reducers to `require()` other modules
+under the same directory.
+---
+ sit-core/Cargo.toml                       |   3 +-
+ sit-core/build.rs                         |   3 +
+ sit-core/src/duktape/duk_module_duktape.c | 471 ++++++++++++++++++++++++++++++
+ sit-core/src/duktape/duk_module_duktape.h |  14 +
+ sit-core/src/duktape/mod.rs               |   7 +-
+ sit-core/src/duktape/module.rs            |   5 +
+ sit-core/src/reducers/duktape.rs          | 145 ++++++++-
+ 7 files changed, 640 insertions(+), 8 deletions(-)
+ create mode 100644 sit-core/src/duktape/duk_module_duktape.c
+ create mode 100644 sit-core/src/duktape/duk_module_duktape.h
+ create mode 100644 sit-core/src/duktape/module.rs
+
+diff --git a/sit-core/Cargo.toml b/sit-core/Cargo.toml
+index 54750ff..dd9142f 100644
+--- a/sit-core/Cargo.toml
++++ b/sit-core/Cargo.toml
+@@ -33,7 +33,8 @@ cc = "1.0"
+ include_dir = "0.1.5"
+ 
+ [features]
+-default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap"]
++default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap", "duktape-require"]
++duktape-require = []
+ duktape-reducers = ["duktape", "cesu8"]
+ duktape = []
+ duktape-mmap = ["memmap"]
+diff --git a/sit-core/build.rs b/sit-core/build.rs
+index 7e82f36..7e0ac3c 100644
+--- a/sit-core/build.rs
++++ b/sit-core/build.rs
+@@ -10,6 +10,9 @@ fn main() {
+         Ok(ref flag) if flag == "1" => {
+             let mut build = cc::Build::new();
+             build.file("src/duktape/duktape.c");
++            if let Ok(_) = env::var("CARGO_FEATURE_DUKTAPE_REQUIRE") {
++                build.file("src/duktape/duk_module_duktape.c");
++            }
+             if env::var("CARGO_FEATURE_WINDOWS7").is_ok() {
+                 build.define("DUK_USE_DATE_NOW_WINDOWS","1");
+             }
+diff --git a/sit-core/src/duktape/duk_module_duktape.c b/sit-core/src/duktape/duk_module_duktape.c
+new file mode 100644
+index 0000000..e2616ba
+--- /dev/null
++++ b/sit-core/src/duktape/duk_module_duktape.c
+@@ -0,0 +1,471 @@
++/*
++ *  Duktape 1.x compatible module loading framework
++ */
++
++#include "duktape.h"
++#include "duk_module_duktape.h"
++
++/* (v)snprintf() is missing before MSVC 2015.  Note that _(v)snprintf() does
++ * NOT NUL terminate on truncation, but that's OK here.
++ * http://stackoverflow.com/questions/2915672/snprintf-and-visual-studio-2010
++ */
++#if defined(_MSC_VER) && (_MSC_VER < 1900)
++#define snprintf _snprintf
++#endif
++
++#if 0  /* Enable manually */
++#define DUK__ASSERT(x) do { \
++		if (!(x)) { \
++			fprintf(stderr, "ASSERTION FAILED at %s:%d: " #x "\n", __FILE__, __LINE__); \
++			fflush(stderr);  \
++		} \
++	} while (0)
++#define DUK__ASSERT_TOP(ctx,val) do { \
++		DUK__ASSERT(duk_get_top((ctx)) == (val)); \
++	} while (0)
++#else
++#define DUK__ASSERT(x) do { (void) (x); } while (0)
++#define DUK__ASSERT_TOP(ctx,val) do { (void) ctx; (void) (val); } while (0)
++#endif
++
++static void duk__resolve_module_id(duk_context *ctx, const char *req_id, const char *mod_id) {
++	duk_uint8_t buf[DUK_COMMONJS_MODULE_ID_LIMIT];
++	duk_uint8_t *p;
++	duk_uint8_t *q;
++	duk_uint8_t *q_last;  /* last component */
++	duk_int_t int_rc;
++
++	DUK__ASSERT(req_id != NULL);
++	/* mod_id may be NULL */
++
++	/*
++	 *  A few notes on the algorithm:
++	 *
++	 *    - Terms are not allowed to begin with a period unless the term
++	 *      is either '.' or '..'.  This simplifies implementation (and
++	 *      is within CommonJS modules specification).
++	 *
++	 *    - There are few output bound checks here.  This is on purpose:
++	 *      the resolution input is length checked and the output is never
++	 *      longer than the input.  The resolved output is written directly
++	 *      over the input because it's never longer than the input at any
++	 *      point in the algorithm.
++	 *
++	 *    - Non-ASCII characters are processed as individual bytes and
++	 *      need no special treatment.  However, U+0000 terminates the
++	 *      algorithm; this is not an issue because U+0000 is not a
++	 *      desirable term character anyway.
++	 */
++
++	/*
++	 *  Set up the resolution input which is the requested ID directly
++	 *  (if absolute or no current module path) or with current module
++	 *  ID prepended (if relative and current module path exists).
++	 *
++	 *  Suppose current module is 'foo/bar' and relative path is './quux'.
++	 *  The 'bar' component must be replaced so the initial input here is
++	 *  'foo/bar/.././quux'.
++	 */
++
++	if (mod_id != NULL && req_id[0] == '.') {
++		int_rc = snprintf((char *) buf, sizeof(buf), "%s/../%s", mod_id, req_id);
++	} else {
++		int_rc = snprintf((char *) buf, sizeof(buf), "%s", req_id);
++	}
++	if (int_rc >= (duk_int_t) sizeof(buf) || int_rc < 0) {
++		/* Potentially truncated, NUL not guaranteed in any case.
++		 * The (int_rc < 0) case should not occur in practice.
++		 */
++		goto resolve_error;
++	}
++	DUK__ASSERT(strlen((const char *) buf) < sizeof(buf));  /* at most sizeof(buf) - 1 */
++
++	/*
++	 *  Resolution loop.  At the top of the loop we're expecting a valid
++	 *  term: '.', '..', or a non-empty identifier not starting with a period.
++	 */
++
++	p = buf;
++	q = buf;
++	for (;;) {
++		duk_uint_fast8_t c;
++
++		/* Here 'p' always points to the start of a term.
++		 *
++		 * We can also unconditionally reset q_last here: if this is
++		 * the last (non-empty) term q_last will have the right value
++		 * on loop exit.
++		 */
++
++		DUK__ASSERT(p >= q);  /* output is never longer than input during resolution */
++
++		q_last = q;
++
++		c = *p++;
++		if (c == 0) {
++			goto resolve_error;
++		} else if (c == '.') {
++			c = *p++;
++			if (c == '/') {
++				/* Term was '.' and is eaten entirely (including dup slashes). */
++				goto eat_dup_slashes;
++			}
++			if (c == '.' && *p == '/') {
++				/* Term was '..', backtrack resolved name by one component.
++				 *  q[-1] = previous slash (or beyond start of buffer)
++				 *  q[-2] = last char of previous component (or beyond start of buffer)
++				 */
++				p++;  /* eat (first) input slash */
++				DUK__ASSERT(q >= buf);
++				if (q == buf) {
++					goto resolve_error;
++				}
++				DUK__ASSERT(*(q - 1) == '/');
++				q--;  /* Backtrack to last output slash (dups already eliminated). */
++				for (;;) {
++					/* Backtrack to previous slash or start of buffer. */
++					DUK__ASSERT(q >= buf);
++					if (q == buf) {
++						break;
++					}
++					if (*(q - 1) == '/') {
++						break;
++					}
++					q--;
++				}
++				goto eat_dup_slashes;
++			}
++			goto resolve_error;
++		} else if (c == '/') {
++			/* e.g. require('/foo'), empty terms not allowed */
++			goto resolve_error;
++		} else {
++			for (;;) {
++				/* Copy term name until end or '/'. */
++				*q++ = c;
++				c = *p++;
++				if (c == 0) {
++					/* This was the last term, and q_last was
++					 * updated to match this term at loop top.
++					 */
++					goto loop_done;
++				} else if (c == '/') {
++					*q++ = '/';
++					break;
++				} else {
++					/* write on next loop */
++				}
++			}
++		}
++
++	 eat_dup_slashes:
++		for (;;) {
++			/* eat dup slashes */
++			c = *p;
++			if (c != '/') {
++				break;
++			}
++			p++;
++		}
++	}
++ loop_done:
++	/* Output #1: resolved absolute name. */
++	DUK__ASSERT(q >= buf);
++	duk_push_lstring(ctx, (const char *) buf, (size_t) (q - buf));
++
++	/* Output #2: last component name. */
++	DUK__ASSERT(q >= q_last);
++	DUK__ASSERT(q_last >= buf);
++	duk_push_lstring(ctx, (const char *) q_last, (size_t) (q - q_last));
++	return;
++
++ resolve_error:
++	(void) duk_type_error(ctx, "cannot resolve module id: %s", (const char *) req_id);
++}
++
++/* Stack indices for better readability. */
++#define DUK__IDX_REQUESTED_ID   0   /* module id requested */
++#define DUK__IDX_REQUIRE        1   /* current require() function */
++#define DUK__IDX_REQUIRE_ID     2   /* the base ID of the current require() function, resolution base */
++#define DUK__IDX_RESOLVED_ID    3   /* resolved, normalized absolute module ID */
++#define DUK__IDX_LASTCOMP       4   /* last component name in resolved path */
++#define DUK__IDX_DUKTAPE        5   /* Duktape object */
++#define DUK__IDX_MODLOADED      6   /* Duktape.modLoaded[] module cache */
++#define DUK__IDX_UNDEFINED      7   /* 'undefined', artifact of lookup */
++#define DUK__IDX_FRESH_REQUIRE  8   /* new require() function for module, updated resolution base */
++#define DUK__IDX_EXPORTS        9   /* default exports table */
++#define DUK__IDX_MODULE         10  /* module object containing module.exports, etc */
++
++static duk_ret_t duk__require(duk_context *ctx) {
++	const char *str_req_id;  /* requested identifier */
++	const char *str_mod_id;  /* require.id of current module */
++	duk_int_t pcall_rc;
++
++	/* NOTE: we try to minimize code size by avoiding unnecessary pops,
++	 * so the stack looks a bit cluttered in this function.  DUK__ASSERT_TOP()
++	 * assertions are used to ensure stack configuration is correct at each
++	 * step.
++	 */
++
++	/*
++	 *  Resolve module identifier into canonical absolute form.
++	 */
++
++	str_req_id = duk_require_string(ctx, DUK__IDX_REQUESTED_ID);
++	duk_push_current_function(ctx);
++	duk_get_prop_string(ctx, -1, "id");
++	str_mod_id = duk_get_string(ctx, DUK__IDX_REQUIRE_ID);  /* ignore non-strings */
++	duk__resolve_module_id(ctx, str_req_id, str_mod_id);
++	str_req_id = NULL;
++	str_mod_id = NULL;
++
++	/* [ requested_id require require.id resolved_id last_comp ] */
++	DUK__ASSERT_TOP(ctx, DUK__IDX_LASTCOMP + 1);
++
++	/*
++	 *  Cached module check.
++	 *
++	 *  If module has been loaded or its loading has already begun without
++	 *  finishing, return the same cached value (module.exports).  The
++	 *  value is registered when module load starts so that circular
++	 *  references can be supported to some extent.
++	 */
++
++	duk_push_global_stash(ctx);
++	duk_get_prop_string(ctx, -1, "\xff" "module:Duktape");
++	duk_remove(ctx, -2);  /* Lookup stashed, original 'Duktape' object. */
++	duk_get_prop_string(ctx, DUK__IDX_DUKTAPE, "modLoaded");  /* Duktape.modLoaded */
++	duk_require_type_mask(ctx, DUK__IDX_MODLOADED, DUK_TYPE_MASK_OBJECT);
++	DUK__ASSERT_TOP(ctx, DUK__IDX_MODLOADED + 1);
++
++	duk_dup(ctx, DUK__IDX_RESOLVED_ID);
++	if (duk_get_prop(ctx, DUK__IDX_MODLOADED)) {
++		/* [ requested_id require require.id resolved_id last_comp Duktape Duktape.modLoaded Duktape.modLoaded[id] ] */
++		duk_get_prop_string(ctx, -1, "exports");  /* return module.exports */
++		return 1;
++	}
++	DUK__ASSERT_TOP(ctx, DUK__IDX_UNDEFINED + 1);
++
++	/* [ requested_id require require.id resolved_id last_comp Duktape Duktape.modLoaded undefined ] */
++
++	/*
++	 *  Module not loaded (and loading not started previously).
++	 *
++	 *  Create a new require() function with 'id' set to resolved ID
++	 *  of module being loaded.  Also create 'exports' and 'module'
++	 *  tables but don't register exports to the loaded table yet.
++	 *  We don't want to do that unless the user module search callbacks
++	 *  succeeds in finding the module.
++	 */
++
++	/* Fresh require: require.id is left configurable (but not writable)
++	 * so that is not easy to accidentally tweak it, but it can still be
++	 * done with Object.defineProperty().
++	 *
++	 * XXX: require.id could also be just made non-configurable, as there
++	 * is no practical reason to touch it (at least from Ecmascript code).
++	 */
++	duk_push_c_function(ctx, duk__require, 1 /*nargs*/);
++	duk_push_string(ctx, "name");
++	duk_push_string(ctx, "require");
++	duk_def_prop(ctx, DUK__IDX_FRESH_REQUIRE, DUK_DEFPROP_HAVE_VALUE);  /* not writable, not enumerable, not configurable */
++	duk_push_string(ctx, "id");
++	duk_dup(ctx, DUK__IDX_RESOLVED_ID);
++	duk_def_prop(ctx, DUK__IDX_FRESH_REQUIRE, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_CONFIGURABLE);  /* a fresh require() with require.id = resolved target module id */
++
++	/* Module table:
++	 * - module.exports: initial exports table (may be replaced by user)
++	 * - module.id is non-writable and non-configurable, as the CommonJS
++	 *   spec suggests this if possible
++	 * - module.filename: not set, defaults to resolved ID if not explicitly
++	 *   set by modSearch() (note capitalization, not .fileName, matches Node.js)
++	 * - module.name: not set, defaults to last component of resolved ID if
++	 *   not explicitly set by modSearch()
++	 */
++	duk_push_object(ctx);  /* exports */
++	duk_push_object(ctx);  /* module */
++	duk_push_string(ctx, "exports");
++	duk_dup(ctx, DUK__IDX_EXPORTS);
++	duk_def_prop(ctx, DUK__IDX_MODULE, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_SET_WRITABLE | DUK_DEFPROP_SET_CONFIGURABLE);  /* module.exports = exports */
++	duk_push_string(ctx, "id");
++	duk_dup(ctx, DUK__IDX_RESOLVED_ID);  /* resolved id: require(id) must return this same module */
++	duk_def_prop(ctx, DUK__IDX_MODULE, DUK_DEFPROP_HAVE_VALUE);  /* module.id = resolved_id; not writable, not enumerable, not configurable */
++	duk_compact(ctx, DUK__IDX_MODULE);  /* module table remains registered to modLoaded, minimize its size */
++	DUK__ASSERT_TOP(ctx, DUK__IDX_MODULE + 1);
++
++	/* [ requested_id require require.id resolved_id last_comp Duktape Duktape.modLoaded undefined fresh_require exports module ] */
++
++	/* Register the module table early to modLoaded[] so that we can
++	 * support circular references even in modSearch().  If an error
++	 * is thrown, we'll delete the reference.
++	 */
++	duk_dup(ctx, DUK__IDX_RESOLVED_ID);
++	duk_dup(ctx, DUK__IDX_MODULE);
++	duk_put_prop(ctx, DUK__IDX_MODLOADED);  /* Duktape.modLoaded[resolved_id] = module */
++
++	/*
++	 *  Call user provided module search function and build the wrapped
++	 *  module source code (if necessary).  The module search function
++	 *  can be used to implement pure Ecmacsript, pure C, and mixed
++	 *  Ecmascript/C modules.
++	 *
++	 *  The module search function can operate on the exports table directly
++	 *  (e.g. DLL code can register values to it).  It can also return a
++	 *  string which is interpreted as module source code (if a non-string
++	 *  is returned the module is assumed to be a pure C one).  If a module
++	 *  cannot be found, an error must be thrown by the user callback.
++	 *
++	 *  Because Duktape.modLoaded[] already contains the module being
++	 *  loaded, circular references for C modules should also work
++	 *  (although expected to be quite rare).
++	 */
++
++	duk_push_string(ctx, "(function(require,exports,module){");
++
++	/* Duktape.modSearch(resolved_id, fresh_require, exports, module). */
++	duk_get_prop_string(ctx, DUK__IDX_DUKTAPE, "modSearch");  /* Duktape.modSearch */
++	duk_dup(ctx, DUK__IDX_RESOLVED_ID);
++	duk_dup(ctx, DUK__IDX_FRESH_REQUIRE);
++	duk_dup(ctx, DUK__IDX_EXPORTS);
++	duk_dup(ctx, DUK__IDX_MODULE);  /* [ ... Duktape.modSearch resolved_id last_comp fresh_require exports module ] */
++	pcall_rc = duk_pcall(ctx, 4 /*nargs*/);  /* -> [ ... source ] */
++	DUK__ASSERT_TOP(ctx, DUK__IDX_MODULE + 3);
++
++	if (pcall_rc != DUK_EXEC_SUCCESS) {
++		/* Delete entry in Duktape.modLoaded[] and rethrow. */
++		goto delete_rethrow;
++	}
++
++	/* If user callback did not return source code, module loading
++	 * is finished (user callback initialized exports table directly).
++	 */
++	if (!duk_is_string(ctx, -1)) {
++		/* User callback did not return source code, so module loading
++		 * is finished: just update modLoaded with final module.exports
++		 * and we're done.
++		 */
++		goto return_exports;
++	}
++
++	/* Finish the wrapped module source.  Force module.filename as the
++	 * function .fileName so it gets set for functions defined within a
++	 * module.  This also ensures loggers created within the module get
++	 * the module ID (or overridden filename) as their default logger name.
++	 * (Note capitalization: .filename matches Node.js while .fileName is
++	 * used elsewhere in Duktape.)
++	 */
++	duk_push_string(ctx, "\n})");  /* Newline allows module last line to contain a // comment. */
++	duk_concat(ctx, 3);
++	if (!duk_get_prop_string(ctx, DUK__IDX_MODULE, "filename")) {
++		/* module.filename for .fileName, default to resolved ID if
++		 * not present.
++		 */
++		duk_pop(ctx);
++		duk_dup(ctx, DUK__IDX_RESOLVED_ID);
++	}
++	pcall_rc = duk_pcompile(ctx, DUK_COMPILE_EVAL);
++	if (pcall_rc != DUK_EXEC_SUCCESS) {
++		goto delete_rethrow;
++	}
++	pcall_rc = duk_pcall(ctx, 0);  /* -> eval'd function wrapper (not called yet) */
++	if (pcall_rc != DUK_EXEC_SUCCESS) {
++		goto delete_rethrow;
++	}
++
++	/* Module has now evaluated to a wrapped module function.  Force its
++	 * .name to match module.name (defaults to last component of resolved
++	 * ID) so that it is shown in stack traces too.  Note that we must not
++	 * introduce an actual name binding into the function scope (which is
++	 * usually the case with a named function) because it would affect the
++	 * scope seen by the module and shadow accesses to globals of the same name.
++	 * This is now done by compiling the function as anonymous and then forcing
++	 * its .name without setting a "has name binding" flag.
++	 */
++
++	duk_push_string(ctx, "name");
++	if (!duk_get_prop_string(ctx, DUK__IDX_MODULE, "name")) {
++		/* module.name for .name, default to last component if
++		 * not present.
++		 */
++		duk_pop(ctx);
++		duk_dup(ctx, DUK__IDX_LASTCOMP);
++	}
++	duk_def_prop(ctx, -3, DUK_DEFPROP_HAVE_VALUE | DUK_DEFPROP_FORCE);
++
++	/*
++	 *  Call the wrapped module function.
++	 *
++	 *  Use a protected call so that we can update Duktape.modLoaded[resolved_id]
++	 *  even if the module throws an error.
++	 */
++
++	/* [ requested_id require require.id resolved_id last_comp Duktape Duktape.modLoaded undefined fresh_require exports module mod_func ] */
++	DUK__ASSERT_TOP(ctx, DUK__IDX_MODULE + 2);
++
++	duk_dup(ctx, DUK__IDX_EXPORTS);  /* exports (this binding) */
++	duk_dup(ctx, DUK__IDX_FRESH_REQUIRE);  /* fresh require (argument) */
++	duk_get_prop_string(ctx, DUK__IDX_MODULE, "exports");  /* relookup exports from module.exports in case it was changed by modSearch */
++	duk_dup(ctx, DUK__IDX_MODULE);  /* module (argument) */
++	DUK__ASSERT_TOP(ctx, DUK__IDX_MODULE + 6);
++
++	/* [ requested_id require require.id resolved_id last_comp Duktape Duktape.modLoaded undefined fresh_require exports module mod_func exports fresh_require exports module ] */
++
++	pcall_rc = duk_pcall_method(ctx, 3 /*nargs*/);
++	if (pcall_rc != DUK_EXEC_SUCCESS) {
++		/* Module loading failed.  Node.js will forget the module
++		 * registration so that another require() will try to load
++		 * the module again.  Mimic that behavior.
++		 */
++		goto delete_rethrow;
++	}
++
++	/* [ requested_id require require.id resolved_id last_comp Duktape Duktape.modLoaded undefined fresh_require exports module result(ignored) ] */
++	DUK__ASSERT_TOP(ctx, DUK__IDX_MODULE + 2);
++
++	/* fall through */
++
++ return_exports:
++	duk_get_prop_string(ctx, DUK__IDX_MODULE, "exports");
++	duk_compact(ctx, -1);  /* compact the exports table */
++	return 1;  /* return module.exports */
++
++ delete_rethrow:
++	duk_dup(ctx, DUK__IDX_RESOLVED_ID);
++	duk_del_prop(ctx, DUK__IDX_MODLOADED);  /* delete Duktape.modLoaded[resolved_id] */
++	(void) duk_throw(ctx);  /* rethrow original error */
++	return 0;  /* not reachable */
++}
++
++void duk_module_duktape_init(duk_context *ctx) {
++	/* Stash 'Duktape' in case it's modified. */
++	duk_push_global_stash(ctx);
++	duk_get_global_string(ctx, "Duktape");
++	duk_put_prop_string(ctx, -2, "\xff" "module:Duktape");
++	duk_pop(ctx);
++
++	/* Register `require` as a global function. */
++	duk_eval_string(ctx,
++		"(function(req){"
++		"var D=Object.defineProperty;"
++		"D(req,'name',{value:'require'});"
++		"D(this,'require',{value:req,writable:true,configurable:true});"
++		"D(Duktape,'modLoaded',{value:Object.create(null),writable:true,configurable:true});"
++		"})");
++	duk_push_c_function(ctx, duk__require, 1 /*nargs*/);
++	duk_call(ctx, 1);
++	duk_pop(ctx);
++}
++
++#undef DUK__ASSERT
++#undef DUK__ASSERT_TOP
++#undef DUK__IDX_REQUESTED_ID
++#undef DUK__IDX_REQUIRE
++#undef DUK__IDX_REQUIRE_ID
++#undef DUK__IDX_RESOLVED_ID
++#undef DUK__IDX_LASTCOMP
++#undef DUK__IDX_DUKTAPE
++#undef DUK__IDX_MODLOADED
++#undef DUK__IDX_UNDEFINED
++#undef DUK__IDX_FRESH_REQUIRE
++#undef DUK__IDX_EXPORTS
++#undef DUK__IDX_MODULE
+diff --git a/sit-core/src/duktape/duk_module_duktape.h b/sit-core/src/duktape/duk_module_duktape.h
+new file mode 100644
+index 0000000..8c88081
+--- /dev/null
++++ b/sit-core/src/duktape/duk_module_duktape.h
+@@ -0,0 +1,14 @@
++#if !defined(DUK_MODULE_DUKTAPE_H_INCLUDED)
++#define DUK_MODULE_DUKTAPE_H_INCLUDED
++
++#include "duktape.h"
++
++/* Maximum length of CommonJS module identifier to resolve.  Length includes
++ * both current module ID, requested (possibly relative) module ID, and a
++ * slash in between.
++ */
++#define  DUK_COMMONJS_MODULE_ID_LIMIT  256
++
++extern void duk_module_duktape_init(duk_context *ctx);
++
++#endif  /* DUK_MODULE_DUKTAPE_H_INCLUDED */
+diff --git a/sit-core/src/duktape/mod.rs b/sit-core/src/duktape/mod.rs
+index 4751722..7404f01 100644
+--- a/sit-core/src/duktape/mod.rs
++++ b/sit-core/src/duktape/mod.rs
+@@ -1,4 +1,9 @@
+ #[allow(non_camel_case_types, non_snake_case)]
+ pub mod bindings;
+-
+ pub use self::bindings::*;
++
++#[cfg(feature = "duktape-require")]
++#[allow(non_camel_case_types, non_snake_case)]
++pub mod module;
++#[cfg(feature = "duktape-require")]
++pub use self::module::*;
+diff --git a/sit-core/src/duktape/module.rs b/sit-core/src/duktape/module.rs
+new file mode 100644
+index 0000000..5004d96
+--- /dev/null
++++ b/sit-core/src/duktape/module.rs
+@@ -0,0 +1,5 @@
++/* automatically generated by rust-bindgen */
++
++extern "C" {
++    pub fn duk_module_duktape_init(ctx: *mut super::duk_context);
++}
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index ab7bf8b..915dcf5 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -6,7 +6,7 @@ use std::marker::PhantomData;
+ use ::Record;
+ use duktape;
+ use std::ptr;
+-use std::ffi::{CString, OsStr};
++use std::ffi::{CString, CStr, OsStr};
+ use std::path::PathBuf;
+ use std::fs;
+ 
+@@ -32,6 +32,10 @@ unsafe impl<'a, R: Record> Send for DuktapeReducer<'a, R> {}
+ pub enum Error {
+     IoError(::std::io::Error),
+     #[error(no_from, non_std)]
++    ExecutionError {
++        error: String,
++    },
++    #[error(no_from, non_std)]
+     CompileError {
+         file: PathBuf,
+         error: String,
+@@ -52,7 +56,7 @@ unsafe extern "C" fn fatal_handler(_udata: *mut ::std::os::raw::c_void, msg: *co
+ 
+ impl<'a, R: Record> DuktapeReducer<'a, R> {
+ 
+-    unsafe fn load_module(context: *mut duktape::duk_hthread) {
++    unsafe fn load_module(context: *mut duktape::duk_hthread) -> Result<(), Error> {
+         // Now, execute the function with a defined module
+         duktape::duk_require_function(context, -1);
+         duktape::duk_push_object(context); // module
+@@ -70,7 +74,12 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+         duktape::duk_require_function(context, -2);
+         duktape::duk_require_object(context, -3);
+         // module f module
+-        duktape::duk_call(context,1);
++        let res = duktape::duk_pcall(context,1);
++        if res as u32 == duktape::DUK_EXEC_ERROR {
++            let err_str = CStr::from_ptr(duktape::duk_to_string(context, -1));
++            let error = err_str.to_str().unwrap().into();
++            return Err(Error::ExecutionError { error });
++        }
+         // module retval
+         duktape::duk_pop(context);
+         // module
+@@ -78,12 +87,59 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+         // module f'
+         duktape::duk_remove(context, -2);
+         // f'
++        Ok(())
++    }
++
++
++    #[cfg(feature = "duktape-require")]
++    unsafe extern "C" fn mod_search(context: *mut duktape::duk_hthread) -> duktape::duk_ret_t {
++        // module id
++        let id = CStr::from_ptr(duktape::duk_get_string(context, 0));
++        // path to reducers
++        let str_path_prop = CString::new("path").unwrap();
++        let str_duktape = CString::new("Duktape").unwrap();
++        duktape::duk_get_global_string(context, str_duktape.as_ptr());
++        duktape::duk_get_prop_string(context, -1,str_path_prop.as_ptr());
++        let path = CStr::from_ptr(duktape::duk_get_string(context, -1));
++        duktape::duk_pop_2(context);
++        // find the module
++        let prefix = PathBuf::from(path.to_str().unwrap());
++        let mod_path = prefix.join(id.to_str().unwrap());
++        if mod_path.is_file() && mod_path.strip_prefix(&prefix).is_ok() {
++            let mut f = fs::File::open(mod_path).unwrap();
++            let mut s = String::new();
++            f.read_to_string(&mut s).unwrap();
++            let src = CString::new(s).unwrap();
++            duktape::duk_push_string(context, src.as_ptr());
++            return 1;
++        } else {
++            duktape::duk_error_raw(context, duktape::DUK_ERR_ERROR as i32, ptr::null_mut(), 0,CString::new(format!("module not found: {:?}", id)).unwrap().as_ptr());
++            return duktape::DUK_RET_ERROR;
++        }
+     }
++
+     pub fn new(repository: &'a ::Repository) -> Result<Self, Error> {
+         let context = unsafe {
+             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
+         };
+-        let files = fs::read_dir(repository.path().join("reducers")).unwrap();
++        let reducers_path = repository.path().join("reducers");
++        #[cfg(feature = "duktape-require")]
++        unsafe {
++            let str_duktape = CString::new("Duktape").unwrap();
++            let str_mod_search = CString::new("modSearch").unwrap();
++            let str_path = CString::new(reducers_path.to_str().unwrap()).unwrap();
++            let str_path_prop = CString::new("path").unwrap();
++            duktape::duk_module_duktape_init(context);
++            duktape::duk_get_global_string(context, str_duktape.as_ptr());
++            // path reducers
++            duktape::duk_push_string(context, str_path.as_ptr());
++            duktape::duk_put_prop_string(context, -2, str_path_prop.as_ptr());
++            // function
++            duktape::duk_push_c_function(context, Some(DuktapeReducer::<'a, R>::mod_search), 4);
++            duktape::duk_put_prop_string(context, -2, str_mod_search.as_ptr());
++           duktape::duk_pop(context);
++        }
++        let files = fs::read_dir(reducers_path).unwrap();
+         let mut reducers = 0;
+         let mut filenames = vec![];
+         let mut functions = vec![];
+@@ -132,7 +188,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+                     functions.push(func);
+                     duktape::duk_pop(context);
+                     // load module
+-                    DuktapeReducer::<'a, R>::load_module(context);
++                    DuktapeReducer::<'a, R>::load_module(context)?;
+                     // If module.export is not function, bail
+                     if duktape::duk_is_function(context, -1) != 1 {
+                         return Err(Error::CompileError {
+@@ -189,7 +245,7 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
+                 duktape::duk_config_buffer(context, -1, func.as_ptr() as *mut _, func.len());
+                 duktape::duk_load_function(context);
+                 // obtain the module
+-                DuktapeReducer::<'a, R>::load_module(context);
++                DuktapeReducer::<'a, R>::load_module(context).unwrap(); // since it's a clone we assume the first load went fine
+                 // transfer state
+                 duktape::duk_push_null(self.context);
+                 duktape::duk_copy(self.context, (i * 2 + 1) as i32, -1);
+@@ -740,4 +796,81 @@ mod tests {
+         issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
+     }
+ 
++    #[cfg(feature = "duktape-require")]
++    #[test]
++    fn require() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers").join("reducer")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
++        f.write(b"module.exports = require(\"reducer/index.js\");").unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer/index.js")).unwrap();
++        f.write(b"module.exports = function(state, record) { return {\"hello\": record.hash}; }").unwrap();
++
++        let issue = repo.new_issue().unwrap();
++        let record = issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
++        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
++
++        assert_eq!(state.get("hello").unwrap(), &JsonValue::String(record.encoded_hash()));
++    }
++
++    #[cfg(feature = "duktape-require")]
++    #[test]
++    fn require_not_found() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers").join("reducer")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
++        f.write(b"module.exports = require(\"reducer/index.js\");").unwrap();
++
++        let err_str = "Error: module not found: \"reducer/index.js\"";
++        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++        Err(Error::ExecutionError { ref error }) if error == err_str);
++    }
++
++
++    #[cfg(feature = "duktape-require")]
++    #[test]
++    fn require_external_relative() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
++        f.write(b"module.exports = require(\"../reducer.js\");").unwrap();
++
++        let mut f = fs::File::create(repo.path().join("reducer.js")).unwrap();
++        f.write(b"module.exports = function() {};").unwrap();
++
++        let err_str = "TypeError: cannot resolve module id: ../reducer.js";
++        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++        Err(Error::ExecutionError { ref error }) if error == err_str);
++    }
++
++    #[cfg(feature = "duktape-require")]
++    #[test]
++    fn require_external_absolute() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
++        f.write(b"module.exports = require(\"/reducer.js\");").unwrap();
++
++        let err_str = "TypeError: cannot resolve module id: /reducer.js";
++        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++        Err(Error::ExecutionError { ref error }) if error == err_str);
++    }
++
++
+ }
+-- 
+2.15.0
+

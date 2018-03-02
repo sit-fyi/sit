@@ -1,0 +1,6 @@
+This severely limits their options for code reuse and their ability to
+use external libraries when necessary.
+
+Solution: allow reducers to `require()` other modules
+under the same directory.
+
