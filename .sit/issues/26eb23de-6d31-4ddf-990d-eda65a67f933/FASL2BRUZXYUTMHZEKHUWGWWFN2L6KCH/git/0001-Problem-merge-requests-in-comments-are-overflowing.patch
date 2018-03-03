@@ -1,0 +1,30 @@
+From b67d3d2ee26d0100470b2a63e86905ee156fc998 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 3 Mar 2018 15:13:49 +0700
+Subject: [PATCH] Problem: merge requests in comments are overflowing
+
+The paper card of a merge request overflows the card of the comment on
+the right.
+
+Solution: remove padding on the left
+---
+ sit-web/webapp/src/issue/comment-style.html | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/sit-web/webapp/src/issue/comment-style.html b/sit-web/webapp/src/issue/comment-style.html
+index 42fdb92..ffa3034 100644
+--- a/sit-web/webapp/src/issue/comment-style.html
++++ b/sit-web/webapp/src/issue/comment-style.html
+@@ -12,9 +12,6 @@
+                 padding: 10pt;
+             }
+ 
+-            merge-request {
+-                padding-left: 10pt;
+-            }
+             paper-card {
+                 width: 100%;
+             }
+-- 
+2.15.0
+

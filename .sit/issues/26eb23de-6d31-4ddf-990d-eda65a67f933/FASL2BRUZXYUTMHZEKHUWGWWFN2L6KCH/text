@@ -1,0 +1,5 @@
+The paper card of a merge request overflows the card of the comment on
+the right.
+
+Solution: remove padding on the left
+
