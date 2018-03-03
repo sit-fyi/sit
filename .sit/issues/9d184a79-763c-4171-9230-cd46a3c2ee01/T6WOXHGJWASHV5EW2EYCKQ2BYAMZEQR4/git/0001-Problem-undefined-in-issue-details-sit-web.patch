@@ -1,0 +1,36 @@
+From 66f2a358f06b8ce2f8c41e1b2b0680e3325b0a9f Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 3 Mar 2018 15:08:33 +0700
+Subject: [PATCH] Problem: `undefined` in issue details (sit-web)
+
+Scenario:
+
+1. Initiate writing a new issue
+2. Type in the summary
+3. Click "Create"
+
+Outcome: the issue is rendered with "undefined" as details
+
+Expected outcome: empty details
+
+Solution: ensure undefined isn't written into the issue during creation
+---
+ sit-web/webapp/src/issue/new.html | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sit-web/webapp/src/issue/new.html b/sit-web/webapp/src/issue/new.html
+index 3ba459c..cf5d862 100644
+--- a/sit-web/webapp/src/issue/new.html
++++ b/sit-web/webapp/src/issue/new.html
+@@ -87,7 +87,7 @@
+                 summary.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
+                 this.set("summaryFormdata", summary);
+                 let details = new FormData();
+-                details.append("text", new Blob([this.$.details.value], {type: "text/plain"}), "text");
++                details.append("text", new Blob([this.$.details.value || ""], {type: "text/plain"}), "text");
+                 details.append(".type/DetailsChanged", new Blob([""], {type: "text/plain"}), ".type/DetailsChanged");
+                 details.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
+                 details.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
+-- 
+2.15.0
+
