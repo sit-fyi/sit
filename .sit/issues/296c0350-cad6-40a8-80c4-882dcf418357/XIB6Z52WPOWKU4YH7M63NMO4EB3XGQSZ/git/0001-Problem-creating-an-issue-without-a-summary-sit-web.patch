@@ -1,0 +1,59 @@
+From a72ac05e34eb2cfdb71204cb00b52bab2e020430 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 3 Mar 2018 14:24:57 +0700
+Subject: [PATCH] Problem: creating an issue without a summary (sit-web)
+
+Scenario:
+
+* Initiate writing a new issue
+* Click "Create"
+* Outcome: HTTP 500
+
+Expected outcome: either an empty issue or (more practical) indicate
+that the Summary must be specified
+
+Solution: make Summary a required field
+---
+ sit-web/webapp/src/issue/new.html | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/sit-web/webapp/src/issue/new.html b/sit-web/webapp/src/issue/new.html
+index 3ba459c..e1341d3 100644
+--- a/sit-web/webapp/src/issue/new.html
++++ b/sit-web/webapp/src/issue/new.html
+@@ -20,11 +20,11 @@
+        </app-header>
+ 
+         <form>
+-            <paper-input id="summary" label="Summary" on-keypress="handleChange" on-change="handleChange" on-input="handleChange"></paper-input>
++            <paper-input id="summary" label="Summary" on-keypress="handleChange" on-change="handleChange" on-input="handleChange" auto-validate required></paper-input>
+ 
+             <paper-textarea id="details" rows="5" label="Details" on-keypress="handleChange" on-change="handleChange" on-input="handleChange"></paper-textarea>
+             <div>
+-                <paper-button on-click="handleCreate" raised>Create</paper-button>
++                <paper-button on-click="handleCreate" raised disabled="[[ invalid ]]">Create</paper-button>
+             </div>
+         </form>
+ 
+@@ -68,6 +68,10 @@
+                 return {
+                     config: {
+                         type: Object
++                    },
++                    invalid: {
++                        type: Boolean,
++                        value: true,
+                     }
+                 }
+             }
+@@ -79,6 +83,7 @@
+                 return author;
+             }
+             handleChange() {
++                this.set('invalid', this.$.summary.invalid);
+                 let timestamp = (new Date()).toISOString();
+                 let summary = new FormData();
+                 summary.append("text", new Blob([this.$.summary.value], {type: "text/plain"}), "text");
+-- 
+2.15.0
+
