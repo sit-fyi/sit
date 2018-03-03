@@ -1,0 +1,171 @@
+From b13116d7be89066030a767942a343c2d48e8d5eb Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 3 Mar 2018 13:54:31 +0700
+Subject: [PATCH] Problem: handling of Duktape reducers return types
+
+DuktapeReducer assumes that reducer functions will always return an
+object. However, this might not always be true. Because of mistakes or
+other reasons, reducers might either return nothing (`undefined`) or
+something other than object.
+
+Because of the aforementioned assumption, DuktapeReducer will eventually
+produce a fatal error as it requires the state to be an object for
+sanity checking.
+
+Solution: handle `undefined` and mistyped cases
+
+In case of `undefined`, ignore the result and re-use the previous state,
+however, for mistyped return values, return an error.
+---
+ sit-core/src/reducers/duktape.rs | 91 +++++++++++++++++++++++++++++++++-------
+ 1 file changed, 77 insertions(+), 14 deletions(-)
+
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index ab7bf8b..0c733ed 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -87,8 +87,15 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+         let mut reducers = 0;
+         let mut filenames = vec![];
+         let mut functions = vec![];
+-        for file in files.filter(Result::is_ok).map(Result::unwrap).map(|e| e.path())
+-            .filter(|f| f.extension() == Some(OsStr::new("js"))) {
++        let files = files.filter(Result::is_ok).map(Result::unwrap).map(|e| e.path())
++            .filter(|f| f.extension() == Some(OsStr::new("js")));
++        // in test builds, we guarantee the order of files, but not in other builds as
++        // it is not a great idea to rely on the order of these files
++        #[cfg(test)]
++        let mut files : Vec<_> = files.collect();
++        #[cfg(test)]
++        files.sort();
++        for file in files {
+             reducers += 1;
+             unsafe {
+                 // source code
+@@ -224,10 +231,10 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+             let ctx = self.context;
+ 
+             #[cfg(feature = "cesu8")]
+-            let cstring = CString::new(cesu8::to_cesu8(&json)).unwrap();
++            let json_cstring = CString::new(cesu8::to_cesu8(&json)).unwrap();
+ 
+             #[cfg(not(feature = "cesu8"))]
+-            let cstring = CString::new(json).unwrap();
++            let json_cstring = CString::new(json).unwrap();
+ 
+             // Item (record)
+             duktape::duk_push_object(ctx);
+@@ -284,7 +291,7 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+ 
+ 
+             // Current issue state
+-            duktape::duk_push_string(ctx, cstring.as_ptr());
++            duktape::duk_push_string(ctx, json_cstring.as_ptr());
+             duktape::duk_json_decode(ctx, -1);
+ 
+             for i in 0..self.reducers {
+@@ -296,7 +303,8 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+                 duktape::duk_dup(ctx, i * 2 + 1);
+                 // issue state
+                 duktape::duk_push_null(ctx);
+-                duktape::duk_swap_top(ctx, -4);
++                // save previous state
++                duktape::duk_copy(ctx, -4, -1);
+                 duktape::duk_require_object(ctx, -1);
+                 // item (record)
+                 duktape::duk_dup(ctx, -5);
+@@ -305,14 +313,7 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+                 // execute
+                 let res = duktape::duk_pcall_method(ctx,2);
+ 
+-
+-                // drop null state
+-                duktape::duk_swap_top(ctx, -2);
+-                duktape::duk_pop(ctx);
+-
+-                // now it should be [item, current issue state] again
+-
+-                // now, check for error
++               // now, check for error
+                 if res as u32 == duktape::DUK_EXEC_ERROR {
+                     let err = ::std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut()));
+                     {
+@@ -325,6 +326,26 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+                     return state;
+                 }
+ 
++                if duktape::duk_is_object(ctx, -1) == 1 {
++                    // drop extra state
++                    duktape::duk_swap_top(ctx, -2);
++                    duktape::duk_pop(ctx);
++                    // now it should be [item, current issue state] again
++                } else if duktape::duk_is_undefined(ctx, -1) == 1 {
++                    // restore previous state
++                    duktape::duk_copy(ctx, -2, -1);
++                } else {
++                    let err = format!("TypeError: invalid return value {}, expected an object", ::std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut())).to_string_lossy());
++                    {
++                        let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
++                        let mut error = Map::new();
++                        error.insert("file".into(), JsonValue::String(self.filenames[i as usize].to_str().unwrap().into()));
++                        error.insert("error".into(), JsonValue::String(err));
++                        arr.as_array_mut().unwrap().push(JsonValue::Object(error));
++                    }
++                    return state;
++                }
++
+             }
+ 
+             // remove item
+@@ -359,6 +380,48 @@ mod tests {
+     use ::Repository;
+     use issue::{Issue, IssueReduction};
+ 
++    #[test]
++    fn undefined_result() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/2.js")).unwrap();
++        f.write(b"module.exports = function(state, record) {  }").unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/1.js")).unwrap();
++        f.write(b"module.exports = function(state, record) { return {test: true} }").unwrap();
++
++        let issue = repo.new_issue().unwrap();
++        let _record = issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
++        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
++
++        assert_eq!(state.get("test").unwrap(), &JsonValue::Bool(true));
++    }
++
++    #[test]
++    fn mistyped_result() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(tmp).unwrap();
++        use std::fs;
++        use std::io::Write;
++        fs::create_dir_all(repo.path().join("reducers")).unwrap();
++        let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
++        f.write(b"module.exports = function(state, record) { return 1 }").unwrap();
++
++        let issue = repo.new_issue().unwrap();
++        let _record = issue.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
++        let state = issue.reduce_with_reducer(&mut DuktapeReducer::new(&repo).unwrap()).unwrap();
++
++            assert!(state.get("errors").is_some());
++        let errors = state.get("errors").unwrap().as_array().unwrap();
++        assert_eq!(errors[0].as_object().unwrap().get("error").unwrap(), &JsonValue::String("TypeError: invalid return value 1, expected an object".into()));
++        assert_eq!(errors[0].as_object().unwrap().get("file").unwrap(), &JsonValue::String(repo.path().join("reducers").join("reducer.js").to_str().unwrap().into()));
++    }
++
++
+     #[test]
+     fn record_hash() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+-- 
+2.15.0
+

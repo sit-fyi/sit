@@ -1,0 +1,14 @@
+DuktapeReducer assumes that reducer functions will always return an
+object. However, this might not always be true. Because of mistakes or
+other reasons, reducers might either return nothing (`undefined`) or
+something other than object.
+
+Because of the aforementioned assumption, DuktapeReducer will eventually
+produce a fatal error as it requires the state to be an object for
+sanity checking.
+
+Solution: handle `undefined` and mistyped cases
+
+In case of `undefined`, ignore the result and re-use the previous state,
+however, for mistyped return values, return an error.
+
