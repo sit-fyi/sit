@@ -92,7 +92,7 @@
                 summary.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
                 this.set("summaryFormdata", summary);
                 let details = new FormData();
-                details.append("text", new Blob([this.$.details.value], {type: "text/plain"}), "text");
+                details.append("text", new Blob([this.$.details.value || ""], {type: "text/plain"}), "text");
                 details.append(".type/DetailsChanged", new Blob([""], {type: "text/plain"}), ".type/DetailsChanged");
                 details.append(".authors", new Blob([this.authorship()], {type: "text/plain"}), ".authors");
                 details.append(".timestamp", new Blob([timestamp], {type: "text/plain"}), ".timestamp");
