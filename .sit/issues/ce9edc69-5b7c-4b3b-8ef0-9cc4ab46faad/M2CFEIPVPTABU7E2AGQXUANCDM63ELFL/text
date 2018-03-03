@@ -1,0 +1,2 @@
+Initial implementation allows reducers to modify Duktape.path,
+which they shouldn't be allowed to do. This patch fixes this issue.
