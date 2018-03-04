@@ -4,10 +4,10 @@ extern crate include_dir;
 use std::env;
 use std::path::Path;
 use include_dir::include_dir;
-use std::process::Command;
 
 fn main() {
     #[cfg(windows)] {
+        use std::process::Command;
         let rustc = env::var("RUSTC").unwrap();
         let rustc_version = Command::new(rustc)
             .arg("--version")
