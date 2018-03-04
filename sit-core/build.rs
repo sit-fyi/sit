@@ -10,6 +10,9 @@ fn main() {
         Ok(ref flag) if flag == "1" => {
             let mut build = cc::Build::new();
             build.file("src/duktape/duktape.c");
+            if let Ok(_) = env::var("CARGO_FEATURE_DUKTAPE_REQUIRE") {
+                build.file("src/duktape/duk_module_duktape.c");
+            }
             if env::var("CARGO_FEATURE_WINDOWS7").is_ok() {
                 build.define("DUK_USE_DATE_NOW_WINDOWS","1");
             }
