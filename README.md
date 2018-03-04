@@ -78,7 +78,7 @@ and binary files can be downloaded from there.
 
 As SIT is currently in its early days, sometimes it might make sense to use a pre-release build. We encourage that. It helps us building a better product.
 
-Firstly, you will need to install Rust 1.24. Luckily
+Firstly, you will need to install Rust 1.24.1. Luckily
 it is typically a very simple process. You can find
 instructions on [Rust's website](https://www.rust-lang.org/en-US/install.html).
 

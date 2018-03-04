@@ -4,8 +4,20 @@ extern crate include_dir;
 use std::env;
 use std::path::Path;
 use include_dir::include_dir;
+use std::process::Command;
 
 fn main() {
+    #[cfg(windows)] {
+        let rustc = env::var("RUSTC").unwrap();
+        let rustc_version = Command::new(rustc)
+            .arg("--version")
+            .output()
+            .expect("can't run rustc --version");
+        let version = rustc_version.stdout;
+        if version.starts_with(b"rustc 1.24 (") {
+            panic!("Rust 1.24 is known to break Windows builds. Please upgrade to 1.24.1+");
+        }
+    }
     match env::var("CARGO_FEATURE_DUKTAPE") {
         Ok(ref flag) if flag == "1" => {
             let mut build = cc::Build::new();

@@ -1,0 +1,5 @@
+`cargo test` fails with "Invalid instruction" exception on `duktape::require_not_found` test.
+
+Turns out, this behaviour was introduced in Rust 1.24 and reverted in 1.24.1 (see "Do not abort when unwinding through FFI" in the [release notes](https://blog.rust-lang.org/2018/03/01/Rust-1.24.1.html)). However, as mentioned there, there's going to be a better patch coming through on this matter around 1.25/1.26.
+
+I suggest we track this matter in this issue until it's fully settled. 
