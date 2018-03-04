@@ -12,12 +12,12 @@
 
         <div>
             <div>
-              <paper-textarea label="Comment" on-keypress="handleChange" on-change="handleChange" on-input="handleChange" id="comment" cols="80" rows="5"></paper-textarea>
+              <paper-textarea label="Comment" on-keypress="handleChange" on-change="handleChange" on-input="handleChange" id="comment" cols="80" rows="5" auto-validate required></paper-textarea>
             </div>
             <div>
-                <paper-button raised id="commentButton" on-click="handleComment">Comment</paper-button>
+                <paper-button raised id="commentButton" on-click="handleComment" disabled="[[ invalid ]]">Comment</paper-button>
                 <template is="dom-if" if="[[ isOpen ]]">
-                    <paper-button raised on-click="handleCommentAndClose">Comment and close</paper-button>
+                    <paper-button raised on-click="handleCommentAndClose" disabled="[[ invalid ]]">Comment and close</paper-button>
                 </template>
             </div>
         </div>
@@ -50,6 +50,10 @@
                     },
                     config: {
                         type: Object
+                    },
+                    invalid: {
+                        type: Boolean,
+                        value: true,
                     }
                 }
             }
@@ -61,6 +65,7 @@
                 return author;
             }
             handleChange() {
+                this.set('invalid', this.$.comment.invalid);
                 let timestamp = (new Date()).toISOString();
                 let formdata = new FormData();
                 formdata.append("text", new Blob([this.$.comment.value], {type: "text/plain"}), "text");
