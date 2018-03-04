@@ -113,7 +113,8 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
             duktape::duk_push_string(context, src.as_ptr());
             return 1;
         } else {
-            duktape::duk_error_raw(context, duktape::DUK_ERR_ERROR as i32, ptr::null_mut(), 0,CString::new(format!("module not found: {:?}", id)).unwrap().as_ptr());
+            let err = CString::new(format!("module not found: {:?}", id)).unwrap();
+            duktape::duk_error_raw(context, duktape::DUK_ERR_ERROR as i32, ptr::null_mut(), 0,err.as_ptr());
             return duktape::DUK_RET_ERROR;
         }
     }
