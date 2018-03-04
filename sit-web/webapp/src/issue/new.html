@@ -20,11 +20,11 @@
        </app-header>
 
         <form>
-            <paper-input id="summary" label="Summary" on-keypress="handleChange" on-change="handleChange" on-input="handleChange"></paper-input>
+            <paper-input id="summary" label="Summary" on-keypress="handleChange" on-change="handleChange" on-input="handleChange" auto-validate required></paper-input>
 
             <paper-textarea id="details" rows="5" label="Details" on-keypress="handleChange" on-change="handleChange" on-input="handleChange"></paper-textarea>
             <div>
-                <paper-button on-click="handleCreate" raised>Create</paper-button>
+                <paper-button on-click="handleCreate" raised disabled="[[ invalid ]]">Create</paper-button>
             </div>
         </form>
 
@@ -68,6 +68,10 @@
                 return {
                     config: {
                         type: Object
+                    },
+                    invalid: {
+                        type: Boolean,
+                        value: true,
                     }
                 }
             }
@@ -79,6 +83,7 @@
                 return author;
             }
             handleChange() {
+                this.set('invalid', this.$.summary.invalid);
                 let timestamp = (new Date()).toISOString();
                 let summary = new FormData();
                 summary.append("text", new Blob([this.$.summary.value], {type: "text/plain"}), "text");
