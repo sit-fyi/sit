@@ -1,0 +1,28 @@
+From e7f4053f569742bcadb839d9544197bad5d23612 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sun, 4 Mar 2018 17:45:29 +0700
+Subject: [PATCH] Problem: mod_search error might get deallocated too early
+
+Solution: ensure it's not deallocated before duk_error_raw
+is called
+---
+ sit-core/src/reducers/duktape.rs | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index 669cd56..9b08700 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -113,7 +113,8 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+             duktape::duk_push_string(context, src.as_ptr());
+             return 1;
+         } else {
+-            duktape::duk_error_raw(context, duktape::DUK_ERR_ERROR as i32, ptr::null_mut(), 0,CString::new(format!("module not found: {:?}", id)).unwrap().as_ptr());
++            let err = CString::new(format!("module not found: {:?}", id)).unwrap();
++            duktape::duk_error_raw(context, duktape::DUK_ERR_ERROR as i32, ptr::null_mut(), 0,err.as_ptr());
+             return duktape::DUK_RET_ERROR;
+         }
+     }
+-- 
+2.15.0
+

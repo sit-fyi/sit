@@ -1,0 +1,1 @@
+Problem: mod_search error might get deallocated too early

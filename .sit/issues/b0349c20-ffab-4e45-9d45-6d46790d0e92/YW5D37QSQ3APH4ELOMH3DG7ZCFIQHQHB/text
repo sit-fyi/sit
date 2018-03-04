@@ -1,0 +1,3 @@
+Solution: ensure it's not deallocated before duk_error_raw
+is called
+
