@@ -1,0 +1,8 @@
+In certain environments (for example, Nixpkgs), cargo
+builds are supposed to be frozen and that doesn't
+work with git-based dependencies as cargo is not
+permitted to download them but it still tries to anyway.
+
+Solution: use rouille 2.1.0 which includes all fixes currently required
+by sit-web
+
