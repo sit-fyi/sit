@@ -1,0 +1,22 @@
+From 1c062bd814472b9d08764e57fc01924a1f82037c Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 8 Mar 2018 19:28:06 +0700
+Subject: [PATCH] Problem: not enough maintainers
+
+It is lonely to merge my own merge requests.
+
+Solution: start adding maintainers
+---
+ MAINTAINERS | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 702c75f..51c9fb1 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -1 +1,2 @@
++Tim Dysinger <tim@dysinger.net>
+ Yurii Rashkovskii <me@yrashk.com>
+-- 
+2.15.0
+
