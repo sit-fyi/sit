@@ -1,0 +1,3 @@
+Currently, this requires running `scripts/mr-compare` and capturing each merge request's change summary.
+
+Proposed solution: capture the change in `.type/MergeRequested`-typed records so that the changelog can be generated automatically.

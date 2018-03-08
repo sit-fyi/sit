@@ -1,0 +1,3 @@
+It is impossible to use two overlapping/conflicting record types. For example, SummaryChanged and DetailsChanged both require `text` file to be present, so these records have to be separate.
+
+Proposed solution: amend the convention to allow overlapped specifications to either re-use the shared value (current behaviour) or have their own namespaced files. For example, if `.type/SummaryChanged` is a directory and there is `text` inside (`.type/SummaryChanged/text`) then that file should be used instead of `text`.
