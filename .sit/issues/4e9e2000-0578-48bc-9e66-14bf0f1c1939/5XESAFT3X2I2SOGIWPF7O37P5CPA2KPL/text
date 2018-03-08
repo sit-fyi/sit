@@ -1,0 +1,6 @@
+If a project wants to convert to SIT, it's already possible to convert existing GitHub issues into SIT, but it takes a certain amount of effort to prepare the scripts, the documentation, hooks and such to make working with issues and sending merge requests easy for contributors in these projects. How do people know the project is using SIT? Why? How to use it without wasting a lot of time?
+
+Proposed "starter" solution:
+
+* Extract/write easy-to-update merge request & issue sending scripts
+* Prepare easy-to-copy (and, again, easy-to-update) comprehensive (yet easily readable!) documentation for projects to use
