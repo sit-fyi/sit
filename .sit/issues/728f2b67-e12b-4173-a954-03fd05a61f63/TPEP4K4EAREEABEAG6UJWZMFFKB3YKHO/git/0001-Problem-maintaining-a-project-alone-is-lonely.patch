@@ -1,0 +1,20 @@
+From d255116e8663e4bf33c94b2f390b6f8063f0750c Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 14 Mar 2018 15:11:00 +0700
+Subject: [PATCH] Problem: maintaining a project alone is lonely
+
+Solution: add Adam Dymitruk as a maintainer
+---
+ MAINTAINERS | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 702c75f..8054bd9 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -1 +1,2 @@
++Adam Dymitruk <adam@dymitruk.com>
+ Yurii Rashkovskii <me@yrashk.com>
+-- 
+2.15.0
+
