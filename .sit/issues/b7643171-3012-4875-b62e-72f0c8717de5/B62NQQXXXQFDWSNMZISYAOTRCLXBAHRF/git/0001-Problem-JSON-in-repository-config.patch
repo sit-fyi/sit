@@ -1,0 +1,634 @@
+From ab740de99d0582cdef0cfc721fd37aa4fcc51151 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 15 Mar 2018 18:22:36 +0700
+Subject: [PATCH] Problem: JSON in repository config
+
+These configs are less accessible to shell scripts
+which might want to read some of the repository's
+configuration (they'd need support of external
+tooling like `jq`)
+
+Solution: switch from JSON to a plain text, file-based
+configuration format (serde_fs)
+
+This patch also enables smooth upgrade path upon confirmation
+(this feature is gated and can be removed by disabling
+`deprecated-config-json` feature in sit-core)
+
+At this moment, we are not dealing with user configs as
+it is not clear whether it would be a beneficial change
+or not.
+---
+ .sit/config.json                      |  10 ---
+ .sit/config/encoding                  |   1 +
+ .sit/config/hashing_algorithm/size    |   1 +
+ .sit/config/hashing_algorithm/variant |   1 +
+ .sit/config/id_generator              |   1 +
+ .sit/config/version                   |   1 +
+ Cargo.lock                            |  11 ++++
+ sit-core/Cargo.toml                   |   8 ++-
+ sit-core/src/encoding.rs              |   2 +-
+ sit-core/src/hash.rs                  |   2 +-
+ sit-core/src/id.rs                    |   2 +-
+ sit-core/src/json2fs.rs               | 116 ++++++++++++++++++++++++++++++++++
+ sit-core/src/lib.rs                   |   4 ++
+ sit-core/src/repository.rs            | 104 +++++++++++++++++++++++++-----
+ sit-web/src/main.rs                   |  12 ++--
+ sit/src/main.rs                       |  38 +++++++++--
+ 16 files changed, 275 insertions(+), 39 deletions(-)
+ delete mode 100644 .sit/config.json
+ create mode 100644 .sit/config/encoding
+ create mode 100644 .sit/config/hashing_algorithm/size
+ create mode 100644 .sit/config/hashing_algorithm/variant
+ create mode 100644 .sit/config/id_generator
+ create mode 100644 .sit/config/version
+ create mode 100644 sit-core/src/json2fs.rs
+
+diff --git a/.sit/config.json b/.sit/config.json
+deleted file mode 100644
+index 8a0dbca..0000000
+--- a/.sit/config.json
++++ /dev/null
+@@ -1,10 +0,0 @@
+-{
+-  "hashing_algorithm": {
+-    "blake2b": {
+-      "size": 20
+-    }
+-  },
+-  "encoding": "base32",
+-  "id_generator": "uuiv4",
+-  "version": "1"
+-}
+\ No newline at end of file
+diff --git a/.sit/config/encoding b/.sit/config/encoding
+new file mode 100644
+index 0000000..30ab962
+--- /dev/null
++++ b/.sit/config/encoding
+@@ -0,0 +1 @@
++base32
+\ No newline at end of file
+diff --git a/.sit/config/hashing_algorithm/size b/.sit/config/hashing_algorithm/size
+new file mode 100644
+index 0000000..2edeafb
+--- /dev/null
++++ b/.sit/config/hashing_algorithm/size
+@@ -0,0 +1 @@
++20
+\ No newline at end of file
+diff --git a/.sit/config/hashing_algorithm/variant b/.sit/config/hashing_algorithm/variant
+new file mode 100644
+index 0000000..07532a0
+--- /dev/null
++++ b/.sit/config/hashing_algorithm/variant
+@@ -0,0 +1 @@
++blake2b
+\ No newline at end of file
+diff --git a/.sit/config/id_generator b/.sit/config/id_generator
+new file mode 100644
+index 0000000..42629d7
+--- /dev/null
++++ b/.sit/config/id_generator
+@@ -0,0 +1 @@
++uuiv4
+\ No newline at end of file
+diff --git a/.sit/config/version b/.sit/config/version
+new file mode 100644
+index 0000000..56a6051
+--- /dev/null
++++ b/.sit/config/version
+@@ -0,0 +1 @@
++1
+\ No newline at end of file
+diff --git a/Cargo.lock b/Cargo.lock
+index 49101b7..9f6f87c 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -918,6 +918,15 @@ dependencies = [
+  "synom 0.11.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ ]
+ 
++[[package]]
++name = "serde_fs"
++version = "0.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "derive-error 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
++ "serde 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
++]
++
+ [[package]]
+ name = "serde_json"
+ version = "1.0.9"
+@@ -997,6 +1006,7 @@ dependencies = [
+  "memmap 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde_derive 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)",
++ "serde_fs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde_json 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
+  "sha-1 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "tempdir 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
+@@ -1443,6 +1453,7 @@ dependencies = [
+ "checksum serde-hjson 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7a2376ebb8976138927f48b49588ef73cde2f6591b8b3df22f4063e0f27b9bec"
+ "checksum serde_derive 1.0.27 (registry+https://github.com/rust-lang/crates.io-index)" = "f4ba7591cfe93755e89eeecdbcc668885624829b020050e6aec99c2a03bd3fd0"
+ "checksum serde_derive_internals 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6e03f1c9530c3fb0a0a5c9b826bdd9246a5921ae995d75f512ac917fc4dd55b5"
++"checksum serde_fs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "df08c718167577921b51733f4f1523a75e38846833e6ffba048f3a02f1fd98aa"
+ "checksum serde_json 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)" = "c9db7266c7d63a4c4b7fe8719656ccdd51acf1bed6124b174f933b009fb10bcb"
+ "checksum serde_test 0.8.23 (registry+https://github.com/rust-lang/crates.io-index)" = "110b3dbdf8607ec493c22d5d947753282f3bae73c0f56d322af1e8c78e4c23d5"
+ "checksum sha-1 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "51b9d1f3b5de8a167ab06834a7c883bd197f2191e1dda1a22d9ccfeedbf9aded"
+diff --git a/sit-core/Cargo.toml b/sit-core/Cargo.toml
+index 17f115b..a4c7dca 100644
+--- a/sit-core/Cargo.toml
++++ b/sit-core/Cargo.toml
+@@ -12,7 +12,8 @@ derive-error = "0.0"
+ typed-builder = "0.1"
+ serde = "1.0"
+ serde_derive = "1.0"
+-serde_json = "1.0"
++serde_json = { version = "1.0", optional = true }
++serde_fs = "0.1"
+ digest = "0.7"
+ tempdir = "0.3"
+ data-encoding = "2.1"
+@@ -33,9 +34,12 @@ cc = "1.0"
+ include_dir = "0.1.5"
+ 
+ [features]
+-default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap", "duktape-require"]
++default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap", "duktape-require",
++           "deprecated-config-json"]
+ duktape-require = []
+ duktape-reducers = ["duktape", "cesu8"]
+ duktape = []
+ duktape-mmap = ["memmap"]
+ windows7 = []
++deprecated-config-json = ["serde_json", "json2fs"]
++json2fs = ["serde_json"]
+\ No newline at end of file
+diff --git a/sit-core/src/encoding.rs b/sit-core/src/encoding.rs
+index 165e761..4da135a 100644
+--- a/sit-core/src/encoding.rs
++++ b/sit-core/src/encoding.rs
+@@ -1,7 +1,7 @@
+ //! Binary identifier encodings
+ 
+ /// Available encodings
+-#[derive(Debug, Clone, Serialize, Deserialize)]
++#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+ pub enum Encoding {
+     /// [Base32] encoding
+     ///
+diff --git a/sit-core/src/hash.rs b/sit-core/src/hash.rs
+index d3b0a0e..a34d303 100644
+--- a/sit-core/src/hash.rs
++++ b/sit-core/src/hash.rs
+@@ -2,7 +2,7 @@
+ 
+ /// Enumerates known hashing algorithm. Its content depends on features
+ /// enabled during build-time
+-#[derive(Debug, Clone, Serialize, Deserialize)]
++#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+ pub enum HashingAlgorithm {
+     #[cfg(feature = "blake2")]
+     #[serde(rename = "blake2b")]
+diff --git a/sit-core/src/id.rs b/sit-core/src/id.rs
+index a637ce5..f0f4bd3 100644
+--- a/sit-core/src/id.rs
++++ b/sit-core/src/id.rs
+@@ -1,6 +1,6 @@
+ //! ID generation abstraction
+ 
+-#[derive(Debug, Clone, Serialize, Deserialize)]
++#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+ pub enum IdGenerator {
+     /// UUID v4 (random)
+     #[cfg(feature = "uuid")]
+diff --git a/sit-core/src/json2fs.rs b/sit-core/src/json2fs.rs
+new file mode 100644
+index 0000000..e07a927
+--- /dev/null
++++ b/sit-core/src/json2fs.rs
+@@ -0,0 +1,116 @@
++//! Optional module that allows to convert JSON files to file sets
++//! (serde_fs)
++//!
++//! This is done as a transition measure for .sit/config.json
++//! and can be used by other tooling that wishes to
++//! move from one format to another.
++
++use std::{fs, io};
++use std::path::Path;
++
++use serde_json;
++use serde::ser::Serialize;
++use serde::de::Deserialize;
++use serde_fs;
++
++#[derive(Debug, Error)]
++pub enum Error {
++    /// File not found
++    FileNotFound,
++    /// I/O error
++    IoError(io::Error),
++    /// JSON deserialization error
++    JsonDeserializationError(serde_json::Error),
++    /// Filesystem serialization error
++    FsSerializationError(serde_fs::SerializerError),
++}
++
++/// Converts an existing JSON file to a file set
++pub fn convert<T: Serialize, P: AsRef<Path>>(json: P, to: P) -> Result<(), Error>
++    where T: for<'de> Deserialize<'de> {
++    let json = json.as_ref();
++    let to = to.as_ref();
++    if json.is_file() {
++        if to.is_dir() && serde_fs::from_fs::<_, T>(&json).is_ok() {
++            fs::remove_file(json)?;
++        } else {
++            let file = fs::File::open(&json)?;
++            let data: T = serde_json::from_reader(file)?;
++            fs::remove_file(json)?;
++            serde_fs::to_fs(to, &data)?;
++        }
++    } else {
++        return Err(Error::FileNotFound)
++    }
++    Ok(())
++}
++
++/// If source JSON file is found, converts it to a file set
++pub fn convert_if_required<T: Serialize, P: AsRef<Path>>(json: P, to: P) -> Result<(), Error>
++    where T: for<'de> Deserialize<'de> {
++    match convert::<T, P>(json, to) {
++        Err(Error::FileNotFound) => Ok(()),
++        other => other,
++    }
++}
++
++/// Returns true if a JSON file can be converted
++///
++/// Currently this simply means that the file exists
++pub fn can_convert<P: AsRef<Path>>(json: P) -> bool {
++    json.as_ref().is_file()
++}
++
++#[cfg(test)]
++mod tests {
++
++    use std::fs;
++
++    use tempdir::TempDir;
++    use super::*;
++
++    #[derive(Serialize, Deserialize, Debug, PartialEq)]
++    struct T {
++        value: u8
++    }
++
++    #[test]
++    fn conversion() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        assert_matches!(convert::<T, _>(tmp.join("test.json"), tmp.join("test")).unwrap_err(), Error::FileNotFound);
++        let mut f = fs::File::create(tmp.join("test.json")).unwrap();
++        let input = T { value: 100 };
++        serde_json::to_writer(&mut f, &input).unwrap();
++        convert::<T, _>(tmp.join("test.json"), tmp.join("test")).unwrap();
++        assert!(tmp.join("test").is_dir());
++        assert!(!tmp.join("test.json").exists());
++        let output: T = serde_fs::from_fs(tmp.join("test")).unwrap();
++        assert_eq!(input, output);
++        assert_matches!(convert::<T, _>(tmp.join("test.json"), tmp.join("test")).unwrap_err(), Error::FileNotFound);
++    }
++
++    #[test]
++    fn conversion_if_required() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        let mut f = fs::File::create(tmp.join("test.json")).unwrap();
++        let input = T { value: 100 };
++        serde_json::to_writer(&mut f, &input).unwrap();
++        convert_if_required::<T, _>(tmp.join("test.json"), tmp.join("test")).unwrap();
++        assert!(tmp.join("test").is_dir());
++        assert!(!tmp.join("test.json").exists());
++        let output: T = serde_fs::from_fs(tmp.join("test")).unwrap();
++        assert_eq!(input, output);
++        convert_if_required::<T, _>(tmp.join("test.json"), tmp.join("test")).unwrap();
++    }
++
++    #[test]
++    fn conversion_possible() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        assert!(!can_convert(tmp.join("test.json")));
++        let mut f = fs::File::create(tmp.join("test.json")).unwrap();
++        let input = T { value: 100 };
++        serde_json::to_writer(&mut f, &input).unwrap();
++        assert!(can_convert(tmp.join("test.json")));
++    }
++
++}
+\ No newline at end of file
+diff --git a/sit-core/src/lib.rs b/sit-core/src/lib.rs
+index a49dde1..d40f2d9 100644
+--- a/sit-core/src/lib.rs
++++ b/sit-core/src/lib.rs
+@@ -13,7 +13,9 @@
+ // Serialization
+ extern crate serde;
+ #[macro_use] extern crate serde_derive;
++#[cfg(feature = "deprecated-config-json")]
+ pub extern crate serde_json;
++extern crate serde_fs;
+ 
+ extern crate tempdir;
+ extern crate glob;
+@@ -50,3 +52,5 @@ pub use reducers::Reducer;
+ #[cfg(feature = "duktape")]
+ pub mod duktape;
+ pub mod cfg;
++#[cfg(feature = "json2fs")]
++pub mod json2fs;
+\ No newline at end of file
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 40814f9..922ecc5 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -14,7 +14,9 @@ use tempdir::TempDir;
+ 
+ use glob;
+ 
++#[cfg(feature = "deprecated-config-json")]
+ use serde_json;
++use serde_fs;
+ 
+ use super::hash::{HashingAlgorithm, Hasher};
+ use super::encoding::Encoding;
+@@ -24,8 +26,13 @@ use std::marker::PhantomData;
+ 
+ /// Current repository format version
+ const VERSION: &str = "1";
+-/// Repository's config file name
++#[cfg(feature = "deprecated-config-json")]
++/// Repository's config file (deprecated)
+ const CONFIG_FILE: &str = "config.json";
++#[cfg(feature = "deprecated-config-json")]
++const CONFIG_FILE_DEPRECATED: &str = "config.json configuration deprecated";
++/// Repository's config path
++const CONFIG_PATH: &str = "config";
+ /// Repository's issues path
+ const ISSUES_PATH: &str = "issues";
+ 
+@@ -46,7 +53,7 @@ pub struct Repository {
+ }
+ 
+ /// Repository configuration
+-#[derive(Debug, Clone, TypedBuilder, Serialize, Deserialize)]
++#[derive(Debug, Clone, PartialEq, TypedBuilder, Serialize, Deserialize)]
+ pub struct Config {
+      /// Hashing algorithm used
+     hashing_algorithm: HashingAlgorithm,
+@@ -65,6 +72,9 @@ pub enum Error {
+     AlreadyExists,
+     /// Item not found
+     NotFound,
++    /// Repository upgrade required (`open_and_upgrade(path,true)`)
++    #[error(no_from, non_std)]
++    UpgradeRequired(&'static str),
+     /// Invalid repository version
+     #[error(no_from, non_std)]
+     InvalidVersion {
+@@ -73,12 +83,29 @@ pub enum Error {
+     },
+     /// I/O error
+     IoError(::std::io::Error),
++    #[cfg(feature = "deprecated-config-json")]
+     /// JSON (de)serialization error
+-    SerializationError(serde_json::Error),
++    JsonSerializationError(serde_json::Error),
++    /// Filesystem (de)serialization error
++    FsSerializationError(serde_fs::SerializerError),
++    FsDeserializationError(serde_fs::DeserializerError),
+     /// Base decoding error
+     BaseDecodeError(::data_encoding::DecodeError),
+ }
+ 
++#[cfg(feature = "json2fs")]
++impl From<::json2fs::Error> for Error {
++    fn from(err: ::json2fs::Error) -> Self {
++        match err {
++            ::json2fs::Error::FileNotFound =>
++                ::std::io::Error::new(::std::io::ErrorKind::NotFound, err).into(),
++            ::json2fs::Error::FsSerializationError(err) => Error::FsSerializationError(err),
++            ::json2fs::Error::JsonDeserializationError(err) => Error::JsonSerializationError(err),
++            ::json2fs::Error::IoError(err) => Error::IoError(err),
++        }
++    }
++}
++
+ #[allow(unused_variables,dead_code)]
+ mod default_files {
+     include!(concat!(env!("OUT_DIR"), "/default_files.rs"));
+@@ -126,7 +153,7 @@ impl Repository {
+             Err(Error::AlreadyExists)
+         } else {
+             let mut config_path = path.clone();
+-            config_path.push(CONFIG_FILE);
++            config_path.push(CONFIG_PATH);
+             let mut issues_path = path.clone();
+             issues_path.push(ISSUES_PATH);
+             fs::create_dir_all(&issues_path)?;
+@@ -145,17 +172,39 @@ impl Repository {
+     /// Opens an existing repository. Fails if there's no valid repository at the
+     /// given path
+     pub fn open<P: Into<PathBuf>>(path: P) -> Result<Self, Error> {
++        Repository::open_and_upgrade(path, false)
++    }
++
++    /// Opens an existing repository and upgrade it if directed to do so
++    /// (`upgrade` set to `true`).
++    ///
++    /// Should be used if `open()` returns `Error::UpgradeRequired`
++    ///
++    /// Fails if there's no valid repository at the
++    /// given path.
++    pub fn open_and_upgrade<P: Into<PathBuf>>(path: P, upgrade: bool) -> Result<Self, Error> {
+         let path: PathBuf = path.into();
+-        let mut config_path = path.clone();
+-        config_path.push(CONFIG_FILE);
+-        let mut issues_path = path.clone();
+-        issues_path.push(ISSUES_PATH);
++        let config_path = path.join(CONFIG_PATH);
++        let issues_path = path.join(ISSUES_PATH);
+         fs::create_dir_all(&issues_path)?;
+-        let file = fs::File::open(&config_path)?;
+-        let config: Config = serde_json::from_reader(file)?;
++
++        #[cfg(feature = "deprecated-config-json")] {
++            use json2fs;
++            let config_file = path.join(CONFIG_FILE);
++            if json2fs::can_convert(&config_file) {
++                if !upgrade {
++                    return Err(Error::UpgradeRequired(CONFIG_FILE_DEPRECATED));
++                }
++                json2fs::convert::<Config, _>(&config_file, &config_path)?;
++            }
++        }
++
++        let config: Config = serde_fs::from_fs(&config_path)?;
++
+         if config.version != VERSION {
+             return Err(Error::InvalidVersion { expected: String::from(VERSION), got: config.version });
+         }
++
+         let repository = Repository {
+             path,
+             config_path,
+@@ -165,7 +214,8 @@ impl Repository {
+         Ok(repository)
+     }
+ 
+-    pub fn find_in_or_above<P: Into<PathBuf>, S: AsRef<str>>(dir: S, path: P) -> Result<Self, Error> {
++    /// Find a repository in a path or above it
++    pub fn find_in_or_above<P: Into<PathBuf>, S: AsRef<str>>(dir: S, path: P) -> Result<PathBuf, Error> {
+         let mut path: PathBuf = path.into();
+         let dir = dir.as_ref();
+         path.push(dir);
+@@ -183,7 +233,7 @@ impl Repository {
+                 break;
+             }
+         }
+-        Repository::open(path)
++        Ok(path)
+     }
+ 
+ 
+@@ -191,8 +241,7 @@ impl Repository {
+     /// been saved.
+     fn save(&self) -> Result<(), Error> {
+         fs::create_dir_all(&self.path)?;
+-        let file = fs::File::create(&self.config_path)?;
+-        serde_json::to_writer_pretty(file, &self.config)?;
++        serde_fs::to_fs(self.path.join("config"), &self.config)?;
+         Ok(())
+     }
+ 
+@@ -730,7 +779,7 @@ mod tests {
+         // create repo
+         Repository::new(&sit).unwrap();
+         let deep_subdir = tmp.join("a/b/c/d");
+-        let repo = Repository::find_in_or_above(".sit", &deep_subdir).unwrap();
++        let repo = Repository::open(Repository::find_in_or_above(".sit", &deep_subdir).unwrap()).unwrap();
+         assert_eq!(repo.path(), sit);
+         // negative test
+         assert_matches!(Repository::find_in_or_above(".sit-dir", &deep_subdir), Err(Error::NotFound));
+@@ -957,4 +1006,29 @@ mod tests {
+ 
+     }
+ 
++    #[cfg(feature = "deprecated-config-json")]
++    #[test]
++    pub fn config_json_upgrade() {
++        let config = Config {
++            hashing_algorithm: Default::default(),
++            encoding: Encoding::default(),
++            id_generator: IdGenerator::default(),
++            version: String::from(VERSION),
++        };
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++
++        fs::create_dir_all(&tmp).unwrap();
++        let mut file = fs::File::create(tmp.join(CONFIG_FILE)).unwrap();
++        serde_json::to_writer(&mut file, &config).unwrap();
++
++        let err = Repository::open(&tmp).unwrap_err();
++        assert_matches!(err, Error::UpgradeRequired(CONFIG_FILE_DEPRECATED));
++
++        let repo = Repository::open_and_upgrade(&tmp, true).unwrap();
++        assert!(!tmp.join(CONFIG_FILE).is_file());
++
++        assert_eq!(repo.config(), &config);
++    }
++
+ }
+diff --git a/sit-web/src/main.rs b/sit-web/src/main.rs
+index bdfe067..9a0e93f 100644
+--- a/sit-web/src/main.rs
++++ b/sit-web/src/main.rs
+@@ -108,11 +108,13 @@ fn main() {
+         }
+     }
+ 
+-    let repo = matches.value_of("repository")
+-        .map(sit_core::Repository::open)
+-        .or_else(|| Some(sit_core::Repository::find_in_or_above(".sit",&working_dir)))
+-        .unwrap()
+-        .expect("can't open repository");
++    let repo_path = matches.value_of("repository").map(PathBuf::from)
++            .or_else(|| match sit_core::Repository::find_in_or_above(".sit",&working_dir) {
++                Ok(path) => Some(path),
++                Err(_) => None,
++            })
++            .expect("Can't find a repository");
++    let repo = sit_core::Repository::open(&repo_path).expect("can't open repository");
+ 
+     let listen = matches.value_of("listen").unwrap();
+     let readonly = matches.is_present("readonly");
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 6f5e49c..78fd810 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -88,6 +88,9 @@ fn main_with_result() -> i32 {
+             .long("config")
+             .takes_value(true)
+             .help("Config file (overrides default)"))
++        .arg(Arg::with_name("always-upgrade")
++                 .long("always-upgrade")
++                 .help("If a repository needs an upgrade, perform it unconditionally"))
+         .subcommand(SubCommand::with_name("init")
+             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+             .about("Initializes a new SIT repository in .sit")
+@@ -329,10 +332,37 @@ fn main_with_result() -> i32 {
+                            matches.value_of("DEST").unwrap(),
+                            matches.value_of("on-record"));
+     } else {
+-        let repo = matches.value_of("repository").map(sit_core::Repository::open)
+-            .or_else(|| Some(sit_core::Repository::find_in_or_above(".sit",&working_dir)))
+-            .unwrap()
+-            .expect("can't open repository");
++        let repo_path = matches.value_of("repository").map(PathBuf::from)
++            .or_else(|| match sit_core::Repository::find_in_or_above(".sit",&working_dir) {
++                Ok(path) => Some(path),
++                Err(_) => None,
++            })
++            .expect("Can't find a repository");
++        let mut repo_attempt = sit_core::Repository::open_and_upgrade(&repo_path, matches.is_present("always-upgrade"));
++        let repo = loop {
++            match repo_attempt {
++                Ok(repo) => break repo,
++                Err(sit_core::repository::Error::UpgradeRequired(reason)) => {
++                    println!("Repository upgrade required: {}", reason);
++                    use question::{Question, Answer};
++                    match Question::new("Proceed with an upgrade (Y/n)?").confirm() {
++                        Answer::NO => {
++                            eprintln!("Aborting");
++                            return 1;
++                        },
++                        Answer::YES => {
++                            repo_attempt = sit_core::Repository::open_and_upgrade(&repo_path, true);
++                            continue;
++                        },
++                        _ => unreachable!()
++                    }
++                }
++                Err(err) => {
++                    eprintln!("Error opening repository: {:?}", err);
++                    return -1;
++                }
++            }
++        };
+ 
+         if let Some(_) = matches.subcommand_matches("populate-files") {
+             repo.populate_default_files().expect("can't populate default files");
+-- 
+2.15.0
+

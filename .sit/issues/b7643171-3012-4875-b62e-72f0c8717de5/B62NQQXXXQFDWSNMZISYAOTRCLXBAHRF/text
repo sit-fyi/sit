@@ -1,0 +1,16 @@
+These configs are less accessible to shell scripts
+which might want to read some of the repository's
+configuration (they'd need support of external
+tooling like `jq`)
+
+Solution: switch from JSON to a plain text, file-based
+configuration format (serde_fs)
+
+This patch also enables smooth upgrade path upon confirmation
+(this feature is gated and can be removed by disabling
+`deprecated-config-json` feature in sit-core)
+
+At this moment, we are not dealing with user configs as
+it is not clear whether it would be a beneficial change
+or not.
+
