@@ -23,6 +23,7 @@ use sit_core::cfg;
 
 mod rebuild;
 use rebuild::rebuild_repository;
+mod command_config;
 
 #[cfg(unix)]
 extern crate xdg;
@@ -249,6 +250,17 @@ fn main_with_result() -> i32 {
                      .short("Q")
                      .takes_value(true)
                      .help("Render a result of a named JMESPath query over the issue")))
+        .subcommand(SubCommand::with_name("config")
+            .about("Prints configuration file")
+            .arg(Arg::with_name("kind")
+                     .possible_values(&["user", "repository"])
+                     .default_value("user")
+                     .help("Configuration kind"))
+            .arg(Arg::with_name("query")
+                     .long("query")
+                     .short("q")
+                     .takes_value(true)
+                     .help("JMESPath query (none by default)")))
         .get_matches();
 
 
@@ -304,6 +316,13 @@ fn main_with_result() -> i32 {
             config.author = Some(cfg::Author { name, email });
             let file = fs::File::create(config_path).expect("can't open config file for writing");
             serde_json::to_writer_pretty(file, &config).expect("can't write config");
+        }
+    }
+
+    if let Some(matches) = matches.subcommand_matches("config") {
+        if matches.value_of("kind").unwrap() == "user" {
+            command_config::command(&config, matches.value_of("query"));
+            return 0;
         }
     }
 
@@ -662,6 +681,13 @@ fn main_with_result() -> i32 {
                 }
             }
         }
+
+        if let Some(matches) = matches.subcommand_matches("config") {
+            if matches.value_of("kind").unwrap() == "repository" {
+                command_config::command(repo.config(), matches.value_of("query"));
+            }
+        }
+
 
     }
 
