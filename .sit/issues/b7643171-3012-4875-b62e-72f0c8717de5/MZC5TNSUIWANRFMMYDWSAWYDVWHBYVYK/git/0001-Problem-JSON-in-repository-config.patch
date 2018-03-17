@@ -1,0 +1,107 @@
+From 40ec213875fa44798a928c387c134b4218c4cac6 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 17 Mar 2018 14:08:05 +0700
+Subject: [PATCH] Problem: JSON in repository config
+
+These configs are less accessible to shell scripts which might want to
+read some of the repository's configuration (they'd need support of
+external tooling like `jq`)
+
+Solution: implement `sit config` command
+
+This command will print a user or a repository config and, most
+importantly, will take a `-q/--query` argument to process the config
+so that these shell script can get the information they require
+without external tooling (besides SIT, which one would assume
+this scripts will require anyway)
+---
+ sit/src/command_config.rs | 18 ++++++++++++++++++
+ sit/src/main.rs           | 26 ++++++++++++++++++++++++++
+ 2 files changed, 44 insertions(+)
+ create mode 100644 sit/src/command_config.rs
+
+diff --git a/sit/src/command_config.rs b/sit/src/command_config.rs
+new file mode 100644
+index 0000000..9e8a250
+--- /dev/null
++++ b/sit/src/command_config.rs
+@@ -0,0 +1,18 @@
++use jmespath;
++use serde_json;
++use serde::Serialize;
++
++pub fn command<T: Serialize>(cfg: &T, query: Option<&str>) {
++    match query {
++        None => println!("{}", serde_json::to_string_pretty(cfg).unwrap()),
++        Some(query_expr) => {
++            let query = jmespath::compile(query_expr).expect("can't compile query expression");
++            let view = query.search(&cfg).unwrap();
++            if view.is_string() {
++                println!("{}", view.as_string().unwrap().clone())
++            } else {
++                println!("{}", serde_json::to_string_pretty(&view).unwrap())
++            }
++        }
++    }
++}
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 6f5e49c..3994005 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -23,6 +23,7 @@ use sit_core::cfg;
+ 
+ mod rebuild;
+ use rebuild::rebuild_repository;
++mod command_config;
+ 
+ #[cfg(unix)]
+ extern crate xdg;
+@@ -249,6 +250,17 @@ fn main_with_result() -> i32 {
+                      .short("Q")
+                      .takes_value(true)
+                      .help("Render a result of a named JMESPath query over the issue")))
++        .subcommand(SubCommand::with_name("config")
++            .about("Prints configuration file")
++            .arg(Arg::with_name("kind")
++                     .possible_values(&["user", "repository"])
++                     .default_value("user")
++                     .help("Configuration kind"))
++            .arg(Arg::with_name("query")
++                     .long("query")
++                     .short("q")
++                     .takes_value(true)
++                     .help("JMESPath query (none by default)")))
+         .get_matches();
+ 
+ 
+@@ -307,6 +319,13 @@ fn main_with_result() -> i32 {
+         }
+     }
+ 
++    if let Some(matches) = matches.subcommand_matches("config") {
++        if matches.value_of("kind").unwrap() == "user" {
++            command_config::command(&config, matches.value_of("query"));
++            return 0;
++        }
++    }
++
+     if let Some(init_matches) = matches.subcommand_matches("init") {
+         let dot_sit_str = matches.value_of("repository").unwrap_or(dot_sit.to_str().unwrap());
+         match sit_core::Repository::new(&dot_sit_str) {
+@@ -663,6 +682,13 @@ fn main_with_result() -> i32 {
+             }
+         }
+ 
++        if let Some(matches) = matches.subcommand_matches("config") {
++            if matches.value_of("kind").unwrap() == "repository" {
++                command_config::command(repo.config(), matches.value_of("query"));
++            }
++        }
++
++
+     }
+ 
+     return 0;
+-- 
+2.15.0
+

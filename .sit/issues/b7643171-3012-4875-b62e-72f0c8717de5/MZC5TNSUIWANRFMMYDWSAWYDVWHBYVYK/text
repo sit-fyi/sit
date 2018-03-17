@@ -1,0 +1,17 @@
+Attached is an alternative solution for the original problem,
+perhaps a less intrusive one (however, serde_fs is a cool, too,
+if only a bit immature). Most importantly, it doesn't
+require a change of the config format.
+
+Ultimately, these two solutions are independent and both can
+be merged, but this kind of decision should be rather motivated :)
+
+---
+
+Solution: implement `sit config` command
+
+This command will print a user or a repository config and, most
+importantly, will take a `-q/--query` argument to process the config
+so that these shell script can get the information they require
+without external tooling (besides SIT, which one would assume
+this scripts will require anyway)
