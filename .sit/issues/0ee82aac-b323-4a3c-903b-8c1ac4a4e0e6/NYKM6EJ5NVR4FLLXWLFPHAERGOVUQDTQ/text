@@ -1,0 +1,5 @@
+Here's an example:
+
+```
+thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: Error { kind: Json(ErrorImpl { code: Message("unknown variant `ReviewRequestRemovedEvent`, expected one of `Commit`, `IssueComment`, `CrossReferencedEvent`, `ClosedEvent`, `MergedEvent`, `ReopenedEvent`, `SubscribedEvent`, `UnsubscribedEvent`, `ReferencedEvent`, `AssignedEvent`, `UnassignedEvent`, `LabeledEvent`, `UnlabeledEvent`, `MilestonedEvent`, `DemilestonedEvent`, `RenamedTitleEvent`, `LockedEvent`, `UnlockedEvent`, `HeadRefDeletedEvent`, `HeadRefRestoredEvent`, `HeadRefForcePushedEvent`, `BaseRefForcePushedEvent`, `ReviewRequestedEvent`, `ReviewRequestedRemovedEvent`, `ReviewDismissedEvent`, `DeployedEvent`, `CommitCommentThread`, `PullRequestReview`, `PullRequestReviewThread`, `PullRequestReviewComment`"), line: 1, column: 801 }), url: None }', /checkout/src/libcore/result.rs:916:5
+```
