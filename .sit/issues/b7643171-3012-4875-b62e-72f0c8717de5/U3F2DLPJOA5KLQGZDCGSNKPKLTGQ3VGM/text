@@ -1,0 +1,6 @@
+For now, just merging in `sit config` command as the other patch
+is breaking. However, this doesn't necessarily mean that other
+patch is abandoned.
+
+It'll perhaps be best to check if serde_fs works with newly added
+`flatten` attribute in serde and revisit this patch again.
