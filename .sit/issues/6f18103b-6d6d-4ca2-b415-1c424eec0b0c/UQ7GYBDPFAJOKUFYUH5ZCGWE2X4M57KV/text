@@ -1,0 +1,18 @@
+With the recent introduction of `sit config` subcommand,
+it became possible for third-party tools to query information
+from repository and user configurations.
+
+However, it is of limited use because this command only gives
+access to pre-defined configuration, thus disallowing third-party
+tools from using this for carrying and retrieving custom configuration.
+
+A good example of this is being able to store sit-inbox host
+and key (if needed) in the configuration so that end-users
+won't need to be bothered by this.
+
+Solution: use recently introduced `serde(flatten)` attribute
+to allow configuration structures to carry extra configuration.
+
+This way it becomes available to `sit config` and therefore
+resolves the problem.
+
