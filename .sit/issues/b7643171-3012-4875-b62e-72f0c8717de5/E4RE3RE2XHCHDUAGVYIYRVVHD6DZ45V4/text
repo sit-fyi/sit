@@ -1,0 +1,5 @@
+Reopening this issue because the first patch (serde_fs) has some potential for interesting use cases.
+
+For example, `prepare-merge-request` script might want to use (or show) a command for sending that merge request to the inbox. However, if the inbox is served over SSH and not HTTP, this push requires specifying a "public" private key (however funny this is). In this case, being able to store that file as a file is clearly beneficial as it won't need to be extracted to the filesystem first.
+
+Something worth considering. Is it worth the complexity and the breakage/upgrade procedure?
