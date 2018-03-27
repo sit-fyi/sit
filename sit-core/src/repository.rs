@@ -20,6 +20,8 @@ use super::hash::{HashingAlgorithm, Hasher};
 use super::encoding::Encoding;
 use super::id::IdGenerator;
 
+use std::collections::HashMap;
+
 use std::marker::PhantomData;
 
 /// Current repository format version
@@ -57,6 +59,8 @@ pub struct Config {
     /// Repository version
     #[default = "String::from(VERSION)"]
     version: String,
+    #[serde(flatten)]
+    extra: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Error)]
@@ -115,6 +119,7 @@ impl Repository {
             encoding: Encoding::default(),
             id_generator: IdGenerator::default(),
             version: String::from(VERSION),
+            extra: HashMap::new(),
         })
     }
 
