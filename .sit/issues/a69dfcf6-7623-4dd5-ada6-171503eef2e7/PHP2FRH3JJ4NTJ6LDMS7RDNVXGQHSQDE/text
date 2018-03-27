@@ -1,0 +1,3 @@
+By default, sit-web limits its listening to the localhost (127.0.0.1) with the intent of not allowing unauthorized parties to access it. However, this doesn't protect this instance from unauthorized access by users on the same machine (i.e. on multi-user setups)
+
+Proposed solution: establish some kind of authorization scheme (using HTTP auth or other methods). The more transparent it is for the authorized user, the better.

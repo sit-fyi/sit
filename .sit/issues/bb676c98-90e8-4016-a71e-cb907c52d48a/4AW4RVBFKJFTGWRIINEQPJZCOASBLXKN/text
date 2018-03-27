@@ -1,0 +1,5 @@
+It has been reported that some command line subcommand names are "less than intuitive". For example, `sit issue` creates an issue instead of showing one.
+
+Proposed solution 1: Use `NOUN VERB` or `VERB NOUN` naming scheme (`issue create` or `create issue`)
+
+Proposed solution 2: Use short, but more descriptive names like `sit create` or `sit new`

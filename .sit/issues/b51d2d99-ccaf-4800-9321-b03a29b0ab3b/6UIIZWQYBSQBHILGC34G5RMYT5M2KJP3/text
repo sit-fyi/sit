@@ -1,0 +1,5 @@
+In order to work with multiple repositories, one needs to run multiple instances of sit-web. This is inconvenient.
+
+Proposed solution 1: Allow specifying multiple repositories and their mapping to URL paths to sit-web (say, in a config file)
+
+Proposed solution 2: Designate a multi-repository type of repository in sit-core. This is a more complicated change, and it would require defining how reducers, web overlays, filters and queries apply to respective items. On the positive side, this will allow any tool to work with multiple repositories easily, not just sit-web.
