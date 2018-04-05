@@ -59,15 +59,15 @@ fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
 }
 
 fn main() {
-    exit(main_with_result());
+    exit(main_with_result(true));
 }
 
-fn main_with_result() -> i32 {
+fn main_with_result(allow_external_subcommands: bool) -> i32 {
     #[cfg(unix)]
     let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
 
     let cwd = env::current_dir().expect("can't get current working directory");
-    let matches = App::new("SIT")
+    let mut app = App::new("SIT")
         .version(crate_version!())
         .about(crate_description!())
         .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
@@ -260,9 +260,13 @@ fn main_with_result() -> i32 {
                      .long("query")
                      .short("q")
                      .takes_value(true)
-                     .help("JMESPath query (none by default)")))
-        .get_matches();
+                     .help("JMESPath query (none by default)")));
 
+    if allow_external_subcommands {
+        app = app.setting(clap::AppSettings::AllowExternalSubcommands);
+    }
+
+    let matches = app.clone().get_matches();
 
     #[cfg(unix)]
     let default_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
@@ -334,9 +338,11 @@ fn main_with_result() -> i32 {
                     repo.populate_default_files().expect("can't populate default files");
                 }
                 eprintln!("Repository {} initialized", dot_sit_str);
+                return 0;
             }
             Err(sit_core::RepositoryError::AlreadyExists) => {
                 eprintln!("Repository {} already exists", dot_sit_str);
+                return 0;
             },
             Err(err) => {
                 eprintln!("Error while initializing repository {}: {}", dot_sit_str, err);
@@ -347,6 +353,7 @@ fn main_with_result() -> i32 {
         rebuild_repository(matches.value_of("SRC").unwrap(),
                            matches.value_of("DEST").unwrap(),
                            matches.value_of("on-record"));
+        return 0;
     } else {
         let repo = matches.value_of("repository").map(sit_core::Repository::open)
             .or_else(|| Some(sit_core::Repository::find_in_or_above(".sit",&working_dir)))
@@ -355,8 +362,10 @@ fn main_with_result() -> i32 {
 
         if let Some(_) = matches.subcommand_matches("populate-files") {
             repo.populate_default_files().expect("can't populate default files");
+            return 0;
         } else if let Some(_) = matches.subcommand_matches("path") {
             println!("{}", repo.path().to_str().unwrap());
+            return 0;
         } else if let Some(matches) = matches.subcommand_matches("issue") {
             let issue = (if matches.value_of("id").is_none() {
                 repo.new_issue()
@@ -364,6 +373,7 @@ fn main_with_result() -> i32 {
                 repo.new_named_issue(matches.value_of("id").unwrap())
             }).expect("can't create an issue");
             println!("{}", issue.id());
+            return 0;
         }
 
         if let Some(matches) = matches.subcommand_matches("issues") {
@@ -412,6 +422,7 @@ fn main_with_result() -> i32 {
                 .for_each(|view| {
                     println!("{}", view);
                 });
+                return 0;
         }
 
         if let Some(matches) = matches.subcommand_matches("record") {
@@ -543,6 +554,7 @@ fn main_with_result() -> i32 {
                     println!("{}", record.encoded_hash());
                 }
             }
+            return 0;
         }
 
         if let Some(matches) = matches.subcommand_matches("records") {
@@ -649,6 +661,7 @@ fn main_with_result() -> i32 {
                     }
                 }
             }
+            return 0;
         }
 
         if let Some(matches) = matches.subcommand_matches("reduce") {
@@ -680,17 +693,32 @@ fn main_with_result() -> i32 {
 
                 }
             }
+            return 0;
         }
 
         if let Some(matches) = matches.subcommand_matches("config") {
             if matches.value_of("kind").unwrap() == "repository" {
                 command_config::command(repo.config(), matches.value_of("query"));
             }
+            return 0;
         }
 
 
     }
 
-    return 0;
+    let (subcommand, args) = matches.subcommand();
+    let mut command = ::std::process::Command::new(format!("sit-{}", subcommand));
+    if let Some(args) = args {
+        command.args(args.values_of_lossy("").unwrap_or(vec![]));
+    }
+    match command.spawn() {
+        Err(_) => {
+            return main_with_result(false);
+        },
+        Ok(mut process) => {
+            let result = process.wait().unwrap();
+            return result.code().unwrap();
+        },
+    };
 
 }
