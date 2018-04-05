@@ -1,0 +1,17 @@
+Currently, tools that are not embedded into `sit`
+itself have a different invocation convention.
+
+For example, sit's web interface is `sit-web`.
+However, embedded subcommands are invoked as `sit record`
+(for example).
+
+Solution: implement a scheme similar to git, where an unknown
+subcommand is attempted as an external subcommand and if the spawning
+is unsuccessful, the subcommand is matched against built-in
+commands to see if any suggestion can be produced.
+
+This way, `sit-web` can be invoked as `sit web`.
+
+This change required an upgrade of `clap` to 2.31.2 which enabled
+this behaviour.
+
