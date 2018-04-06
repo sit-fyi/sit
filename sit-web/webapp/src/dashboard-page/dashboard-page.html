@@ -48,7 +48,7 @@
        </paper-dropdown-menu>
        </div>
 
-        <iron-ajax auto url="/api/issues/{{ encodedFilter }}/{{ query }}" handle-as="json"
+        <iron-ajax auto url="/api/items/{{ encodedFilter }}/{{ query }}" handle-as="json"
                    last-response="{{ issues }}"
                    on-error="handleError"
                    on-request="handleRequest"

@@ -21,8 +21,8 @@ pub trait Record {
    /// [`hash`]: struct.Record.html#hash
    fn encoded_hash(&self) -> Self::Str;
 
-   /// Returns parent issue's ID
-   fn issue_id(&self) -> Self::Str;
+   /// Returns enclosing item's ID
+   fn item_id(&self) -> Self::Str;
 
    /// Returns an iterator over files in the record
    fn file_iter(&self) -> Self::Iter;

@@ -23,7 +23,7 @@ sit_path=$(${sit} path)
 files=$(git diff --name-only ${range} | sort)
 
 failed_patch () {
-        mkdir -p "${sit_path}/issues/$1"
+        mkdir -p "${sit_path}/items/$1"
         tmp_dir=$(mktemp -d)
         pushd $(pwd) >/dev/null
         cd "${tmpdir}"
@@ -37,7 +37,7 @@ failed_patch () {
 }
 
 failed_ci () {
-        mkdir -p "${sit_path}/issues/$1"
+        mkdir -p "${sit_path}/items/$1"
         tmp_dir=$(mktemp -d)
         pushd $(pwd) >/dev/null
         cd "${tmpdir}"
@@ -51,7 +51,7 @@ failed_ci () {
 }
 
 passed_ci () {
-        mkdir -p "${sit_path}/issues/$1"
+        mkdir -p "${sit_path}/items/$1"
         tmp_dir=$(mktemp -d)
         pushd $(pwd) >/dev/null
         cd "${tmpdir}"
@@ -65,8 +65,8 @@ passed_ci () {
 }
 
 check_mr () {
-        git_regex="^\.sit/issues/$1/$2/git/.+\.patch"
-        git checkout -b "${report_branch}-${issue}-${mr}" "${rev}"
+        git_regex="^\.sit/items/$1/$2/git/.+\.patch"
+        git checkout -b "${report_branch}-${item}-${mr}" "${rev}"
         # Apply patches
         for file in ${files}; do
                 if [[ "${file}" =~ ${git_regex} ]]; then
@@ -84,25 +84,25 @@ check_mr () {
         # Clean up
         git reset --hard
         git checkout "${curbranch}"
-        git branch -D "${report_branch}-${issue}-${mr}"
+        git branch -D "${report_branch}-${item}-${mr}"
 }
 
-reported_issues=""
+reported_items=""
 
 for file in ${files}; do
-        if [[ "${file}" =~ ^\.sit/issues/.+/.+/\.type/MergeRequested$ ]]; then 
-                issue=$(echo ${file} | sed -E "s/\.sit\/issues\/([^\/]+)\/.*/\1/")
-                mr=$(echo ${file} | sed -E "s/\.sit\/issues\/[^\/]+\/([^\/]+)\/.*/\1/")
-                echo "Found merge request ${issue}/${mr}" 1>&2
-                check_mr "${issue}" "${mr}"
-                reported_issues="${reported_issues} ${issue}"
+        if [[ "${file}" =~ ^\.sit/items/.+/.+/\.type/MergeRequested$ ]]; then
+                item=$(echo ${file} | sed -E "s/\.sit\/items\/([^\/]+)\/.*/\1/")
+                mr=$(echo ${file} | sed -E "s/\.sit\/items\/[^\/]+\/([^\/]+)\/.*/\1/")
+                echo "Found merge request ${item}/${mr}" 1>&2
+                check_mr "${item}" "${mr}"
+                reported_items="${reported_items} ${item}"
         fi
 done
 
 git checkout -b "${report_branch}"
 
-for report in ${reported_issues}; do
-        git add ${sit_path}/issues/${report}
+for report in ${reported_items}; do
+        git add ${sit_path}/items/${report}
 done
 
 git commit -m "CI report"

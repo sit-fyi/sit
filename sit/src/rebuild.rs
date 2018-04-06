@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::fs;
 use std::ffi::OsString;
 use fs_extra;
-use sit_core::{Repository, Issue, Record};
+use sit_core::{Repository, Item, Record};
 use pbr::ProgressBar;
 use tempdir::TempDir;
 use glob;
@@ -19,7 +19,7 @@ pub fn rebuild_repository<S: Into<PathBuf>>(src: S, dest: S, on_record: Option<S
     let src = Repository::open(src).expect("can't open source repository");
     let dest = Repository::new_with_config(dest, src.config().clone())
         .expect("can't create destination repository");
-    // Copy all files and directories except for `config` and `issues`
+    // Copy all files and directories except for `config` and `items`
     print!("Copying all supplementary files: ");
     let dir = fs::read_dir(src.path()).expect("can't read source repository record");
     dir.filter(Result::is_ok)
@@ -28,7 +28,7 @@ pub fn rebuild_repository<S: Into<PathBuf>>(src: S, dest: S, on_record: Option<S
             let file_name = f.file_name();
             let name = file_name.to_str().unwrap();
             name != "config.json" &&
-                name != "issues"
+                name != "items"
         })
         .for_each(|f| {
             let file_name = f.file_name();
@@ -47,26 +47,26 @@ pub fn rebuild_repository<S: Into<PathBuf>>(src: S, dest: S, on_record: Option<S
         });
     println!("done");
 
-    // Process issues
-    let issue_count = src.issue_iter().expect("can't iterate over source repository's issues")
+    // Process items
+    let item_count = src.item_iter().expect("can't iterate over source repository's items")
         .count();
 
-    println!("Processing issues");
+    println!("Processing items");
 
-    let mut pb = ProgressBar::new(issue_count as u64);
-    for issue in src.issue_iter().expect("can't iterate over source repository's issues") {
-        let dest_issue = dest.new_named_issue(issue.id())
-            .expect("can't create an issue in the destination repository");
+    let mut pb = ProgressBar::new(item_count as u64);
+    for item in src.item_iter().expect("can't iterate over source repository's items") {
+        let dest_item = dest.new_named_item(item.id())
+            .expect("can't create an item in the destination repository");
         use std::collections::HashMap;
         let mut renames = HashMap::new();
         pb.inc();
-        let recs = issue.record_iter()
-            .expect(&format!("can't iterate through records of {}", issue.id()));
+        let recs = item.record_iter()
+            .expect(&format!("can't iterate through records of {}", item.id()));
         for records in recs {
             for record in records {
                 let tmp = TempDir::new("sit").expect("can't create temp directory");
                 for (name, _reader) in record.file_iter() {
-                    let path = src.issues_path().join(issue.id()).join(record.encoded_hash())
+                    let path = src.items_path().join(item.id()).join(record.encoded_hash())
                         .join(&name);
                     let p = PathBuf::from(&name);
                     if p.components().count() > 1 {
@@ -114,7 +114,7 @@ pub fn rebuild_repository<S: Into<PathBuf>>(src: S, dest: S, on_record: Option<S
                         (String::from(name), fs::File::open(f).expect("can't open file"))
                     });
 
-                let new_record = dest_issue.new_record(new_files, false).expect("can't create a record in destination repository");
+                let new_record = dest_item.new_record(new_files, false).expect("can't create a record in destination repository");
                 renames.insert(record.encoded_hash(), new_record.encoded_hash());
             }
         }
