@@ -69,7 +69,7 @@ pub struct Configuration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author: Option<Author>,
     #[serde(default, skip_serializing_if = "JMESPathConfig::is_empty")]
-    pub issues: JMESPathConfig,
+    pub items: JMESPathConfig,
     #[serde(default, skip_serializing_if = "JMESPathConfig::is_empty")]
     pub records: JMESPathConfig,
     #[serde(default, skip_serializing_if = "Signing::is_none")]

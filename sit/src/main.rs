@@ -12,8 +12,8 @@ use std::process::exit;
 
 use clap::{Arg, App, SubCommand};
 
-use sit_core::{Issue, Record};
-use sit_core::issue::IssueReduction;
+use sit_core::{Item, Record};
+use sit_core::item::ItemReduction;
 
 extern crate serde;
 extern crate serde_json;
@@ -88,6 +88,9 @@ fn main_with_result() -> i32 {
             .long("config")
             .takes_value(true)
             .help("Config file (overrides default)"))
+        .subcommand(SubCommand::with_name("upgrade")
+            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+            .about("Upgrades the repository"))
         .subcommand(SubCommand::with_name("init")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Initializes a new SIT repository in .sit")
@@ -119,48 +122,50 @@ fn main_with_result() -> i32 {
                      .takes_value(true)
                      .long_help("Execute this command on every record before re-hashing it. \
                      The directory is passed as the first argument.")))
-        .subcommand(SubCommand::with_name("issue")
+        .subcommand(SubCommand::with_name("item")
+            .alias("issue") // TODO: deprecate
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
-            .about("Creates a new issue")
+            .about("Creates a new item")
             .arg(Arg::with_name("id")
                      .long("id")
                      .takes_value(true)
                      .required(false)
-                     .help("Specify issue identifier, otherwise generate automatically")))
-        .subcommand(SubCommand::with_name("issues")
+                     .help("Specify item identifier, otherwise generate automatically")))
+        .subcommand(SubCommand::with_name("items")
+            .alias("issues") // TODO: deprecate
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
-            .about("Lists issues")
+            .about("Lists items")
             .arg(Arg::with_name("filter")
                      .conflicts_with("named-filter")
                      .long("filter")
                      .short("f")
                      .takes_value(true)
-                     .help("Filter issues with a JMESPath query"))
+                     .help("Filter items with a JMESPath query"))
             .arg(Arg::with_name("query")
                      .conflicts_with("named-query")
                      .long("query")
                      .short("q")
                      .takes_value(true)
-                     .help("Render a result of a JMESPath query over the issue (defaults to `id`)"))
+                     .help("Render a result of a JMESPath query over the item (defaults to `id`)"))
             .arg(Arg::with_name("named-filter")
                      .conflicts_with("filter")
                      .long("named-filter")
                      .short("F")
                      .takes_value(true)
-                     .help("Filter issues with a named JMESPath query"))
+                     .help("Filter items with a named JMESPath query"))
             .arg(Arg::with_name("named-query")
                      .conflicts_with("query")
                      .long("named-query")
                      .short("Q")
                      .takes_value(true)
-                     .help("Render a result of a named JMESPath query over the issue")))
+                     .help("Render a result of a named JMESPath query over the item")))
         .subcommand(SubCommand::with_name("record")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Creates a new record")
             .arg(Arg::with_name("id")
                      .takes_value(true)
                      .required(true)
-                     .help("Issue identifier"))
+                     .help("Item identifier"))
             .arg(Arg::with_name("type")
                 .short("t")
                 .long("type")
@@ -197,7 +202,7 @@ fn main_with_result() -> i32 {
             .arg(Arg::with_name("id")
                      .takes_value(true)
                      .required(true)
-                     .help("Issue identifier"))
+                     .help("Item identifier"))
             .arg(Arg::with_name("filter")
                      .conflicts_with("named-filter")
                      .long("filter")
@@ -232,23 +237,23 @@ fn main_with_result() -> i32 {
                      .takes_value(true)
                      .help("Render a result of a named JMESPath query over the record")))
         .subcommand(SubCommand::with_name("reduce")
-            .about("Reduce issue records")
+            .about("Reduce item records")
             .arg(Arg::with_name("id")
                      .takes_value(true)
                      .required(true)
-                     .help("Issue identifier"))
+                     .help("Item identifier"))
             .arg(Arg::with_name("query")
                      .conflicts_with("named-query")
                      .long("query")
                      .short("q")
                      .takes_value(true)
-                     .help("Render a result of a JMESPath query over the issue (defaults to `@`)"))
+                     .help("Render a result of a JMESPath query over the item (defaults to `@`)"))
             .arg(Arg::with_name("named-query")
                      .conflicts_with("query")
                      .long("named-query")
                      .short("Q")
                      .takes_value(true)
-                     .help("Render a result of a named JMESPath query over the issue")))
+                     .help("Render a result of a named JMESPath query over the item")))
         .get_matches();
 
 
@@ -328,31 +333,51 @@ fn main_with_result() -> i32 {
         rebuild_repository(matches.value_of("SRC").unwrap(),
                            matches.value_of("DEST").unwrap(),
                            matches.value_of("on-record"));
+    } else if let Some(_) = matches.subcommand_matches("upgrade") {
+        let mut upgrades = vec![];
+        let repo_path = matches.value_of("repository").map(PathBuf::from)
+            .or_else(|| sit_core::Repository::find_in_or_above(".sit",&working_dir))
+            .expect("Can't find a repository");
+        loop {
+            match sit_core::Repository::open_and_upgrade(&repo_path, &upgrades) {
+                Err(sit_core::repository::Error::UpgradeRequired(upgrade)) => {
+                    println!("{}", upgrade);
+                    upgrades.push(upgrade);
+                },
+                Err(err) => {
+                    eprintln!("Error occurred: {:?}", err);
+                    return 1;
+                },
+                Ok(_) => break,
+            }
+        }
     } else {
-        let repo = matches.value_of("repository").map(sit_core::Repository::open)
-            .or_else(|| Some(sit_core::Repository::find_in_or_above(".sit",&working_dir)))
-            .unwrap()
+        let repo_path = matches.value_of("repository").map(PathBuf::from)
+            .or_else(|| sit_core::Repository::find_in_or_above(".sit",&working_dir))
+            .expect("Can't find a repository");
+
+        let repo = sit_core::Repository::open(&repo_path)
             .expect("can't open repository");
 
         if let Some(_) = matches.subcommand_matches("populate-files") {
             repo.populate_default_files().expect("can't populate default files");
         } else if let Some(_) = matches.subcommand_matches("path") {
             println!("{}", repo.path().to_str().unwrap());
-        } else if let Some(matches) = matches.subcommand_matches("issue") {
-            let issue = (if matches.value_of("id").is_none() {
-                repo.new_issue()
+        } else if let Some(matches) = matches.subcommand_matches("item") {
+            let item = (if matches.value_of("id").is_none() {
+                repo.new_item()
             } else {
-                repo.new_named_issue(matches.value_of("id").unwrap())
-            }).expect("can't create an issue");
-            println!("{}", issue.id());
+                repo.new_named_item(matches.value_of("id").unwrap())
+            }).expect("can't create an item");
+            println!("{}", item.id());
         }
 
-        if let Some(matches) = matches.subcommand_matches("issues") {
-            let issues: Vec<_> = repo.issue_iter().expect("can't list issues").collect();
+        if let Some(matches) = matches.subcommand_matches("items") {
+            let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
 
             let filter_expr = matches.value_of("named-filter")
                 .and_then(|name|
-                              get_named_expression(name, &repo, ".issues/filters", &config.issues.filters))
+                              get_named_expression(name, &repo, ".items/filters", &config.items.filters))
                 .or_else(|| matches.value_of("filter").or_else(|| Some("`true`")).map(String::from))
                 .unwrap();
 
@@ -360,7 +385,7 @@ fn main_with_result() -> i32 {
 
             let query_expr = matches.value_of("named-query")
                 .and_then(|name|
-                              get_named_expression(name, &repo, ".issues/queries", &config.issues.queries))
+                              get_named_expression(name, &repo, ".items/queries", &config.items.queries))
                 .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
                 .unwrap();
 
@@ -368,10 +393,10 @@ fn main_with_result() -> i32 {
             let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
             let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-            let issues_with_reducers: Vec<_> =  issues.into_iter().map(|i| (i, reducer.clone())) .collect();
-            issues_with_reducers.into_par_iter()
-                .map(|(issue, mut reducer)| {
-                    let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
+            let items_with_reducers: Vec<_> =  items.into_iter().map(|i| (i, reducer.clone())) .collect();
+            items_with_reducers.into_par_iter()
+                .map(|(item, mut reducer)| {
+                    let result = item.reduce_with_reducer(&mut reducer).expect("can't reduce item");
                     let data = jmespath::Variable::from(serde_json::Value::Object(result));
                     let result = if filter_defined {
                         filter.search(&data).unwrap().as_boolean().unwrap()
@@ -396,14 +421,14 @@ fn main_with_result() -> i32 {
         }
 
         if let Some(matches) = matches.subcommand_matches("record") {
-            let mut issues = repo.issue_iter().expect("can't list issues");
+            let mut items = repo.item_iter().expect("can't list items");
             let id = matches.value_of("id").unwrap();
-            match issues.find(|i| i.id() == id) {
+            match items.find(|i| i.id() == id) {
                 None => {
-                    eprintln!("Issue {} not found", id);
+                    eprintln!("Item {} not found", id);
                     return 1;
                 },
-                Some(mut issue) => {
+                Some(mut item) => {
                     let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
                     let types: Vec<_> = matches.value_of("type").unwrap().split(",").collect();
 
@@ -455,9 +480,9 @@ fn main_with_result() -> i32 {
                         let utc: DateTime<Utc> = Utc::now();
                         f.write(format!("{:?}", utc).as_bytes()).expect("can't write to a temporary file (.timestamp)");
                         f.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.timestamp)");
-                        issue.new_record_in(record_path, files.chain(type_files).chain(authorship_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
+                        item.new_record_in(record_path, files.chain(type_files).chain(authorship_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
                     } else {
-                        issue.new_record_in(record_path, files.chain(type_files).chain(authorship_files), true)
+                        item.new_record_in(record_path, files.chain(type_files).chain(authorship_files), true)
                     }.expect("can't create a record");
 
 
@@ -527,15 +552,15 @@ fn main_with_result() -> i32 {
         }
 
         if let Some(matches) = matches.subcommand_matches("records") {
-            let mut issues = repo.issue_iter().expect("can't list issues");
+            let mut items = repo.item_iter().expect("can't list items");
             let id = matches.value_of("id").unwrap();
-            match issues.find(|i| i.id() == id) {
+            match items.find(|i| i.id() == id) {
                 None => {
-                    eprintln!("Issue {} not found", id);
+                    eprintln!("Item {} not found", id);
                     return 1;
                 },
-                Some(issue) => {
-                    let records = issue.record_iter().expect("can't lis records");
+                Some(item) => {
+                    let records = item.record_iter().expect("can't lis records");
 
                     let filter_expr = matches.value_of("named-filter")
                         .and_then(|name|
@@ -633,24 +658,24 @@ fn main_with_result() -> i32 {
         }
 
         if let Some(matches) = matches.subcommand_matches("reduce") {
-            let mut issues = repo.issue_iter().expect("can't list issues");
+            let mut items = repo.item_iter().expect("can't list items");
             let id = matches.value_of("id").unwrap();
-            match issues.find(|i| i.id() == id) {
+            match items.find(|i| i.id() == id) {
                 None => {
-                    eprintln!("Issue {} not found", id);
+                    eprintln!("Item {} not found", id);
                     return 1;
                 },
-                Some(issue) => {
+                Some(item) => {
                     let query_expr = matches.value_of("named-query")
                         .and_then(|name|
-                            get_named_expression(name, &repo, ".issues/queries", &config.issues.queries))
+                            get_named_expression(name, &repo, ".items/queries", &config.items.queries))
                         .or_else(|| matches.value_of("query").or_else(|| Some("@")).map(String::from))
                         .unwrap();
 
                     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
                     let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-                    let result = issue.reduce_with_reducer(&mut reducer).expect("can't reduce issue");
+                    let result = item.reduce_with_reducer(&mut reducer).expect("can't reduce item");
                     let data = jmespath::Variable::from(serde_json::Value::Object(result));
                     let view = query.search(&data).unwrap();
                     if view.is_string() {

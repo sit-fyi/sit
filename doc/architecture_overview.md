@@ -8,7 +8,7 @@
 
 ### Repository
 
-Repository is a collection of issues. By default, such directory is called
+Repository is a collection of items. By default, such directory is called
 `.sit` and is found by the tooling by scanning the working directory and upwards
 until such directory is found.
 
@@ -20,33 +20,34 @@ forward.
 One can initialize a SIT repository in their working directory using `sit init`
 command. It will create `.sit` directory.
 
-### Issue
+### Item
 
-Issue is a topic or a problem for debate, discussion and resolution (aka "ticket")
+Item could be a topic or a problem for debate, discussion and resolution (aka "ticket")
 and is represented by a uniquely named directory within a repository. While some
-issues might be named manually (might be a great way to establish some
+items might be named manually (might be a great way to establish some
 conventions), it is generally recommended that a globally unique identifier is
-generated for every new issue (such as UUID, which is the default employed by
+generated for every new item (such as UUID, which is the default employed by
 SIT)
 
-Because of SIT's extensible nature, issue can be also be used to represent a
+Because of SIT's extensible nature, item can be also be used to represent a
 wild variety of entities. For example, a Kanban board with its records
-representing movement of other issues into, across and out of the board.
+representing movement of other items into, across and out of the board; as well
+as accounts, documents with annotations and other types tracked items.
 
-Each issue is comprised of zero or more records (although issues with zero
+Each item is comprised of zero or more records (although items with zero
 records aren't very practical).
 
-You can view, create and comment on issues by launching `sit-web` (`./target/release/sit-web`)
+You can view, create and comment on items by launching `sit-web` (`./target/release/sit-web`)
 and exploring the [Web UI](http://localhost:8080).
 
-You can also create a new issue using `sit issue` command and you can list IDs
-of all issues using `sit issues**.
+You can also create a new item using `sit item` command and you can list IDs
+of all items using `sit items**.
 
-#### Listing issues
+#### Listing items
 
 **NB**: This section is using the "plumbing" command line interface. It helps with
 understanding how SIT works but ultimately most common interactive workflows should be
-done using `sit-web`:
+done using `sit-web` (such as one for issue tracking):
 
 <center>
 <p align="center">
@@ -54,36 +55,36 @@ done using `sit-web`:
 </p>
 </center>
 
-By default, `sit issues` will list all issues by their IDs. However,
-this is hardly practical if you just want to see a list of issues you want to be able
-to process quickly, or if you want to search for specific kinds of issues.
+By default, `sit items` will list all items by their IDs. However,
+this is hardly practical if you just want to see a list of items you want to be able
+to process quickly, or if you want to search for specific kinds of items.
 
 Luckily, sit integrates [JMESPath](http://jmespath.org) filter and querying. This allows
 us to achieve a lot.
 
-For example, we can list all issues with their ID and summary using processing query (`--query/-q`):
+For example, we can list all items with their ID and summary using processing query (`--query/-q`):
 
 ```
-$ sit issues -q "join(' | ', [id, summary])"
-a59dfc1e-cf88-4c18-a728-23baab41f7d2 | Problem: no way to discuss issues
+$ sit items -q "join(' | ', [id, summary])"
+a59dfc1e-cf88-4c18-a728-23baab41f7d2 | Problem: no way to discuss items
 efc6b084-db52-4d20-80b9-20112f679660 | Problem: sit requires to specify authorship
 885a8af0-22ff-455c-89a6-68a13597dd53 | Problem: SIT is not very ergonomic for day-to-day use
 6913711b-34ab-471f-9e83-77a719e0697a | Problem: no record authorship preserved
-09274126-7d3c-4a32-9338-a5501e1bfb84 | Problem: issue state does not account for unauthorized editing
+09274126-7d3c-4a32-9338-a5501e1bfb84 | Problem: item state does not account for unauthorized editing
 ```
 
 (The above output is just an example so that you can see what it can produce)
 
-If you want to filter out closed issues, a filtering query (`--filter/-f`) will come in handy:
+If you want to filter out closed items, a filtering query (`--filter/-f`) will come in handy:
 
 ```
-$ sit issues -f "state != 'closed'" -q "join(' | ', [id, summary])"
+$ sit items -f "state != 'closed'" -q "join(' | ', [id, summary])"
 ```
 
-You can list issues in their entirety as well:
+You can list items in their entirety as well:
 
 ```
-$ sit issues -q @
+$ sit items -q @
 ```
 
 But of course, this is not ideal as you'd have to remember and re-type
@@ -91,18 +92,18 @@ specific queries or filters to address your needs. For this, named filters
 and queries should be used.
 
 They can be defined either per SIT-repository, or in sit config. In repository,
-filters they are defined with files named `.issues/filters/NAME`, and
-queries are defined with files named `.issues/queries/NAME. Their content
+filters they are defined with files named `.items/filters/NAME`, and
+queries are defined with files named `.items/queries/NAME. Their content
 should be the expression to be evaluated.
 
 If you want to define filters or queries in your sit config instead (so it is local
 to you, but not shared with other SIT repository users), you can
-specify them in `issues.filters` and `issues.queries` properties:
+specify them in `items.filters` and `items.queries` properties:
 
 ```json
 
 {
- "issues": {
+ "items": {
     "queries": {
        "overview": "join(' | ', [id, summary])"
     },
@@ -116,26 +117,26 @@ specify them in `issues.filters` and `issues.queries` properties:
 These queries can be used with the `--named-query/-Q` flag and filters
 with `--named-filter/-F` flag.
 
-#### Open an issue
+#### Open an item
 
 **NB**: This section is using the "plumbing" command line interface. It helps with
 understanding how SIT works but ultimately most common interactive workflows should be
 done using `sit-web`.
 
-1. Run `sit issue`, note the ID generated by it
+1. Run `sit item`, note the ID generated by it
 2. Edit temporary `text` file to prepare a **one-line summary (title) only**.
    It is important to name the file `text` and not something else.
    Within SIT project we kindly request to use the "problem statement"
    summary as in: `Problem: something doesn't work` whenever possible.
 3. Take ID from the first step and run `sit record -t SummaryChanged <id> text`
 4. Edit temporary `text` file to prepare details.
-   Provide detailed information for your issue so that others can fully
+   Provide detailed information for your item so that others can fully
    understand it. It is a good etiquette to have one or a few paragraphs.
 5. Take ID from the first step and run `sit record -t DetailsChanged <id> text`
 6. You can check if everything is correct by running `sit reduce <id>`.
-   It will show the current state of the issue as a JSON.
+   It will show the current state of the item as a JSON.
 
-#### Comment on an issue
+#### Comment on an item
 
 **NB**: This section is using the "plumbing" command line interface. It helps with
 understanding how SIT works but ultimately most common interactive workflows should be
@@ -143,25 +144,25 @@ done using `sit-web`.
 
 1. Edit a temporary `text` file to prepare your comment.
    It is important to name the file `text` and not something else.
-2. Take ID of your issue and run `sit record -t Commented <id> text`
+2. Take ID of your item and run `sit record -t Commented <id> text`
 
 #### Send it to upstream
 
 Now, this is something Web UI (at least currently) is not capable of doing as (similarly to
 sit's core technology) it is made SCM-agnostic.
 
-Now that your issue is recorded locally, you can send it to this repository:
+Now that your item is recorded locally, you can send it to this repository:
 
-1. Create a branch (as a convention, you can use your issue ID as a branch name)
-2. Add new files in `.sit` and commit them. Commit message can be simply "Added issue ISSUE-ID"
-   or, say, "Commented on issue ISSUE-ID"
+1. Create a branch (as a convention, you can use your item ID as a branch name)
+2. Add new files in `.sit` and commit them. Commit message can be simply "Added item ISSUE-ID"
+   or, say, "Commented on item ISSUE-ID"
 3. Push it out to the inbox: `GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit-it.org:sit-it/sit-inbox.git <branch>`
 4. If the commit only contains new records (nothing else permitted!) the inbox
    will accept the push and immediately push it out to sit's master repository on GitHub.
    Otherwise, the push will be rejected.
 
 To further simplify the process of sending records to the upstream,
-it's highly recommended to add a remote (such as `issues`) for `git@git.sit-it.org:sit-it/sit-inbox.git`
+it's highly recommended to add a remote (such as `items`) for `git@git.sit-it.org:sit-it/sit-inbox.git`
 and add this to your `~/.ssh/config`:
 
 ```
@@ -171,7 +172,7 @@ host git.sit-it.org
   User git
 ```
 
-This way, pushing out, will be as nice as `git push issues <branch>`
+This way, pushing out, will be as nice as `git push items <branch>`
 
 ### Record
 
@@ -182,11 +183,11 @@ a previous record via previous record's hash, unless this record is considered
 to be one of the first records.
 
 Record is used to represent an "event" that is applied to its container. For
-example, a record might represent changing an issue's title, stating a problem
+example, a record might represent changing an item's title, stating a problem
 or adding an attachment (or just about anything else). By convention, `.type/TYPE`
 file within a record is used to describe the type of the record. Multiple types
 are allowed to describe the same record from different perspectives (could be
-a generic issue description submission, such as `.type/DescriptionChanged`,
+a generic item description submission, such as `.type/DescriptionChanged`,
 and can also be seen as a problem statement, for example, `.type/ProblemStated`)
 
 A record is represented by a directory named after its deterministic hash (by
@@ -234,12 +235,12 @@ Below is the list of some record files conventions:
 | .authors   | List of record authors (one per line, `John Doe <john@doe>` format is recommended, `John Doe` is also acceptable ) | Recommended                                                                                          |
 | .signature | ASCII PGP signature of the encoded hash of the record without this file (`gpg --sign --armor`)                     | Recommended                                                                                          |
 
-You can create a record using `sit record <issue id> [FILE]..` command.
+You can create a record using `sit record <item id> [FILE]..` command.
 
 ### Reducers
 
 Reducer is a very important concept in SIT. By themselves, records are cool but of little
-practical value as they don't allow us to observe the current state of any issue but
+practical value as they don't allow us to observe the current state of any item but
 only its history.
 
 The naming comes from [fold, or reduce function](https://en.wikipedia.org/wiki/Fold_(higher-order_function))
@@ -250,16 +251,16 @@ In a nutshell, a reducer takes current state and an item to process and returns 
 Reducer(State, Item) -> State1;
 ```
 
-In practicular terms, a reducer takes a state of the issue (a JSON object), and a record
-and returns an updated JSON object with the state of the issue. In order to produce a meaningful
-representation of an issue, we must iterate records in order to get a valid result. One of the
+In practicular terms, a reducer takes a state of the item (a JSON object), and a record
+and returns an updated JSON object with the state of the item. In order to produce a meaningful
+representation of an item, we must iterate records in order to get a valid result. One of the
 interesting features here is the ability to process records up to a certain point to see how
-an issue looked back then.
+an item looked back then.
 
 Currently, the core dictionary processed by SIT is very small (but it is expected to grow) and
 can be found in [documentation](dict).
 
-One can look at the state of the issue with the `sit reduce <issue id>` command.
+One can look at the state of the item with the `sit reduce <item id>` command.
 
 By default, standard reducers are added to every new SIT repository, and can be updated
 from new SIT builds by running `sit populate-files`.
@@ -275,13 +276,13 @@ module.exports = function(state, record) {
 ```
 
 This function will be invoked with an object bound to `this` so that the state can be saved
-across invocations, per issue.
+across invocations, per item.
 
 ## Web UI
 
 **Status**: fresh out of the oven, rough on the edges.
 
-SIT features a sub-project called `sit-web` which allows to access the issues over a web interface.
+SIT features a sub-project called `sit-web` which allows to access the items over a web interface.
 While it is currently quite rudimentary features-wise and has zero styling, it has been built with
 local customization in mind. It's built using [Web Components](https://webcomponents.org) and
 [Polymer 2.0](https://www.polymer-project.org/).

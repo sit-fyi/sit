@@ -37,28 +37,28 @@ tmpdir=$(mktemp -d)
 
 git clone "${root}" "${tmpdir}" >/dev/null 2>/dev/null
 
-issues=$(git -C "${tmpdir}" diff ${currev}..${rev} --name-only | grep -e "^${rsit_path/./\\.}/issues" | cut -d/ -f3 | uniq)
+items=$(git -C "${tmpdir}" diff ${currev}..${rev} --name-only | grep -e "^${rsit_path/./\\.}/items" | cut -d/ -f3 | uniq)
 
 git -C "${tmpdir}" checkout -qf "${rev}"
 
-for issue in ${issues}; do
+for item in ${items}; do
         mr_p="merge_requests != null"
-        mr=$(${sit} -r "${sit_path}" reduce "${issue}" -q "${mr_p}" 2>/dev/null || echo)
-        mr1=$(${sit} -r "${tmpdir}/${rsit_path}" reduce "${issue}" -q "${mr_p}" 2>/dev/null || echo)
+        mr=$(${sit} -r "${sit_path}" reduce "${item}" -q "${mr_p}" 2>/dev/null || echo)
+        mr1=$(${sit} -r "${tmpdir}/${rsit_path}" reduce "${item}" -q "${mr_p}" 2>/dev/null || echo)
         mr=${mr:-${mr1}}
 
         if [ "${mr}" == "true" ]; then 
-                ours=$(${sit} -r "${sit_path}" reduce "${issue}" -q state 2>/dev/null || echo none)
-                theirs=$(${sit} -r "${tmpdir}/${rsit_path}" reduce "${issue}" -q state 2>/dev/null || echo none)
-                summary=$(${sit} -r "${sit_path}" reduce "${issue}" -q summary)
-                summary1=$(${sit} -r "${sit_path}" reduce "${issue}" -q summary)
+                ours=$(${sit} -r "${sit_path}" reduce "${item}" -q state 2>/dev/null || echo none)
+                theirs=$(${sit} -r "${tmpdir}/${rsit_path}" reduce "${item}" -q state 2>/dev/null || echo none)
+                summary=$(${sit} -r "${sit_path}" reduce "${item}" -q summary)
+                summary1=$(${sit} -r "${sit_path}" reduce "${item}" -q summary)
                 summary=${summary:-${summary1}}
                 if [ "${ours}" == "${theirs}" ]; then
                         true
                 else
                         ours=$(rename ${ours})
                         theirs=$(rename ${theirs})
-                        echo "${issue} || ${summary} || [${ours}] || [${theirs}]"
+                        echo "${item} || ${summary} || [${ours}] || [${theirs}]"
                 fi
         fi
 done

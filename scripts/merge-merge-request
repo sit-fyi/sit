@@ -29,7 +29,7 @@ repo=$(${sit} path)
 
 git checkout -b merge-${issue}-${mr} || exit 2
 
-git am $(ls ${repo}/issues/${issue}/${mr}/git/*.patch) || exit 2
+git am $(ls ${repo}/items/${issue}/${mr}/git/*.patch) || exit 2
 
 
 pushd $(pwd) >/dev/null
@@ -50,7 +50,7 @@ popd >/dev/null
 
 rm -rf "${tmpdir}"
 
-git add .sit/issues/${issue} || exit 2
+git add .sit/items/${issue} || exit 2
 git commit -m "Closed merge request ${issue}/${mr}" || exit 2
 git checkout ${curbranch} || exit 2
 git merge --no-ff merge-${issue}-${mr}

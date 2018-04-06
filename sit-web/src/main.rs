@@ -67,7 +67,7 @@ fn main() {
             .help("Config file (overrides default)"))
         .arg(Arg::with_name("readonly")
              .long("readonly")
-             .help("Read-only instance of sit-web (no new issues or records can be created)"))
+             .help("Read-only instance of sit-web (no new items or records can be created)"))
         .arg(Arg::with_name("overlay")
             .short("o")
             .long("overlay")
@@ -108,10 +108,10 @@ fn main() {
         }
     }
 
-    let repo = matches.value_of("repository")
-        .map(sit_core::Repository::open)
-        .or_else(|| Some(sit_core::Repository::find_in_or_above(".sit",&working_dir)))
-        .unwrap()
+    let repo_path = matches.value_of("repository").map(PathBuf::from)
+        .or_else(|| sit_core::Repository::find_in_or_above(".sit",&working_dir))
+        .expect("Can't find a repository");
+    let repo = sit_core::Repository::open(&repo_path)
         .expect("can't open repository");
 
     let listen = matches.value_of("listen").unwrap();

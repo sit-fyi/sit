@@ -35,7 +35,7 @@
 
         <iron-ajax
                 id="createIssue"
-                url="/api/issue"
+                url="/api/item"
                 handle-as="json"
                 method="POST"
                 last-response="{{ issue }}"
@@ -44,7 +44,7 @@
 
         <iron-ajax
                 id="postSummary"
-                url="/api/issue/{{ issue }}/records"
+                url="/api/item/{{ issue }}/records"
                 body="{{ summaryFormdata }}"
                 handle-as="json"
                 method="POST"
@@ -52,7 +52,7 @@
 
         <iron-ajax
                 id="postDetails"
-                url="/api/issue/{{ issue }}/records"
+                url="/api/item/{{ issue }}/records"
                 body="{{ detailsFormdata }}"
                 handle-as="json"
                 method="POST"
