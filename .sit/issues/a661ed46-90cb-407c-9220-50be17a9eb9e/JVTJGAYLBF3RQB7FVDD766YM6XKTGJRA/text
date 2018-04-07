@@ -1,0 +1,16 @@
+While SIT is narrowly focused on issue tracking, the concept and
+primitives are actually useful for building other types of information
+trackers (annotations, accounting, knowledge management, etc).
+
+Solution: rename issues to items
+
+As a first step towards enabling and encouraging other uses of SIT,
+rename issues to items.
+
+By itself, this change doesn't warrant updating marketing materials
+and documentation yet, but it is an important stepping stone.
+
+It is expected that modularizing reducers, web overlays and other
+similar components will allow us to complete basic transition from
+Issue Tracking to generalized Information Tracking.
+
