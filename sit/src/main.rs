@@ -728,22 +728,35 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             return 0;
         }
 
-
+        let (subcommand, args) = matches.subcommand();
+        if subcommand == "" {
+            app.print_help().expect("can't print help");
+            return 1;
+        }
+        #[cfg(not(windows))]
+        let mut command = ::std::process::Command::new(format!("sit-{}", subcommand));
+        #[cfg(windows)]
+        let mut command = ::std::process::Command::new("cmd");
+        #[cfg(windows)]
+        command.args(&["/c", &format!("sit-{}", subcommand)]);
+        #[cfg(not(windows))]
+        command.env("PATH", format!("{}:{}", repo.path().join("cli").to_str().unwrap(), env::var("PATH").unwrap_or("".into())));
+        #[cfg(windows)]
+        command.env("PATH", format!("{};{}", repo.path().join("cli").to_str().unwrap(), env::var("PATH").unwrap_or("".into())));
+        command.env("SIT_DIR", repo.path().to_str().unwrap());
+        command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
+        if let Some(args) = args {
+            command.args(args.values_of_lossy("").unwrap_or(vec![]));
+        }
+        match command.spawn() {
+            Err(_) => {
+                return main_with_result(false);
+            },
+            Ok(mut process) => {
+                let result = process.wait().unwrap();
+                return result.code().unwrap();
+            },
+        };
     }
-
-    let (subcommand, args) = matches.subcommand();
-    let mut command = ::std::process::Command::new(format!("sit-{}", subcommand));
-    if let Some(args) = args {
-        command.args(args.values_of_lossy("").unwrap_or(vec![]));
-    }
-    match command.spawn() {
-        Err(_) => {
-            return main_with_result(false);
-        },
-        Ok(mut process) => {
-            let result = process.wait().unwrap();
-            return result.code().unwrap();
-        },
-    };
 
 }
