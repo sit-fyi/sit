@@ -29,7 +29,7 @@ repo=$(${sit} path)
 
 git checkout -b merge-${item}-${mr} || exit 2
 
-git am $(ls ${repo}/tems/${item}/${mr}/git/*.patch) || exit 2
+git am $(ls ${repo}/items/${item}/${mr}/git/*.patch) || exit 2
 
 
 pushd $(pwd) >/dev/null
