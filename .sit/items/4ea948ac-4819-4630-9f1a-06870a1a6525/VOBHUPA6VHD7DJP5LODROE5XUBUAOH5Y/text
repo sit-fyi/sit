@@ -1,0 +1,21 @@
+SIT supports external commands (in a way similar to git), where if it
+can't find an embedded subcommand, it will try to invoke sit-<command>
+with the rest of the arguments.
+
+However, this means that these commands have to be in PATH which means
+that every user has to perform certain installation procedures (either
+locally or globally).
+
+This reduces the usability and appeal of this feature.
+
+Solution: make `sit` look into `cli` directory in the repository
+as well to try discover these scripts or binaries (scripts are highly
+recommended, though, to preserve multiplatformness).
+
+On Windows, this means it has to be a .bat file.
+
+In addition, this feature will include `SIT_DIR` (pointing to the
+repository) and `SIT` (pointing to the currently executed binary of
+`sit`) variables to make development of such scripts a little bit
+easier.
+

@@ -1,0 +1,88 @@
+From a25632acac576bb44e7e3fccabadf23c787d5637 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sun, 8 Apr 2018 11:32:02 +0200
+Subject: [PATCH] Problem: availability of external commands
+
+SIT supports external commands (in a way similar to git), where if it
+can't find an embedded subcommand, it will try to invoke sit-<command>
+with the rest of the arguments.
+
+However, this means that these commands have to be in PATH which means
+that every user has to perform certain installation procedures (either
+locally or globally).
+
+This reduces the usability and appeal of this feature.
+
+Solution: make `sit` look into `cli` directory in the repository
+as well to try discover these scripts or binaries (scripts are highly
+recommended, though, to preserve multiplatformness).
+
+On Windows, this means it has to be a .bat file.
+
+In addition, this feature will include `SIT_DIR` (pointing to the
+repository) and `SIT` (pointing to the currently executed binary of
+`sit`) variables to make development of such scripts a little bit
+easier.
+---
+ sit/src/main.rs | 45 +++++++++++++++++++++++++++++----------------
+ 1 file changed, 29 insertions(+), 16 deletions(-)
+
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 1481b6d..b1c1942 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -728,22 +728,35 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+             return 0;
+         }
+ 
+-
+-    }
+-
+-    let (subcommand, args) = matches.subcommand();
+-    let mut command = ::std::process::Command::new(format!("sit-{}", subcommand));
+-    if let Some(args) = args {
+-        command.args(args.values_of_lossy("").unwrap_or(vec![]));
++        let (subcommand, args) = matches.subcommand();
++        if subcommand == "" {
++            app.print_help().expect("can't print help");
++            return 1;
++        }
++        #[cfg(not(windows))]
++        let mut command = ::std::process::Command::new(format!("sit-{}", subcommand));
++        #[cfg(windows)]
++        let mut command = ::std::process::Command::new("cmd");
++        #[cfg(windows)]
++        command.args(&["/c", &format!("sit-{}", subcommand)]);
++        #[cfg(not(windows))]
++        command.env("PATH", format!("{}:{}", repo.path().join("cli").to_str().unwrap(), env::var("PATH").unwrap_or("".into())));
++        #[cfg(windows)]
++        command.env("PATH", format!("{};{}", repo.path().join("cli").to_str().unwrap(), env::var("PATH").unwrap_or("".into())));
++        command.env("SIT_DIR", repo.path().to_str().unwrap());
++        command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
++        if let Some(args) = args {
++            command.args(args.values_of_lossy("").unwrap_or(vec![]));
++        }
++        match command.spawn() {
++            Err(_) => {
++                return main_with_result(false);
++            },
++            Ok(mut process) => {
++                let result = process.wait().unwrap();
++                return result.code().unwrap();
++            },
++        };
+     }
+-    match command.spawn() {
+-        Err(_) => {
+-            return main_with_result(false);
+-        },
+-        Ok(mut process) => {
+-            let result = process.wait().unwrap();
+-            return result.code().unwrap();
+-        },
+-    };
+ 
+ }
+-- 
+2.16.2
+
