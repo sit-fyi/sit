@@ -1,3 +1,8 @@
+# 0.2.1
+
+This is a maintenance release that allows users of a released version
+to use SIT's own repository on master after a breaking change.
+
 # 0.2.0
 
 The first thing you'll probably notice about this release is the new front

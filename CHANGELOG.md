@@ -1,3 +1,15 @@
+# 0.2.1
+
+## Breaking changes
+
+* `issues` subdirectory got renamed to `items` (a661ed46-90cb-407c-9220-50be17a9eb9e)
+
+## Improvements
+
+* Dependency on rouille is not depending on a git repository anymore. This is
+  useful for building with frozen environments (required in NixOS)
+  (32d377f1-f438-4a15-a72a-030bdc1ed825/MNMXLJSW7DUPJJXZ5NYTLHIB66E774OD)
+
 # 0.2.0
 
 ## Breaking changes
