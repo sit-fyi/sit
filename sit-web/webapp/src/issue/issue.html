@@ -36,7 +36,7 @@
 
 
        <iron-ajax id="request"
-                   auto url="/api/issue/{{ id }}/{{ query }}" handle-as="json"
+                   auto url="/api/item/{{ id }}/{{ query }}" handle-as="json"
                    last-response="{{ view }}"></iron-ajax>
 
        <iron-ajax auto url="/config" handle-as="json"
@@ -50,7 +50,7 @@
 
        <iron-ajax
                id="postRequest"
-               url="/api/issue/{{ id }}/records"
+               url="/api/item/{{ id }}/records"
                body="{{ formdata }}"
                handle-as="json"
                method="POST"

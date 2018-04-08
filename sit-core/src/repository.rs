@@ -26,8 +26,11 @@ use std::marker::PhantomData;
 const VERSION: &str = "1";
 /// Repository's config file name
 const CONFIG_FILE: &str = "config.json";
-/// Repository's issues path
-const ISSUES_PATH: &str = "issues";
+/// Repository's issues path (deprecated)
+const DEPRECATED_ISSUES_PATH: &str = "issues";
+/// Repository's items path
+const ITEMS_PATH: &str = "items";
+
 
 /// Repository is the container for all SIT artifacts
 #[derive(Debug)]
@@ -38,9 +41,9 @@ pub struct Repository {
     /// this path on demand for every operation that would
     /// require it
     config_path: PathBuf,
-    /// Path to issues. Mainly to avoid creating this path
+    /// Path to items. Mainly to avoid creating this path
     /// on demand for every operation that would require it
-    issues_path: PathBuf,
+    items_path: PathBuf,
     /// Configuration
     config: Config,
 }
@@ -59,12 +62,30 @@ pub struct Config {
     version: String,
 }
 
+#[derive(PartialEq, Debug)]
+pub enum Upgrade {
+    IssuesToItems,
+}
+
+use std::fmt::{self, Display};
+
+impl Display for Upgrade {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            &Upgrade::IssuesToItems => write!(f, "renaming issues/ to items/"),
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum Error {
     /// Item already exists
     AlreadyExists,
     /// Item not found
     NotFound,
+    /// Upgrade required
+    #[error(no_from, non_std)]
+    UpgradeRequired(Upgrade),
     /// Invalid repository version
     #[error(no_from, non_std)]
     InvalidVersion {
@@ -127,13 +148,13 @@ impl Repository {
         } else {
             let mut config_path = path.clone();
             config_path.push(CONFIG_FILE);
-            let mut issues_path = path.clone();
-            issues_path.push(ISSUES_PATH);
-            fs::create_dir_all(&issues_path)?;
+            let mut items_path = path.clone();
+            items_path.push(ITEMS_PATH);
+            fs::create_dir_all(&items_path)?;
             let repo = Repository {
                 path,
                 config_path,
-                issues_path,
+                items_path,
                 config,
             };
             repo.save()?;
@@ -145,12 +166,41 @@ impl Repository {
     /// Opens an existing repository. Fails if there's no valid repository at the
     /// given path
     pub fn open<P: Into<PathBuf>>(path: P) -> Result<Self, Error> {
+        Repository::open_and_upgrade(path, &[])
+    }
+
+    /// Opens and, if necessary, upgrades an existing repository.
+    /// Allow to specify which particular upgrades should be allowed.
+    ///
+    /// Fails if there's no valid repository at the
+    /// given path.
+    pub fn open_and_upgrade<P: Into<PathBuf>, U: AsRef<[Upgrade]>>(path: P, upgrades: U) -> Result<Self, Error> {
         let path: PathBuf = path.into();
         let mut config_path = path.clone();
         config_path.push(CONFIG_FILE);
-        let mut issues_path = path.clone();
-        issues_path.push(ISSUES_PATH);
-        fs::create_dir_all(&issues_path)?;
+        let issues_path = path.join(DEPRECATED_ISSUES_PATH);
+        let items_path = path.join(ITEMS_PATH);
+        if issues_path.is_dir() && !items_path.is_dir() {
+            if upgrades.as_ref().contains(&Upgrade::IssuesToItems) {
+                fs::rename(&issues_path, &items_path)?;
+            } else {
+                return Err(Error::UpgradeRequired(Upgrade::IssuesToItems));
+            }
+        }
+        if issues_path.is_dir() && items_path.is_dir() {
+            if upgrades.as_ref().contains(&Upgrade::IssuesToItems) {
+                for item in fs::read_dir(&issues_path)?.filter(Result::is_ok).map(Result::unwrap) {
+                    fs::rename(item.path(), items_path.join(item.file_name()))?;
+                }
+                fs::remove_dir_all(&issues_path)?;
+            } else {
+                return Err(Error::UpgradeRequired(Upgrade::IssuesToItems));
+            }
+        }
+        // dropping issues_path so it can no longer be used
+        // by mistake
+        drop(issues_path);
+        fs::create_dir_all(&items_path)?;
         let file = fs::File::open(&config_path)?;
         let config: Config = serde_json::from_reader(file)?;
         if config.version != VERSION {
@@ -159,13 +209,14 @@ impl Repository {
         let repository = Repository {
             path,
             config_path,
-            issues_path,
+            items_path,
             config,
         };
         Ok(repository)
     }
 
-    pub fn find_in_or_above<P: Into<PathBuf>, S: AsRef<str>>(dir: S, path: P) -> Result<Self, Error> {
+    /// Given relative path of `path` (such as ".sit"), finds a repository in a directory or above
+    pub fn find_in_or_above<P: Into<PathBuf>, S: AsRef<str>>(dir: S, path: P) -> Option<PathBuf> {
         let mut path: PathBuf = path.into();
         let dir = dir.as_ref();
         path.push(dir);
@@ -175,7 +226,7 @@ impl Repository {
                 path.pop();
                 // if can't pop anymore, we're at the root of the filesystem
                 if !path.pop() {
-                    return Err(Error::NotFound)
+                    return None
                 }
                 // try assuming current path + `dir`
                 path.push(dir);
@@ -183,7 +234,7 @@ impl Repository {
                 break;
             }
         }
-        Repository::open(path)
+        Some(path)
     }
 
 
@@ -213,9 +264,9 @@ impl Repository {
         self.path.as_path()
     }
 
-    /// Returns issues path
-    pub fn issues_path(&self) -> &Path {
-        self.issues_path.as_path()
+    /// Returns items path
+    pub fn items_path(&self) -> &Path {
+        self.items_path.as_path()
     }
 
     /// Returns repository's config
@@ -223,38 +274,38 @@ impl Repository {
         &self.config
     }
 
-    /// Returns an unordered (as in "order not defined") issue iterator
-    pub fn issue_iter(&self) -> Result<IssueIter, Error> {
-        Ok(IssueIter { repository: self, dir: fs::read_dir(&self.issues_path)? })
+    /// Returns an unordered (as in "order not defined") item iterator
+    pub fn item_iter(&self) -> Result<ItemIter, Error> {
+        Ok(ItemIter { repository: self, dir: fs::read_dir(&self.items_path)? })
     }
 
-    /// Creates and returns a new issue with a unique ID
-    pub fn new_issue(&self) -> Result<Issue, Error> {
-        self.new_named_issue(self.config.id_generator.generate())
+    /// Creates and returns a new item with a unique ID
+    pub fn new_item(&self) -> Result<Item, Error> {
+        self.new_named_item(self.config.id_generator.generate())
     }
 
-    /// Creates and returns a new issue with a specific name. Will fail
-    /// if there's an issue with the same name.
-    pub fn new_named_issue<S: Into<String>>(&self, name: S) -> Result<Issue, Error> {
+    /// Creates and returns a new item with a specific name. Will fail
+    /// if there's an item with the same name.
+    pub fn new_named_item<S: Into<String>>(&self, name: S) -> Result<Item, Error> {
         let id: String = name.into();
-        let mut path = self.issues_path.clone();
+        let mut path = self.items_path.clone();
         path.push(&id);
         fs::create_dir(path)?;
         let id = OsString::from(id);
-        Ok(Issue {
+        Ok(Item {
             repository: self,
             id,
         })
     }
 }
 
-use super::Issue as IssueTrait;
+use super::Item as ItemTrait;
 
 use std::ffi::OsString;
 
-/// An issue residing in a repository
+/// An item residing in a repository
 #[derive(Debug)]
-pub struct Issue<'a> {
+pub struct Item<'a> {
     repository: &'a Repository,
     id: OsString,
 }
@@ -281,9 +332,9 @@ fn process_file<S: AsRef<str>, R: ::std::io::Read>(hasher: &mut Hasher, name: S,
     }
     Ok(())
 }
-impl<'a> Issue<'a> {
+impl<'a> Item<'a> {
     pub fn new_record_in<P: AsRef<Path>, S: AsRef<str>, R: ::std::io::Read,
-        I: Iterator<Item=(S, R)>>(&self, path: P, iter: I, link_parents: bool) -> Result<<Issue<'a> as IssueTrait>::Record, <Issue<'a> as IssueTrait>::Error> {
+        I: Iterator<Item=(S, R)>>(&self, path: P, iter: I, link_parents: bool) -> Result<<Item<'a> as ItemTrait>::Record, <Item<'a> as ItemTrait>::Error> {
         let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
         let mut hasher = self.repository.config.hashing_algorithm.hasher();
         let mut buf = vec![0; 4096];
@@ -322,31 +373,31 @@ impl<'a> Issue<'a> {
         fs::rename(tempdir.into_path(), &actual_path)?;
         Ok(Record {
             hash,
-            issue: self.id.clone(),
+            item: self.id.clone(),
             repository: self.repository,
             actual_path,
         })
     }
 
 }
-impl<'a> IssueTrait for Issue<'a> {
+impl<'a> ItemTrait for Item<'a> {
 
     type Error = Error;
     type Record = Record<'a>;
     type Records = Vec<Record<'a>>;
-    type RecordIter = IssueRecordIter<'a>;
+    type RecordIter = ItemRecordIter<'a>;
 
     fn id(&self) -> &str {
         self.id.to_str().unwrap()
     }
 
     fn record_iter(&self) -> Result<Self::RecordIter, Self::Error> {
-        let path = self.repository.issues_path.join(PathBuf::from(&self.id()));
+        let path = self.repository.items_path.join(PathBuf::from(&self.id()));
         let dir = fs::read_dir(&path)?.filter(|r| r.is_ok())
             .map(|e| e.unwrap())
             .collect();
-        Ok(IssueRecordIter {
-            issue: self.id.clone(),
+        Ok(ItemRecordIter {
+            item: self.id.clone(),
             repository: self.repository,
             dir,
             parents: vec![],
@@ -355,20 +406,20 @@ impl<'a> IssueTrait for Issue<'a> {
 
     fn new_record<S: AsRef<str>, R: ::std::io::Read,
         I: Iterator<Item=(S, R)>>(&self, iter: I, link_parents: bool) -> Result<Self::Record, Self::Error> {
-       self.new_record_in(self.repository.issues_path.join(PathBuf::from(self.id())), iter, link_parents)
+       self.new_record_in(self.repository.items_path.join(PathBuf::from(self.id())), iter, link_parents)
     }
 
 }
 
-/// An iterator over records in an issue
-pub struct IssueRecordIter<'a> {
-    issue: OsString,
+/// An iterator over records in an item
+pub struct ItemRecordIter<'a> {
+    item: OsString,
     repository: &'a Repository,
     dir: Vec<fs::DirEntry>,
     parents: Vec<String>,
 }
 
-impl<'a> Iterator for IssueRecordIter<'a> {
+impl<'a> Iterator for ItemRecordIter<'a> {
     type Item = Vec<Record<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -376,7 +427,7 @@ impl<'a> Iterator for IssueRecordIter<'a> {
         if self.parents.len() == 0 {
             let result: Vec<_> = self.dir.iter()
                 .filter(|e| e.file_type().unwrap().is_dir())
-                // find issues
+                // find items
                 // that don't have .prev/ID files in them
                 .filter(|e|
                             !fs::read_dir(e.path()).unwrap()
@@ -389,9 +440,9 @@ impl<'a> Iterator for IssueRecordIter<'a> {
                 .filter(|f| self.repository.config.encoding.decode(f.to_str().unwrap().as_bytes()).is_ok())
                 .map(|f| Record {
                     hash: self.repository.config.encoding.decode(f.to_str().unwrap().as_bytes()).unwrap(),
-                    issue: self.issue.clone(),
+                    item: self.item.clone(),
                     repository: self.repository,
-                    actual_path: self.repository.issues_path().join(&self.issue).join(f.to_str().unwrap()),
+                    actual_path: self.repository.items_path().join(&self.item).join(f.to_str().unwrap()),
                 })
                 .collect();
             if result.len() == 0 {
@@ -416,9 +467,9 @@ impl<'a> Iterator for IssueRecordIter<'a> {
                 })
                 .map(|e| Record {
                     hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
-                    issue: self.issue.clone(),
+                    item: self.item.clone(),
                     repository: self.repository,
-                    actual_path: self.repository.issues_path().join(&self.issue).join(e.file_name()),
+                    actual_path: self.repository.items_path().join(&self.item).join(e.file_name()),
                 })
                 .collect();
             if result.len() == 0 {
@@ -431,15 +482,15 @@ impl<'a> Iterator for IssueRecordIter<'a> {
 }
 
 
-/// Unordered (as in "order not defined') issue iterator
+/// Unordered (as in "order not defined') item iterator
 /// within a repository
-pub struct IssueIter<'a> {
+pub struct ItemIter<'a> {
     repository: &'a Repository,
     dir: fs::ReadDir,
 }
 
-impl<'a> Iterator for IssueIter<'a> {
-    type Item = Issue<'a>;
+impl<'a> Iterator for ItemIter<'a> {
+    type Item = Item<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -456,7 +507,7 @@ impl<'a> Iterator for IssueIter<'a> {
                     }
                     let file_type = file_type.unwrap();
                     if file_type.is_dir() {
-                        return Some(Issue { repository: self.repository, id: entry.file_name() });
+                        return Some(Item { repository: self.repository, id: entry.file_name() });
                     } else {
                         continue;
                     }
@@ -468,11 +519,11 @@ impl<'a> Iterator for IssueIter<'a> {
 
 use super::Record as RecordTrait;
 
-/// A record within an issue
+/// A record within an item
 #[derive(Debug)]
 pub struct Record<'a> {
     hash: Vec<u8>,
-    issue: OsString,
+    item: OsString,
     repository: &'a Repository,
     actual_path: PathBuf,
 }
@@ -529,8 +580,8 @@ impl<'a, T: RecordTrait<Str=String, Hash=Vec<u8>> + RepositoryProvider + 'a> Rec
         self.0.file_iter()
     }
 
-    fn issue_id(&self) -> Self::Str {
-        self.0.issue_id()
+    fn item_id(&self) -> Self::Str {
+        self.0.item_id()
     }
 }
 
@@ -557,8 +608,8 @@ impl<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvi
         self.0.file_iter().filter(self.1)
     }
 
-    fn issue_id(&self) -> Self::Str {
-        self.0.issue_id()
+    fn item_id(&self) -> Self::Str {
+        self.0.item_id()
     }
 }
 
@@ -586,7 +637,7 @@ impl<'a> Record<'a> {
     /// The record MIGHT not be at this path as this is the path where
     /// it SHOULD BE. The actual path can be retrieved using `actual_path()`
     pub fn path(&self) -> PathBuf {
-        self.repository.issues_path.join(PathBuf::from(&self.issue)).join(self.encoded_hash())
+        self.repository.items_path.join(PathBuf::from(&self.item)).join(self.encoded_hash())
     }
 
     /// Returns an actual path to the record directory
@@ -643,8 +694,8 @@ impl<'a> RecordTrait for Record<'a> {
             phantom: PhantomData,
         }
     }
-    fn issue_id(&self) -> Self::Str {
-        self.issue.clone().into_string().unwrap()
+    fn item_id(&self) -> Self::Str {
+        self.item.clone().into_string().unwrap()
     }
 }
 
@@ -693,7 +744,7 @@ mod tests {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        assert_eq!(repo.issue_iter().unwrap().count(), 0); // no issues in a new repo
+        assert_eq!(repo.item_iter().unwrap().count(), 0); // no items in a new repo
         assert_eq!(repo.path(), tmp);
     }
 
@@ -713,14 +764,14 @@ mod tests {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        // create an issue
-        let issue = repo.new_issue().unwrap();
+        // create an item
+        let item = repo.new_item().unwrap();
         let repo = Repository::open(&tmp).unwrap();
-        // load issues
-        let mut issues: Vec<Issue> = repo.issue_iter().unwrap().collect();
-        assert_eq!(issues.len(), 1);
-        // check equality of the issue's ID
-        assert_eq!(issues.pop().unwrap().id(), issue.id());
+        // load items
+        let mut items: Vec<Item> = repo.item_iter().unwrap().collect();
+        assert_eq!(items.len(), 1);
+        // check equality of the item's ID
+        assert_eq!(items.pop().unwrap().id(), item.id());
     }
 
     #[test]
@@ -730,53 +781,55 @@ mod tests {
         // create repo
         Repository::new(&sit).unwrap();
         let deep_subdir = tmp.join("a/b/c/d");
-        let repo = Repository::find_in_or_above(".sit", &deep_subdir).unwrap();
+        let repo = Repository::find_in_or_above(".sit", &deep_subdir);
+        assert!(repo.is_some());
+        let repo = Repository::open(repo.unwrap()).unwrap();
         assert_eq!(repo.path(), sit);
         // negative test
-        assert_matches!(Repository::find_in_or_above(".sit-dir", &deep_subdir), Err(Error::NotFound));
+        assert!(Repository::find_in_or_above(".sit-dir", &deep_subdir).is_none());
     }
 
     #[test]
-    fn new_issue() {
+    fn new_item() {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        // create an issue
-        let issue = repo.new_issue().unwrap();
-        // load issues
-        let mut issues: Vec<Issue> = repo.issue_iter().unwrap().collect();
-        assert_eq!(issues.len(), 1);
-        // check equality of the issue's ID
-        assert_eq!(issues.pop().unwrap().id(), issue.id());
+        // create an item
+        let item = repo.new_item().unwrap();
+        // load items
+        let mut items: Vec<Item> = repo.item_iter().unwrap().collect();
+        assert_eq!(items.len(), 1);
+        // check equality of the item's ID
+        assert_eq!(items.pop().unwrap().id(), item.id());
     }
 
     #[test]
-    fn new_named_issue() {
+    fn new_named_item() {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        // create an issue
-        let issue = repo.new_named_issue("one").unwrap();
-        // load issues
-        let mut issues: Vec<Issue> = repo.issue_iter().unwrap().collect();
-        assert_eq!(issues.len(), 1);
-        // check equality of the issue's ID
-        assert_eq!(issues.pop().unwrap().id(), issue.id());
+        // create an item
+        let item = repo.new_named_item("one").unwrap();
+        // load items
+        let mut items: Vec<Item> = repo.item_iter().unwrap().collect();
+        assert_eq!(items.len(), 1);
+        // check equality of the item's ID
+        assert_eq!(items.pop().unwrap().id(), item.id());
     }
 
     #[test]
-    fn new_named_issue_dup() {
+    fn new_named_item_dup() {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        // create an issue
-        let _issue = repo.new_named_issue("one").unwrap();
+        // create an item
+        let _item = repo.new_named_item("one").unwrap();
         // attempt to use the same name
-        let issue1 = repo.new_named_issue("one");
-        assert!(issue1.is_err());
-        assert_matches!(issue1.unwrap_err(), Error::IoError(_));
-        // there's still just one issue
-        assert_eq!(repo.issue_iter().unwrap().count(), 1);
+        let item1 = repo.new_named_item("one");
+        assert!(item1.is_err());
+        assert_matches!(item1.unwrap_err(), Error::IoError(_));
+        // there's still just one item
+        assert_eq!(repo.item_iter().unwrap().count(), 1);
     }
 
     #[test]
@@ -784,10 +837,10 @@ mod tests {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        // create an issue
-        let issue = repo.new_issue().unwrap();
+        // create an item
+        let item = repo.new_item().unwrap();
         // create a record
-        let record = issue.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
+        let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
         // peek into the record
         let mut files: Vec<_> = record.file_iter().collect();
         assert_eq!(files.len(), 1);
@@ -798,7 +851,7 @@ mod tests {
         assert!(file.read_to_string(&mut string).is_ok());
         assert_eq!(string, "hello");
         // list records
-        let mut records: Vec<Record> = issue.record_iter().unwrap().flat_map(|v| v).collect();
+        let mut records: Vec<Record> = item.record_iter().unwrap().flat_map(|v| v).collect();
         assert_eq!(records.len(), 1);
         assert_eq!(records.pop().unwrap().hash(), record.hash());
     }
@@ -809,15 +862,15 @@ mod tests {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        // create an issue
-        let issue = repo.new_issue().unwrap();
+        // create an item
+        let item = repo.new_item().unwrap();
         // create a few top records
-        let record1 = issue.new_record(vec![("test", &[1u8][..])].into_iter(), false).unwrap();
+        let record1 = item.new_record(vec![("test", &[1u8][..])].into_iter(), false).unwrap();
         let record1link = format!(".prev/{}", record1.encoded_hash());
-        let record2 = issue.new_record(vec![("test", &[2u8][..])].into_iter(), false).unwrap();
+        let record2 = item.new_record(vec![("test", &[2u8][..])].into_iter(), false).unwrap();
         let record2link = format!(".prev/{}", record2.encoded_hash());
         // now attempt to create a record that should link both together
-        let record = issue.new_record(vec![("test", &[3u8][..])].into_iter(), true).unwrap();
+        let record = item.new_record(vec![("test", &[3u8][..])].into_iter(), true).unwrap();
         assert!(record.file_iter().any(|(name, _)| name == *&record1link));
         assert!(record.file_iter().any(|(name, _)| name == *&record2link));
     }
@@ -827,20 +880,20 @@ mod tests {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        // create an issue
-        let issue = repo.new_issue().unwrap();
+        // create an item
+        let item = repo.new_item().unwrap();
         // create a few top records
-        let record1 = issue.new_record(vec![("test", &[1u8][..])].into_iter(), false).unwrap();
-        let record2 = issue.new_record(vec![("test", &[2u8][..])].into_iter(), false).unwrap();
+        let record1 = item.new_record(vec![("test", &[1u8][..])].into_iter(), false).unwrap();
+        let record2 = item.new_record(vec![("test", &[2u8][..])].into_iter(), false).unwrap();
         // now attempt to create a record that should link both together
-        let record3 = issue.new_record(vec![("test", &[3u8][..])].into_iter(), true).unwrap();
+        let record3 = item.new_record(vec![("test", &[3u8][..])].into_iter(), true).unwrap();
         // and another top record
-        let record4 = issue.new_record(vec![("test", &[4u8][..])].into_iter(), false).unwrap();
+        let record4 = item.new_record(vec![("test", &[4u8][..])].into_iter(), false).unwrap();
         // and another linking record
-        let record5 = issue.new_record(vec![("test", &[5u8][..])].into_iter(), true).unwrap();
+        let record5 = item.new_record(vec![("test", &[5u8][..])].into_iter(), true).unwrap();
 
         // now, look at their ordering
-        let mut records: Vec<_> = issue.record_iter().unwrap().collect();
+        let mut records: Vec<_> = item.record_iter().unwrap().collect();
         let row_3 = records.pop().unwrap();
         let row_2 = records.pop().unwrap();
         let row_1 = records.pop().unwrap();
@@ -863,14 +916,14 @@ mod tests {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        let issue1 = repo.new_issue().unwrap();
-        let record1 = issue1.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
-        let issue2 = repo.new_issue().unwrap();
-        let record2 = issue2.new_record(vec![("test", &[1u8][..]), ("z/a", &[2u8][..])].into_iter(), false).unwrap();
+        let item1 = repo.new_item().unwrap();
+        let record1 = item1.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
+        let item2 = repo.new_item().unwrap();
+        let record2 = item2.new_record(vec![("test", &[1u8][..]), ("z/a", &[2u8][..])].into_iter(), false).unwrap();
         assert_eq!(record1.hash(), record2.hash());
         #[cfg(windows)] {
-            let issue3 = repo.new_issue().unwrap();
-            let record3 = issue3.new_record(vec![("test", &[1u8][..]), ("z\\a", &[2u8][..])].into_iter(), false).unwrap();
+            let item3 = repo.new_item().unwrap();
+            let record3 = item3.new_record(vec![("test", &[1u8][..]), ("z\\a", &[2u8][..])].into_iter(), false).unwrap();
             assert_eq!(record3.hash(), record2.hash());
         }
     }
@@ -880,8 +933,8 @@ mod tests {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        let issue = repo.new_issue().unwrap();
-        let record = issue.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
+        let item = repo.new_item().unwrap();
+        let record = item.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
         let record_dynamic = record.dynamically_hashed();
         assert_eq!(record_dynamic.hash(), record.hash());
         assert_eq!(record_dynamic.encoded_hash(), record.encoded_hash());
@@ -900,8 +953,8 @@ mod tests {
          let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
         let repo = Repository::new(&tmp).unwrap();
-        let issue = repo.new_issue().unwrap();
-        let record = issue.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
+        let item = repo.new_item().unwrap();
+        let record = item.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
         fn not_za(val: &(String, fs::File)) -> bool {
             val.0 != "z/a"
         }
@@ -926,9 +979,9 @@ mod tests {
         tmp1.pop();
 
         let repo = Repository::new(&tmp).unwrap();
-        let issue = repo.new_issue().unwrap();
-        let _record1 = issue.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
-        let record2 = issue.new_record_in(&tmp1, vec![("a", &[2u8][..])].into_iter(), true).unwrap();
+        let item = repo.new_item().unwrap();
+        let _record1 = item.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
+        let record2 = item.new_record_in(&tmp1, vec![("a", &[2u8][..])].into_iter(), true).unwrap();
 
         // lets test that record2 can iterate over correct files
         let files: Vec<_> = record2.file_iter().collect();
@@ -936,7 +989,7 @@ mod tests {
 
 
         // record2 can't be found as it is outside of the standard naming scheme
-        let records: Vec<Vec<_>> = issue.record_iter().unwrap().collect();
+        let records: Vec<Vec<_>> = item.record_iter().unwrap().collect();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].len(), 1);
 
@@ -950,10 +1003,48 @@ mod tests {
         ::std::fs::rename(record2.actual_path(), record2.path()).unwrap();
 
         // and now it can be
-        let records: Vec<Vec<_>> = issue.record_iter().unwrap().collect();
+        let records: Vec<Vec<_>> = item.record_iter().unwrap().collect();
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].len(), 1);
         assert_eq!(records[0].len(), 1);
+
+    }
+
+    #[test]
+    fn issues_to_items_upgrade() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let mut tmp1 = tmp.clone();
+        tmp1.pop();
+
+        let repo = Repository::new(&tmp).unwrap();
+        let _item = repo.new_item().unwrap();
+        assert_eq!(repo.item_iter().unwrap().count(), 1);
+
+        ::std::fs::rename(repo.items_path(), repo.path().join("issues")).unwrap();
+        let repo = Repository::open(&tmp);
+        assert!(repo.is_err());
+        assert_matches!(repo.unwrap_err(), Error::UpgradeRequired(Upgrade::IssuesToItems));
+
+        let repo = Repository::open_and_upgrade(&tmp, &[Upgrade::IssuesToItems]).unwrap();
+        assert!(!repo.path().join("issues").exists());
+        assert_eq!(repo.item_iter().unwrap().count(), 1);
+
+        // now, a more complicated case:
+        // both issues/ and items/ are present
+        // this can happen when merging a patch that changes .sit/issues
+        // (prepared before the migration)
+        let item = repo.new_item().unwrap();
+        ::std::fs::create_dir_all(repo.path().join("issues")).unwrap();
+        ::std::fs::rename(repo.items_path().join(item.id()), repo.path().join("issues").join(item.id())).unwrap();
+
+        let repo = Repository::open(&tmp);
+        assert!(repo.is_err());
+        assert_matches!(repo.unwrap_err(), Error::UpgradeRequired(Upgrade::IssuesToItems));
+
+        let repo = Repository::open_and_upgrade(&tmp, &[Upgrade::IssuesToItems]).unwrap();
+        assert!(!repo.path().join("issues").exists());
+        assert_eq!(repo.item_iter().unwrap().count(), 2);
 
     }
 

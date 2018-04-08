@@ -5,7 +5,7 @@ class Repository {
   id_generator: UUIDv4
   version: 1
 }
-class Issue {
+class Item {
   id : repository.id_generator::type
 }
 class Record {
@@ -15,7 +15,7 @@ class File {
   name : String
   content : Binary
 }
-Repository "1" --> "many" Issue: contains
-Issue "1" --> "many" Record: contains
+Repository "1" --> "many" Item: contains
+Item "1" --> "many" Record: contains
 Record "1" --> "many" File: contains
 @enduml

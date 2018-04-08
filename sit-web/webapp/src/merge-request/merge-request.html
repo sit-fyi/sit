@@ -16,7 +16,7 @@
 
        <template is="dom-if" if="[[ record ]]">
            <iron-ajax id="files"
-                 auto url="/api/issue/{{ issue }}/{{ record }}/files"
+                 auto url="/api/item/{{ issue }}/{{ record }}/files"
                  handle-as="json"
                  last-response="{{ files }}"></iron-ajax>
            <paper-card heading="Merge Request [[ record ]]">

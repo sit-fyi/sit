@@ -133,12 +133,12 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
         (GET) (/config) => {
            Response::json(&repo_config)
         },
-        (GET) (/api/issues/{filter_expr: String}/{query_expr: String}) => {
+        (GET) (/api/items/{filter_expr: String}/{query_expr: String}) => {
             use jmespath;
-            use sit_core::issue::IssueReduction;
-            let issues = repo.issue_iter().expect("can't list issues");
+            use sit_core::item::ItemReduction;
+            let items = repo.item_iter().expect("can't list items");
             let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-            let issues_with_reducers: Vec<_> =  issues.into_iter().map(|i| (i, reducer.clone())).collect();
+            let items_with_reducers: Vec<_> =  items.into_iter().map(|i| (i, reducer.clone())).collect();
 
             let filter_defined = filter_expr != "";
             let filter = if filter_defined {
@@ -155,9 +155,9 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             };
 
             let result: Vec<_> =
-            issues_with_reducers.into_par_iter()
-                  .map(|(issue, mut reducer)| {
-                     issue.reduce_with_reducer(&mut reducer).unwrap()
+            items_with_reducers.into_par_iter()
+                  .map(|(item, mut reducer)| {
+                     item.reduce_with_reducer(&mut reducer).unwrap()
                   }).map(|json| {
                      let data = jmespath::Variable::from(serde_json::Value::Object(json));
                      let result = if filter_defined {
@@ -175,48 +175,48 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                  .filter(Option::is_some).collect();
             Response::json(&result)
         },
-        (GET) (/api/issue/{id: String}/{query_expr: String}) => {
+        (GET) (/api/item/{id: String}/{query_expr: String}) => {
             use jmespath;
-            use sit_core::issue::IssueReduction;
-            use sit_core::Issue;
+            use sit_core::item::ItemReduction;
+            use sit_core::Item;
             let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
             let query = match jmespath::compile(&query_expr) {
                 Ok(query) => query,
                 _ => return Response::empty_400(),
             };
-            let issue = match repo.issue_iter().unwrap().find(|i| i.id() == id) {
-                Some(issue) => issue,
+            let item = match repo.item_iter().unwrap().find(|i| i.id() == id) {
+                Some(item) => item,
                 _ => return Response::empty_404(),
             };
-            let reduced = issue.reduce_with_reducer(&mut reducer).unwrap();
+            let reduced = item.reduce_with_reducer(&mut reducer).unwrap();
             let data = jmespath::Variable::from(serde_json::Value::Object(reduced));
             let result = query.search(&data).unwrap();
             Response::json(&result)
         },
-        (GET) (/api/issue/{id: String}/{record: String}/files) => {
-            use sit_core::{Record, Issue};
-            let issue = match repo.issue_iter().unwrap().find(|i| i.id() == id) {
-                Some(issue) => issue,
+        (GET) (/api/item/{id: String}/{record: String}/files) => {
+            use sit_core::{Record, Item};
+            let item = match repo.item_iter().unwrap().find(|i| i.id() == id) {
+                Some(item) => item,
                 None => return Response::empty_404(),
             };
-            let record = match ::itertools::Itertools::flatten(issue.record_iter().unwrap()).find(|r| r.encoded_hash() == record) {
+            let record = match ::itertools::Itertools::flatten(item.record_iter().unwrap()).find(|r| r.encoded_hash() == record) {
                Some(record) => record,
                None => return Response::empty_404(),
             };
             let files: Vec<_> = record.file_iter().map(|(name, _)| name).collect();
             Response::json(&files)
         },
-        (POST) (/api/issue) => {
+        (POST) (/api/item) => {
            if readonly { return Response::empty_404(); }
-           use sit_core::Issue;
-           let issue = repo.new_issue().expect("can't create issue");
-           Response::json(&issue.id())
+           use sit_core::Item;
+           let item = repo.new_item().expect("can't create item");
+           Response::json(&item.id())
         },
-        (POST) (/api/issue/{id: String}/records) => {
+        (POST) (/api/item/{id: String}/records) => {
            if readonly { return Response::empty_404(); }
-           use sit_core::{Issue, Record};
-           let mut issue = match repo.issue_iter().unwrap().find(|i| i.id() == id) {
-                Some(issue) => issue,
+           use sit_core::{Item, Record};
+           let mut item = match repo.item_iter().unwrap().find(|i| i.id() == id) {
+                Some(item) => item,
                 None => return Response::empty_404(),
            };
 
@@ -252,7 +252,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
            let tmp = tempdir::TempDir::new_in(repo.path(), "sit").unwrap();
            let record_path = tmp.path();
 
-           let record = issue.new_record_in(record_path, files.into_iter(), link).expect("can't create record");
+           let record = item.new_record_in(record_path, files.into_iter(), link).expect("can't create record");
 
            for file in used_files {
              fs::remove_file(file).expect("can't remove file");
