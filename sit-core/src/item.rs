@@ -1,4 +1,4 @@
-//! Every repository consists of issues
+//! Every repository acts as a container for items
 
 use serde_json::{Map, Value};
 
@@ -9,14 +9,10 @@ pub enum ReductionError<Err: ::std::error::Error + ::std::fmt::Debug> {
     ImplementationError(Err)
 }
 
-/// Issue is a topic or a problem for debate, discussion
-/// and resolution. Also known as a "ticket".
-///
-/// Because of SIT's extensible nature, issue can be also
-/// be used to represent a wild variety of entities. For example,
-/// a Kanban board with its records representing movement of other
-/// issues into, across and out of the board.
-pub trait Issue: Sized {
+/// Because of SIT's extensible nature, item can
+/// be used to represent a wild variety of entities, such
+/// as issue, documents, accounts, etc.
+pub trait Item: Sized {
     /// Error type used by the implementation
     type Error: ::std::error::Error + ::std::fmt::Debug;
     /// Record type used by the implementation
@@ -41,11 +37,11 @@ pub trait Issue: Sized {
 /// [`Issue`] trait extension that defines and implements default reduction algorithms
 ///
 /// [`Issue`]: trait.Issue.html
-pub trait IssueReduction: Issue {
+pub trait ItemReduction: Item {
 
-    /// Reduces issue with a given [`Reducer`]
+    /// Reduces item with a given [`Reducer`]
     ///
-    /// Will insert issue's `id` into the initial state
+    /// Will insert item's `id` into the initial state
     ///
     /// [`Reducer`]: ../reducers/trait.Reducer.html
     fn reduce_with_reducer<R: Reducer<State=Map<String, Value>, Item=Self::Record>>(&self, reducer: &mut R) -> Result<Map<String, Value>, ReductionError<Self::Error>> {
@@ -59,5 +55,5 @@ pub trait IssueReduction: Issue {
 
 }
 
-impl<T> IssueReduction for T where T: Issue {}
+impl<T> ItemReduction for T where T: Item {}
 

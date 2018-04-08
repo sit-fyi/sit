@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-issue=$1
+item=$1
 mr=$2
 comment=$3
 tmpdir="$(mktemp -d)"
@@ -10,13 +10,13 @@ range=$(git merge-base --fork-point master $branch)..$branch
 curbranch=$(git rev-parse --abbrev-ref HEAD)
 sit=$(which sit)
 
-if [ -z ${issue} ]; then
-        echo "Usage: merge-merge-request <issue> <mr> [comment]"
+if [ -z ${item} ]; then
+        echo "Usage: merge-merge-request <item> <mr> [comment]"
         exit 1
 fi
 
 if [ -z ${mr} ]; then
-        echo "Usage: merge-merge-request <issue> <mr> [comment]"
+        echo "Usage: merge-merge-request <item> <mr> [comment]"
         exit 1
 fi
 
@@ -27,9 +27,9 @@ fi
 
 repo=$(${sit} path)
 
-git checkout -b merge-${issue}-${mr} || exit 2
+git checkout -b merge-${item}-${mr} || exit 2
 
-git am $(ls ${repo}/issues/${issue}/${mr}/git/*.patch) || exit 2
+git am $(ls ${repo}/tems/${item}/${mr}/git/*.patch) || exit 2
 
 
 pushd $(pwd) >/dev/null
@@ -37,22 +37,22 @@ cd "${tmpdir}"
 
 echo "${mr}" > record
 if [ -z "${comment}" ]; then
-        ${sit} -d ${curdir} record -t Merged,Closed ${issue} record || exit 2
+        ${sit} -d ${curdir} record -t Merged,Closed ${item} record || exit 2
 else
         echo "# Leave a comment below. All lines starting with # will be removed" > text
         echo "${comment}" >> text
         $editor text || exit 2
         sed -i '/^#/ d'  text
-        ${sit} -d ${curdir} record -t Commented,Merged,Closed ${issue} text record || exit 2
+        ${sit} -d ${curdir} record -t Commented,Merged,Closed ${item} text record || exit 2
 fi
 
 popd >/dev/null
 
 rm -rf "${tmpdir}"
 
-git add .sit/issues/${issue} || exit 2
-git commit -m "Closed merge request ${issue}/${mr}" || exit 2
+git add .sit/items/${item} || exit 2
+git commit -m "Closed merge request ${item}/${mr}" || exit 2
 git checkout ${curbranch} || exit 2
-git merge --no-ff merge-${issue}-${mr}
+git merge --no-ff merge-${item}-${mr}
 
 echo You can push to upstream now
