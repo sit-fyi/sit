@@ -1,9 +1,0 @@
-Scenario:
-
-1. Initiate writing a new issue
-2. Type in the summary
-3. Click "Create"
-
-Outcome: the issue is rendered with "undefined" as details
-
-Expected outcome: empty details

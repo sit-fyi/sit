@@ -1,3 +1,0 @@
-This defies `sit-web`'s goal to be self-sufficient and work fine offline.
-
-Proposed solution: check Roboto's license and if everything's fine, host the font ourselves. Otherwise, pick another font.

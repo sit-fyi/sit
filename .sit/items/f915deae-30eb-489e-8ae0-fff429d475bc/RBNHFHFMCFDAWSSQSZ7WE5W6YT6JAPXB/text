@@ -1,8 +1,0 @@
-Scenario:
-
-1. Open any issue
-2. Try to use mouse to select the summary's text
-
-Outcome: nothing happens
-
-Expected outcome: text selects

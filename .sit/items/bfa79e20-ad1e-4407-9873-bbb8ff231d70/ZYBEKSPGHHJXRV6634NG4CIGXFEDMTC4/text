@@ -1,5 +1,0 @@
-Solution: hook prims-highlighter to issue/rendered-text
-
-It will load syntax files dynamically. Sometimes user
-experience of that is less than optimal, but it is a good
-enough first go, I believe.

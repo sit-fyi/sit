@@ -1,2 +1,0 @@
-Solution: persist the list of comments in the state
-(it wasn't persisted, it was a bug)

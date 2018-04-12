@@ -1,7 +1,0 @@
-This is very annoying, especially when experimenting with
-a complex filter.
-
-Solution: retain the filter in the URL
-
-As a consequence of that, sharing such link with others
-will show them the intended result as well.

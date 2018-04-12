@@ -1,5 +1,0 @@
-This is quite confusing, as there *are* matches, they just weren't
-fetched yet.
-
-Solution: display a rotating spinner while they are loading
-
