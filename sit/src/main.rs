@@ -17,6 +17,7 @@ use sit_core::item::ItemReduction;
 
 extern crate serde;
 extern crate serde_json;
+extern crate yaml_rust;
 
 extern crate config;
 use sit_core::cfg;
@@ -24,6 +25,7 @@ use sit_core::cfg;
 mod rebuild;
 use rebuild::rebuild_repository;
 mod command_config;
+mod command_args;
 
 #[cfg(unix)]
 extern crate xdg;
@@ -41,6 +43,8 @@ extern crate rayon;
 use rayon::prelude::*;
 
 extern crate question;
+
+extern crate dunce;
 
 use std::collections::HashMap;
 fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
@@ -124,7 +128,6 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                      .long_help("Execute this command on every record before re-hashing it. \
                      The directory is passed as the first argument.")))
         .subcommand(SubCommand::with_name("item")
-            .alias("issue") // TODO: deprecate
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Creates a new item")
             .arg(Arg::with_name("id")
@@ -133,7 +136,6 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                      .required(false)
                      .help("Specify item identifier, otherwise generate automatically")))
         .subcommand(SubCommand::with_name("items")
-            .alias("issues") // TODO: deprecate
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Lists items")
             .arg(Arg::with_name("filter")
@@ -265,13 +267,32 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                      .long("query")
                      .short("q")
                      .takes_value(true)
-                     .help("JMESPath query (none by default)")));
+                     .help("JMESPath query (none by default)")))
+        .subcommand(SubCommand::with_name("modules")
+            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+            .about("Prints out resolved modules"))
+        .subcommand(SubCommand::with_name("args")
+            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+            .arg(Arg::with_name("help")
+                .long("help")
+                .short("h")
+                .help("Prints help"))
+            .arg(Arg::with_name("ARGS")
+                .last(true)
+                .multiple(true)
+                .conflicts_with("help")
+                .help("Arguments to parse"))
+            .about("Parses arguments against a specification given on stdin"));
 
     if allow_external_subcommands {
         app = app.setting(clap::AppSettings::AllowExternalSubcommands);
     }
 
     let matches = app.clone().get_matches();
+
+    if let Some(matches) = matches.subcommand_matches("args") {
+        return command_args::command(&matches);
+   }
 
     #[cfg(unix)]
     let default_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
@@ -287,7 +308,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
     let mut config: cfg::Configuration = settings.try_into().expect("can't load config");
 
     let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
-    let canonical_working_dir = fs::canonicalize(&working_dir).expect("can't canonicalize working directory");
+    let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
     let dot_sit = working_dir.join(".sit");
 
     if config.author.is_none() {
@@ -385,6 +406,13 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         let repo = sit_core::Repository::open(&repo_path)
             .expect("can't open repository");
 
+        if let Some(_) = matches.subcommand_matches("modules") {
+            for module_path in repo.module_iter().expect("can't iterate over modules") {
+                println!("{}", ::dunce::canonicalize(&module_path).unwrap_or(module_path).to_str().unwrap());
+            }
+            return 0;
+        }
+
         if let Some(_) = matches.subcommand_matches("populate-files") {
             repo.populate_default_files().expect("can't populate default files");
             return 0;
@@ -473,8 +501,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                                     eprintln!("{} does not exist or is not a regular file", path.to_str().unwrap());
                                     exit(1);
                                 }
-                                let abs_name = fs::canonicalize(path).expect("can't canonicalize path");
-                                let cur_dir = fs::canonicalize(env::current_dir().expect("can't get current directory")).expect("can't canonicalize current directory");
+                                let abs_name = ::dunce::canonicalize(path).expect("can't canonicalize path");
+                                let cur_dir = ::dunce::canonicalize(env::current_dir().expect("can't get current directory")).expect("can't canonicalize current directory");
                                 match abs_name.strip_prefix(&cur_dir) {
                                     Err(_) => {
                                         eprintln!("Path {} is not relative to {} current directory", name, cur_dir.to_str().unwrap());
@@ -740,9 +768,17 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         #[cfg(windows)]
         command.args(&["/c", &format!("sit-{}", subcommand)]);
         #[cfg(not(windows))]
-        command.env("PATH", format!("{}:{}", repo.path().join("cli").to_str().unwrap(), env::var("PATH").unwrap_or("".into())));
+        let path_sep = ":";
         #[cfg(windows)]
-        command.env("PATH", format!("{};{}", repo.path().join("cli").to_str().unwrap(), env::var("PATH").unwrap_or("".into())));
+        let path_sep = ";";
+        let mut path: String = repo.path().join("cli").to_str().unwrap().into();
+        for module_name in repo.module_iter().expect("can't iterate over modules") {
+            path += path_sep;
+            path += repo.modules_path().join(module_name).join("cli").to_str().unwrap();
+        }
+        path += path_sep;
+        path += &env::var("PATH").unwrap_or("".into());
+        command.env("PATH",  path);
         command.env("SIT_DIR", repo.path().to_str().unwrap());
         command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
         if let Some(args) = args {

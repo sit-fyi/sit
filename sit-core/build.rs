@@ -2,6 +2,7 @@ extern crate cc;
 extern crate include_dir;
 
 use std::env;
+use std::fs;
 use std::path::Path;
 use include_dir::include_dir;
 
@@ -37,8 +38,11 @@ fn main() {
 
     let outdir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&outdir).join("default_files.rs");
-    include_dir(Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap())
-                    .join("default-files").to_str().unwrap())
+    let default_files = Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("default-files");
+    // ensure at least empty `default-files` exists
+    fs::create_dir_all(&default_files).unwrap();
+    include_dir(default_files.to_str().unwrap())
         .as_variable("FILES")
         .to_file(dest_path)
         .unwrap();

@@ -7,7 +7,7 @@
   <br>
 </h1>
 
-<h4 align="center">Serverless issue tracker for decentralized teams</h4>
+<h4 align="center">Serverless Information Tracker</h4>
 
 <p align="center">
  <a href="https://github.com/sit-it/sit/releases"><img alt="Release" src="https://img.shields.io/github/release/sit-it/sit.svg"></a>
@@ -21,46 +21,46 @@
 <p align="center">
   [
     <a href="https://github.com/sit-it/sit/releases"><b>Download</b></a> |
-    <a href="doc/getting_started.md"><b>Getting Started</b></a> |
-    <a href="doc/overview.md"><b>Overview</b></a> |
+    <a href="doc/architecture_overview.md"><b>Overview</b></a> |
     <a href="#questions-bug-reports-etc"><b>Issues & Merge Requests</b></a>
   ]
 </p>
 
-SIT is a compact tool to track and share project issues in and between
-decentralized teams. Its goal is to lower the barrier for having an independently
-operated, shared issue tracker. Instead of having to setup and maintain a server
-and a database, or having to rely on services of an external third party, SIT can
-be initialized and started as simply as this:
+SIT is a compact tool that helps tracking and sharing information between people and systems
+in a decentralized, sporadically-online environment (*aka "the real world"*).
 
-```
-$ sit init && sit-web
-```
+Its goal is to lower the barrier for recording, querying and sharing information
+independently. Instead of having to setup and maintain a server and a database,
+or having to rely on services of an external third party, SIT is a self-contained
+binary for Linux, OS X and Windows that typically works on the end-user's computer.
+SIT's medium of record is files. No external database is required.
 
-That's it. Now you can check out the [Getting Started](doc/getting_started.md) guide.
+## Modules
 
-<center>
-<p align="center">
-<img src="doc/webui_example.png">
-<small><i>(An example of running sit-web)</i></small>
-</p>
-</center>
+While bare SIT can track any kind of information (*it's all just files, after
+all*), the user experience of using it as is might be less than exciting. For this
+reason, SIT supports a concept of modules that allows to operate domain-specific
+workflows and interfaces easily.
 
+Currently available modules:
+
+* [Issue Tracking](https://github.com/sit-it/issue-tracking)
 
 ## Why Should I Care?
 
-As far as analogies go, we're doing to issue tracking what Git did to version control systems. But let us
+As far as analogies go, we're doing to information tracking what Git did to version control systems. But let us
 further elaborate on a few benefits to consider:
 
-* **Works offline**. You can synchronize the issues, go offline and work
-  on them without needing a connection. You can synchronize at any time later.
-* **Contextualizes state**. When used together with an SCM (such as Git), you can see the
-  state and status of any issue at any given revision (*"what release branches is this
-  closed on?"*)
+* **Works offline**. You can synchronize information, go offline and work
+  on it without needing a connection. You can synchronize at any time later.
+* **Contextualizes state**. When used together with an SCM (such as Git), you
+  can see the state of any item at any given revision (in the context of issue
+  tracking, for example, it can answer the question of *"what release branches
+  is this issue closed on?"*)
 * **Continuously localizes data**. You can access the data at any time. No API rate limits. It's on your filesystem.
-* **Adapts to your team topology**. Synchronization can be done over Git, Dropbox, Keybase,
+* **Adapts to your group topology**. Synchronization can be done over Git, Dropbox, Keybase,
   USB flash drives or anything else that allows you to copy files between computers.
-* **Malleable**. You can make it handle workflows and payloads original authors never anticipated. The customization
+* **Malleable**. You can make it handle just about any workflow and payload. The customization
   is in its blood.
 
 ## Project Status
@@ -69,6 +69,9 @@ It is in the early adopter stage. It's usable but not everything is done yet and
 some things will change. We're publishing releases regularly but always encourage
 trying out the latest and greatest master branch.
 
+Originally IT in SIT stood for "issue tracking". Since then, it grew to become a generalized
+information tracking tool (with issue tracking extracted to a module)
+
 ## Obtaining SIT
 
 All our releases are hosted on [GitHub](https://github.com/sit-it/sit/releases)
@@ -76,9 +79,10 @@ and binary files can be downloaded from there.
 
 ## Build Instructions
 
-As SIT is currently in its early days, sometimes it might make sense to use a pre-release build. We encourage that. It helps us building a better product.
+As SIT is currently in its early days, sometimes it might make sense to use a
+pre-release build. We encourage that. It helps us building a better product.
 
-Firstly, you will need to install Rust 1.24.1. Luckily
+Firstly, you will need to install Rust 1.25. Luckily
 it is typically a very simple process. You can find
 instructions on [Rust's website](https://www.rust-lang.org/en-US/install.html).
 
@@ -108,7 +112,7 @@ Simply run `sit-web` in this repository's clone and open it in the browser.
 
 #### Send Updates to Upstream
 
-Once you've used sit-web or `./scripts/prepare-merge-request` to work on the issues,
+Once you've used sit-web or `sit mr` to work on the issues,
 you can send the updates to this repository:
 
 1. Create a branch (as a convention, you can use your issue ID or an added record ID as a branch name, but free to choose anything else, preferrably unique)

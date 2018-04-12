@@ -6,7 +6,8 @@ authors = ["Yurii Rashkovskii <me@yrashk.com>"]
 license = "MIT/Apache-2.0"
 
 [dependencies]
-clap = "2.29"
+clap = { version = "2.31", features = ["yaml"] }
+yaml-rust = "0.3.5"
 chrono = "0.4"
 tempfile = "2.2"
 config = { version = "0.8", features = ["json"] }
@@ -21,6 +22,7 @@ tempdir = "0.3"
 glob = "0.2"
 rayon = "1.0"
 question = "0.2"
+dunce = "0.1"
 sit-core = { path = "../sit-core", version = "0.3.0" }
 
 [features]

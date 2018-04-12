@@ -73,7 +73,7 @@ fn main() {
             .long("overlay")
             .takes_value(true)
             .multiple(true)
-            .help("Path to an additional [besides .sit/web] web overlay"))
+            .help("Path to an additional [besides standard ones] web overlay"))
         .arg(Arg::with_name("listen")
             .default_value("127.0.0.1:8080")
             .help("Listen on IP:PORT"))
