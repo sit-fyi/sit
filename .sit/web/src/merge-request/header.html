@@ -29,7 +29,7 @@
             <paper-card heading="Maintainer's tip">
                 <div class="card-content">
                     To merge this request, run:
-                    <syntax-highlighting lang="shell" code="[[ script]]"></syntax-highlighting>
+                    <syntax-highlighting lang="shell" code="[[ script ]]"></syntax-highlighting>
                     <granite-clipboard text="[[ script ]]">
                         <paper-icon-button icon="content-copy"></paper-icon-button>
                    </granite-clipboard>
@@ -58,7 +58,7 @@
             }
 
             computeScript(issue, record) {
-                return `./scripts/merge-merge-request ${issue} ${record}`;
+                return `sit mr-merge ${issue} ${record}`;
             }
         }
         window.customElements.define(MergeRequestHeader.is, MergeRequestHeader);
