@@ -1,0 +1,1 @@
+On Unix, if a command is not found, `sit` will fall back to suggestion or error. However, since on Windows it doesn't actually start the script itself but rather `cmd`, it fails to recognize that the error incurred by `cmd` is just the inability to find the script.
