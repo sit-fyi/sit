@@ -1,0 +1,4 @@
+Solution: use `which` crate to find the name of the executable
+before trying to spawn it.
+
+This resolves the problem and unifies the spawning across the platforms.
