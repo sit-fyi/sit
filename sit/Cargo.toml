@@ -23,6 +23,7 @@ glob = "0.2"
 rayon = "1.0"
 question = "0.2"
 dunce = "0.1"
+which = "2.0"
 sit-core = { path = "../sit-core", version = "0.3.0" }
 
 [features]
