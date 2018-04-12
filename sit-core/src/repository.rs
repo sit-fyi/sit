@@ -32,6 +32,8 @@ const CONFIG_FILE: &str = "config.json";
 const DEPRECATED_ISSUES_PATH: &str = "issues";
 /// Repository's items path
 const ITEMS_PATH: &str = "items";
+/// Repository's modules path
+const MODULES_PATH: &str = "modules";
 
 
 /// Repository is the container for all SIT artifacts
@@ -43,6 +45,10 @@ pub struct Repository {
     /// this path on demand for every operation that would
     /// require it
     config_path: PathBuf,
+    /// Path to the modules. Mainly to avoid creating
+    /// this path on demand for every operation that would
+    /// require it
+    modules_path: PathBuf,
     /// Path to items. Mainly to avoid creating this path
     /// on demand for every operation that would require it
     items_path: PathBuf,
@@ -156,11 +162,13 @@ impl Repository {
             let mut items_path = path.clone();
             items_path.push(ITEMS_PATH);
             fs::create_dir_all(&items_path)?;
+            let modules_path = path.join(MODULES_PATH);
             let repo = Repository {
                 path,
                 config_path,
                 items_path,
                 config,
+                modules_path,
             };
             repo.save()?;
             Ok(repo)
@@ -185,6 +193,7 @@ impl Repository {
         config_path.push(CONFIG_FILE);
         let issues_path = path.join(DEPRECATED_ISSUES_PATH);
         let items_path = path.join(ITEMS_PATH);
+        let modules_path = path.join(MODULES_PATH);
         if issues_path.is_dir() && !items_path.is_dir() {
             if upgrades.as_ref().contains(&Upgrade::IssuesToItems) {
                 fs::rename(&issues_path, &items_path)?;
@@ -216,6 +225,7 @@ impl Repository {
             config_path,
             items_path,
             config,
+            modules_path,
         };
         Ok(repository)
     }
@@ -301,6 +311,39 @@ impl Repository {
             repository: self,
             id,
         })
+    }
+
+    /// Returns path to modules. The target directory may not exist.
+    pub fn modules_path(&self) -> &Path {
+        &self.modules_path
+    }
+
+    /// Returns an iterator over the list of modules (directories under `modules` directory)
+    pub fn module_iter(&self) -> Result<Box<Iterator<Item = PathBuf>>, Error> {
+        let path = self.path.join("modules");
+        if !path.is_dir() {
+            return Ok(Box::new(vec![].into_iter()));
+        }
+        let modules = fs::read_dir(path)?;
+
+        Ok(Box::new(modules.filter(Result::is_ok).map(Result::unwrap)
+            .map(|f| {
+                let mut path = f.path();
+                if path.is_dir() {
+                    return path
+                } else {
+                    let mut f = fs::File::open(&path).unwrap();
+                    use std::io::Read;
+                    let mut s = String::new();
+                    f.read_to_string(&mut s).unwrap();
+                    #[cfg(windows)] {
+                        s = s.replace("/", "\\");
+                    }
+                    let trimmed_path = s.trim();
+                    path.pop(); // remove the file name
+                    path.join(PathBuf::from(trimmed_path))
+               }
+            })))
     }
 }
 
@@ -1053,4 +1096,74 @@ mod tests {
 
     }
 
+    #[test]
+    fn modules() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let mut tmp1 = tmp.clone();
+        tmp1.pop();
+
+        let repo = Repository::new(&tmp).unwrap();
+        assert!(repo.module_iter().unwrap().next().is_none());
+
+        // create modules/test
+        let path = repo.modules_path().join("test");
+        fs::create_dir_all(&path).unwrap();
+        let mut iter = repo.module_iter().unwrap();
+
+        assert_eq!(::dunce::canonicalize(iter.next().unwrap()).unwrap(), ::dunce::canonicalize(path).unwrap());
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn link_module_absolute() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let mut tmp1 = tmp.clone();
+        tmp1.pop();
+
+        let tmp2 = TempDir::new("sit-mod").unwrap().into_path();
+
+        let repo = Repository::new(&tmp).unwrap();
+        assert!(repo.module_iter().unwrap().next().is_none());
+
+        // create modules/test
+        fs::create_dir_all(repo.modules_path()).unwrap();
+        let mut f = fs::File::create(repo.modules_path().join("test")).unwrap();
+        f.write(tmp2.to_str().unwrap().as_bytes()).unwrap();
+
+        let mut iter = repo.module_iter().unwrap();
+
+        assert_eq!(iter.next().unwrap(), tmp2);
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn link_module_relative() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let mut tmp1 = tmp.clone();
+        tmp1.pop();
+
+
+
+        let repo = Repository::new(&tmp).unwrap();
+        fs::create_dir_all(tmp.join("module1")).unwrap();
+
+        assert!(repo.module_iter().unwrap().next().is_none());
+
+        // create modules/test
+        fs::create_dir_all(repo.modules_path()).unwrap();
+        let mut f = fs::File::create(repo.modules_path().join("test")).unwrap();
+        f.write(b"../module1").unwrap();
+
+        let mut iter = repo.module_iter().unwrap();
+
+        assert_eq!(::dunce::canonicalize(iter.next().unwrap()).unwrap(), ::dunce::canonicalize(tmp.join("module1")).unwrap());
+        assert!(iter.next().is_none());
+    }
+
+
+
 }
+

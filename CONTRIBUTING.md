@@ -55,26 +55,24 @@ be longer than one line.
 
 Once you have a branch (BRANCH) with your patch ready:
 
-Run `./scripts/prepare-merge-request <BRANCH>` script
-and either use the suggested text as is or edit it.
+Run `sit mr <BRANCH>` and either use the suggested text as is or edit it.
 Please keep in mind that currently it expects the first
 line of your commit to be a one-line problem statement
 (it will copy it to the summary), the second line to be
 empty and the rest to be a description (you can see
 an example right above).
 
-If you would prefer to attach your merge request to
-an existing issue (for example, there's a bug report,
-or a problem statement already recorded), simply
+If you would prefer to attach your merge request to an existing issue (for
+example, there's a bug report, or a problem statement already recorded), simply
 extend the above command to this:
 
 ```
-./scripts/prepare-merge-requests <BRANCH> <ISSUE-ID>
+sit mr <BRANCH> <ISSUE-ID>
 ```
 
-Then, at the end, it will give you a command line
-to copy-paste to push the request out (make sure
-you set up `issue` remote as per suggestion in [README](README.md#send-updates-to-upstream)
+Then, at the end, it will give you a command line to copy-paste to push the
+request out (make sure you set up `issue` remote as per suggestion in
+[README](README.md#send-updates-to-upstream)
 
 <img src="doc/merge_request.gif">
 

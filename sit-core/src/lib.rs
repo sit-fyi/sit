@@ -32,6 +32,8 @@ extern crate digest;
 
 #[cfg(feature = "cesu8")] extern crate cesu8;
 
+#[cfg(test)] extern crate dunce;
+
 // Crates necessary for testing
 #[cfg(test)] #[macro_use] extern crate assert_matches;
 

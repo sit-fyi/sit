@@ -22,18 +22,14 @@ Lastly, but not least importantly, because things can be simple.
 
 ## What about "normies" (less technically-savvy)? How can they use it?
 
-It depends on your model of sharing issues. If you share them over, say,
-Dropbox or something similar, it'll work just fine -- they just start
-one program (`sit-web`) and use it through a browser. No extra steps
+It depends on your model of sharing information. If you share it over, say,
+Dropbox or something similar, it'll work just fine -- they would typically
+start one program (`sit-web`) and use it through a browser. No extra steps
 required.
 
 If your workflow involves an SCM (such as Git), the setup will be
 more involved (at least for now). They'd have to be tought to use
 some GUI client for the SCM of your choice.
-
-## Is there a way to host a shared public/private instance of sit-web?
-
-Not yet. This is an interesting topic but we are not there yet.
 
 ## Why there are so many "hidden" files starting with dot?
 
@@ -46,9 +42,6 @@ files that are "meta" (those would be dot-files) and the actual data.
 To give you an example, in records, you will often see files like
 `.type/Commented` or `.timestampt` -- these files are about the record,
 while `text` or `git/0001-Problem-everything-is-ok.patch` are **the content**.
-
-Same idea applies to directories directly under `.sit`: `issues` contains issues
-and `.issues` contains information that's meta to it, like `.issues/filters`.
 
 Hope this makes sense.
 
@@ -74,26 +67,3 @@ the final state of the issue is a result of reduction of all
 its records over the state, so it is always possible to filter out
 unwanted changed. All changes are saved, and therefore, actions
 are not irreversible.
-
-## Is there a way to import issues from GitHub?
-
-There's [sit-import](https://github.com/sit-it/sit-import) project, check it out.
-
-## What browsers are supported?
-
-Both `sit-web` and [SIT's website](http://sit-it.org) rely on Web Components
-heavily. The best browser (and the most tested in our case) with respect
-to that is Chrome/Chromium. Next one is, apparently, Opera. Then, it is
-Safari, followed by Firefox and Edge. We have received reports of malfunctioning
-components in Firefox but were unable to reproduce them in Firefox 58 just yet
-(please note, however, that performance in Firefox is severely impaired comparing
-to, say, Chrome).
-
-Our hope and expectation is that Web Components' take-up will be steady and
-the support will be more even.
-
-Could we have used something "time-proven" instead? Yes, of course. However,
-in this case it was decided that it was worth a short. Web Components give
-some interesting customization capabilities and work (except when they don't
-in browsers in weaker Web Components support) in the browsers as is
-without any backend processing, which is useful in our case. Time will tell.

@@ -121,7 +121,10 @@ struct Config {
 pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository, readonly: bool, overlays: Vec<&str>) {
     let mut overlays: Vec<_> = overlays.iter().map(|o| PathBuf::from(o)).collect();
     let assets: PathBuf = repo.path().join("web").into();
-    overlays.insert(0, assets);
+    overlays.push(assets);
+    for module_name in repo.module_iter().unwrap() {
+        overlays.push(repo.modules_path().join(module_name).join("web").into());
+    }
     let repo_config = Config {
       readonly,
     };

@@ -26,6 +26,7 @@ memmap = { version = "0.6", optional = true}
 cesu8 = { version = "1.1", optional = true }
 
 [dev-dependencies]
+dunce = "0.1"
 assert_matches = "1.1"
 
 [build-dependencies]
