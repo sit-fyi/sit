@@ -33,8 +33,6 @@ extern crate xdg;
 
 extern crate jmespath;
 
-extern crate tini;
-
 extern crate fs_extra;
 extern crate pbr;
 extern crate tempdir;

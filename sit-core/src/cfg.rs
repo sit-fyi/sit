@@ -1,8 +1,6 @@
 //! Client configuration
 use std::path::PathBuf;
 
-use tini::Ini;
-
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Author {
     pub name: String,
@@ -22,10 +20,21 @@ impl Display for Author {
 }
 
 impl Author {
-    pub fn from_gitconfig(path: PathBuf) -> Option<Author> {
-        let gitconfig = Ini::from_file(&path).ok()?;
-        let name = gitconfig.get("user", "name")?;
-        let email = Some(gitconfig.get("user", "email")?);
+    #[cfg(feature = "git")]
+    pub fn from_gitconfig(_path: PathBuf) -> Option<Author> {
+        use git2;
+        let gitconfig = match git2::Config::open_default() {
+            Err(_) => return None,
+            Ok(config) => config,
+        };
+        let name = match gitconfig.get_string("user.name") {
+            Ok(name) => name,
+            Err(_) => return None,
+        };
+        let email = match gitconfig.get_string("user.email") {
+            Ok(email) => Some(email),
+            Err(_) => None,
+        };
         Some(Author {
             name,
             email
