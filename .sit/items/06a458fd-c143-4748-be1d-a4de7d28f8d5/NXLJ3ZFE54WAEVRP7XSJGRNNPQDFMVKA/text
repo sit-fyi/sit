@@ -1,0 +1,1 @@
+Problem: cfg::Author::from_gitconfig can't read some legitimate git configs
