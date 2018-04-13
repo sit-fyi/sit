@@ -1,0 +1,11 @@
+
+```shell
+$ sit -r (pwd)/.sit items| wc -l
+111
+# Everything is fine
+$ sit -r .sit items
+thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: IoError(Os { code: 2, kind: NotFound, message: "No such file or directory" })', libcore/result.rs:945:5
+note: Run with `RUST_BACKTRACE=1` for a backtrace.
+```
+
+Note that commands like `path` or `config` work fine.
