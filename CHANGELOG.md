@@ -1,3 +1,20 @@
+# 0.3.0
+
+## Breaking changes
+
+* Issue tracking is no longer an embedded web application, it has
+  been extracted to an individual module (40edf9a2-495e-434b-a857-1a86924ec2b3)
+* `sit issue` and `sit issues` commands got renamed to `sit item` and `sit items`
+  respectively (9540666d0c0a78e9f326a4a1a00b66f868b596e4)
+
+## Improvements
+
+* `sit` will now look into `cli` directory (local and in modules) and `PATH` to find
+  `sit-command` scripts for unknown commands (02546b81-12f1-4bbd-bf15-c609634a1d8e,
+  4ea948ac-4819-4630-9f1a-06870a1a6525, 40edf9a2-495e-434b-a857-1a86924ec2b3)
+* `sit config` command to query config files was introduced (b7643171-3012-4875-b62e-72f0c8717de5)
+* Configuration files can now hold custom keys (6f18103b-6d6d-4ca2-b415-1c424eec0b0c)
+
 # 0.2.0
 
 ## Breaking changes

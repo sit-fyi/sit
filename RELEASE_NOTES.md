@@ -1,3 +1,40 @@
+# 0.3.0
+
+With this release, SIT transitions from Serverless Issue Tracking to
+Serverless Information Tracking.
+
+This means that it is no longer limited to tracking issues. With
+issue tracking functionality extracted to an independent module
+(modules are one of the features introduced with this release),
+you can track and share any kind of information.
+
+The change that allowed this transition was mostly cosmetical
+(*issue* got renamed to *item*) and a module convention was introduced
+which makes transitioning pretty straightforward.
+
+For existing issue tracking SIT repositories, all that needs to be
+one is the addition of the `issue-tracking` module:
+
+If you are using a Git repository and don't want to carry the entire contents of this repository, simply
+using `git submodules` is a great way to accomplish this:
+
+```
+git submodule add https://github.com/sit-it/issue-tracking .sit/modules/issue-tracking
+```
+
+This allows to pin a specific version of `issue-tracking` and update it when neccessary.
+
+When *not* using a Git repository, or if it is preferrable to carry all the modules within your SIT
+repository (for example, if you don't want to depend on the availability of the module in the future),
+you can simply copy the entire module into `.sit/modules/issue-tracking`:
+
+```
+git clone --depth=1 https://github.com/sit-it/issue-tracking .sit/modules/issue-tracking
+rm -rf .sit/modules/issue-tracking/.sit .sit/modules/issue-tracking/.git
+```
+
+Other, more subtle changes are listed in the CHANGELOG.
+
 # 0.2.0
 
 The first thing you'll probably notice about this release is the new front
