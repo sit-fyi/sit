@@ -1,0 +1,3 @@
+After the introduction of `which` crate (and by proxy, `backtrace-sys`), it seems to be impossible to build a musl version on NixOS. Firstly, it fails to compile with `cannot find -lc`. Once `glibc.static` is added, the configure script segfaults.
+
+The build works fine on Ubuntu, so I am going to cut Linux releases using Ubuntu for now, until this issue is resolved.
