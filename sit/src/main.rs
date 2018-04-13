@@ -46,6 +46,8 @@ extern crate question;
 
 extern crate dunce;
 
+extern crate which;
+
 use std::collections::HashMap;
 fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
@@ -761,38 +763,45 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             app.print_help().expect("can't print help");
             return 1;
         }
-        #[cfg(not(windows))]
-        let mut command = ::std::process::Command::new(format!("sit-{}", subcommand));
-        #[cfg(windows)]
-        let mut command = ::std::process::Command::new("cmd");
-        #[cfg(windows)]
-        command.args(&["/c", &format!("sit-{}", subcommand)]);
+
+
         #[cfg(not(windows))]
         let path_sep = ":";
         #[cfg(windows)]
         let path_sep = ";";
+
         let mut path: String = repo.path().join("cli").to_str().unwrap().into();
         for module_name in repo.module_iter().expect("can't iterate over modules") {
             path += path_sep;
-            path += repo.modules_path().join(module_name).join("cli").to_str().unwrap();
+            path += repo.modules_path().join(module_name).join("cli").to_str().unwrap().into();
         }
+
         path += path_sep;
-        path += &env::var("PATH").unwrap_or("".into());
-        command.env("PATH",  path);
-        command.env("SIT_DIR", repo.path().to_str().unwrap());
-        command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
-        if let Some(args) = args {
-            command.args(args.values_of_lossy("").unwrap_or(vec![]));
-        }
-        match command.spawn() {
+        path += &env::var("PATH").unwrap();
+
+        match which::which_in(format!("sit-{}", subcommand), Some(path), &cwd) {
+            Ok(path) => {
+                let mut command = ::std::process::Command::new(path);
+                command.env("SIT_DIR", repo.path().to_str().unwrap());
+                command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
+                if let Some(args) = args {
+                    command.args(args.values_of_lossy("").unwrap_or(vec![]));
+                }
+                match command.spawn() {
+                    Err(_) => {
+                        return main_with_result(false);
+                    },
+                    Ok(mut process) => {
+                        let result = process.wait().unwrap();
+                        return result.code().unwrap();
+                    },
+                }
+            },
             Err(_) => {
                 return main_with_result(false);
             },
-            Ok(mut process) => {
-                let result = process.wait().unwrap();
-                return result.code().unwrap();
-            },
-        };
+        }
+
     }
 
 }
