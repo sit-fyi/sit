@@ -1,0 +1,1 @@
+While the patch above works, I am a bit hesitant to merge it because it introduces new build-time dependencies and bloats the build with libgit2. I'd love to find a lighter way to read git config (and, ideally, move this code out of sit-core)
