@@ -26,7 +26,7 @@ mod rebuild;
 use rebuild::rebuild_repository;
 mod command_config;
 mod command_args;
-mod command_cli;
+mod command_init;
 
 #[cfg(unix)]
 extern crate xdg;
@@ -365,7 +365,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
     }
 
     if let Some(init_matches) = matches.subcommand_matches("init") {
-        return command_cli::command(&init_matches, &matches, &working_dir, &dot_sit);
+        return command_init::command(&init_matches, &matches, &working_dir, &dot_sit);
     } else if let Some(matches) = matches.subcommand_matches("rebuild") {
         rebuild_repository(matches.value_of("SRC").unwrap(),
                            matches.value_of("DEST").unwrap(),
