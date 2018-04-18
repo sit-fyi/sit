@@ -1,0 +1,17 @@
+This can lead to problems with broken behaviour.
+
+Solution: cover it with basic integration tests
+
+While working on it, I've noticed that there's
+no interaction between working directory and a
+repository (if both are supplied). This means
+that if both are, repository's path will be used
+relative to the current directory of the process,
+effectively ignoring supplied working directory.
+
+To address this, if both are supplied, they will
+be concatenated. This means that if, for example,
+repository path is relative, it'll be relative
+to the supplied working directory. If it is absolute,
+it'll be effectively used as is.
+
