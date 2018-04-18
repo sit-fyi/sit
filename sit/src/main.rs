@@ -310,6 +310,11 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
 
     let mut config: cfg::Configuration = settings.try_into().expect("can't load config");
 
+    if matches.subcommand_name().is_none() {
+        app.print_help().expect("can't print help");
+        return 1;
+    }
+
     let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
     let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
     let dot_sit = working_dir.join(".sit");
@@ -743,11 +748,6 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         }
 
         let (subcommand, args) = matches.subcommand();
-        if subcommand == "" {
-            app.print_help().expect("can't print help");
-            return 1;
-        }
-
 
         #[cfg(not(windows))]
         let path_sep = ":";
