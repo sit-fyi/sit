@@ -1,0 +1,5 @@
+With named filters, it is impossible to combine
+filters to get a narrower result.
+
+Proposed solution: allow specifying multiple
+filters and named filters.
