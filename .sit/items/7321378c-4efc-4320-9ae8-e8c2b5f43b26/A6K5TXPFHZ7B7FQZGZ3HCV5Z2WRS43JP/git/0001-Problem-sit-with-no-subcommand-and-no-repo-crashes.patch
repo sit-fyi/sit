@@ -1,0 +1,46 @@
+From 05704582b57828dd76d6d121fb0d1e515bc15e88 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 18 Apr 2018 12:01:28 -0700
+Subject: [PATCH] Problem: sit with no subcommand and no repo crashes
+
+Running `sit` (with no subcommand) works fine in presence
+of a repository, but crashes if there's no repository
+found.
+
+Solution: make sure that in either case `sit` will work
+fine.
+---
+ sit/src/main.rs | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 8dbe211..d3594be 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -309,6 +309,11 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+ 
+     let mut config: cfg::Configuration = settings.try_into().expect("can't load config");
+ 
++    if matches.subcommand_name().is_none() {
++        app.print_help().expect("can't print help");
++        return 1;
++    }
++
+     let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
+     let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
+     let dot_sit = working_dir.join(".sit");
+@@ -759,11 +764,6 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         }
+ 
+         let (subcommand, args) = matches.subcommand();
+-        if subcommand == "" {
+-            app.print_help().expect("can't print help");
+-            return 1;
+-        }
+-
+ 
+         #[cfg(not(windows))]
+         let path_sep = ":";
+-- 
+2.16.2
+

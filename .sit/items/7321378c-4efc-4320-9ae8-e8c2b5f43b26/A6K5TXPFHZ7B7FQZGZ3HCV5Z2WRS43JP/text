@@ -1,0 +1,7 @@
+Running `sit` (with no subcommand) works fine in presence
+of a repository, but crashes if there's no repository
+found.
+
+Solution: make sure that in either case `sit` will work
+fine.
+
