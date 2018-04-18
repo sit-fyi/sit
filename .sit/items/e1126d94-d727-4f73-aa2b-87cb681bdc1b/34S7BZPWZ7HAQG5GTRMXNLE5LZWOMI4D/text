@@ -1,0 +1,85 @@
+Merge request 7BF63DP6TNK7SJ2AB6YQDWIGASHQ3MGU passed against revision 895a3ae3437fdcacb10f72239d099028ae7009b8
+<details><summary>Log</summary><p>```
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 6 tests
+test repo_init ... ok
+test repo_init_fail ... ok
+test repo_init_workdir ... ok
+test repo_init_repo_path ... ok
+test repo_reinit ... ok
+test repo_init_path_concat ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 51 tests
+test duktape::bindings::bindgen_test_layout___va_list_tag ... ok
+test duktape::bindings::bindgen_test_layout_duk_memory_functions ... ok
+test duktape::bindings::bindgen_test_layout_duk_function_list_entry ... ok
+test duktape::bindings::bindgen_test_layout_duk_time_components ... ok
+test duktape::bindings::bindgen_test_layout_duk_number_list_entry ... ok
+test duktape::bindings::bindgen_test_layout_duk_thread_state ... ok
+test hash::tests::sha1 ... ok
+test reducers::duktape::tests::invalid_syntax ... ok
+test hash::tests::blake2 ... ok
+test reducers::duktape::tests::cesu8_output ... ok
+test reducers::duktape::tests::module_reducers ... ok
+test reducers::duktape::tests::require_external_relative ... ok
+test reducers::duktape::tests::cesu8_input ... ok
+test reducers::duktape::tests::require_not_found ... ok
+test reducers::duktape::tests::module_closure ... ok
+test reducers::tests::chained_reducer ... ok
+test repository::tests::new_named_item ... ok
+test reducers::duktape::tests::anonymous_function_error ... ok
+test reducers::duktape::tests::require ... ok
+test repository::tests::new_repo ... ok
+test reducers::duktape::tests::mistyped_result ... ok
+test reducers::duktape::tests::module_export_non_function_error ... ok
+test repository::tests::new_item ... ok
+test repository::tests::find_repo ... ok
+test reducers::duktape::tests::require_external_absolute ... ok
+test reducers::duktape::tests::record_hash ... ok
+test repository::tests::issues_to_items_upgrade ... ok
+test repository::tests::new_repo_already_exists ... ok
+test repository::tests::modules ... ok
+test repository::tests::open_repo ... ok
+test repository::tests::link_module_relative ... ok
+test repository::tests::link_module_absolute ... ok
+test reducers::duktape::tests::record_contents ... ok
+test reducers::duktape::tests::resetting_state ... ok
+test repository::tests::new_named_item_dup ... ok
+test reducers::duktape::tests::require_path_modification ... ok
+test reducers::duktape::tests::require_in_module ... ok
+test reducers::duktape::tests::module_export_props ... ok
+test repository::tests::new_record ... ok
+test reducers::duktape::tests::require_in_linked_module ... ok
+test reducers::duktape::tests::multiple_reducers ... ok
+test repository::tests::new_record_parents_linking ... ok
+test reducers::duktape::tests::undefined_result ... ok
+test reducers::duktape::tests::runtime_error ... ok
+test repository::tests::record_deterministic_hashing ... ok
+test reducers::duktape::tests::cloned ... ok
+test repository::tests::record_ordering ... ok
+test reducers::duktape::tests::reducer_state ... ok
+test repository::tests::record_dynamic_hashing ... ok
+test repository::tests::record_filtering ... ok
+test repository::tests::record_outside_naming_scheme ... ok
+
+test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 1 test
+test /home/travis/build/sit-it/sit/target/debug/build/sit-core-cceb26a3715b361b/out/default_files.rs - repository::default_files::Dir::walk (line 70) ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out```
+</p></details>
