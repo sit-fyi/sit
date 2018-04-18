@@ -1,0 +1,7 @@
+This module handles `init` subcommand and its
+naming is confusing.
+
+Solution: rename it to command_init
+
+(facepalm)
+

@@ -1,0 +1,46 @@
+From e5385b0a224aaccf61a911735dac29fb0afc9afc Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 18 Apr 2018 14:18:53 -0700
+Subject: [PATCH] Problem: command_cli module naming
+
+This module handles `init` subcommand and its
+naming is confusing.
+
+Solution: rename it to command_init
+
+(facepalm)
+---
+ sit/src/{command_cli.rs => command_init.rs} | 0
+ sit/src/main.rs                             | 4 ++--
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+ rename sit/src/{command_cli.rs => command_init.rs} (100%)
+
+diff --git a/sit/src/command_cli.rs b/sit/src/command_init.rs
+similarity index 100%
+rename from sit/src/command_cli.rs
+rename to sit/src/command_init.rs
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 8b3100d..048a354 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -26,7 +26,7 @@ mod rebuild;
+ use rebuild::rebuild_repository;
+ mod command_config;
+ mod command_args;
+-mod command_cli;
++mod command_init;
+ 
+ #[cfg(unix)]
+ extern crate xdg;
+@@ -365,7 +365,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+     }
+ 
+     if let Some(init_matches) = matches.subcommand_matches("init") {
+-        return command_cli::command(&init_matches, &matches, &working_dir, &dot_sit);
++        return command_init::command(&init_matches, &matches, &working_dir, &dot_sit);
+     } else if let Some(matches) = matches.subcommand_matches("rebuild") {
+         rebuild_repository(matches.value_of("SRC").unwrap(),
+                            matches.value_of("DEST").unwrap(),
+-- 
+2.16.2
+
