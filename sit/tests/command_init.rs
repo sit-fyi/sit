@@ -20,9 +20,18 @@ fn repo_init() {
 #[test]
 fn repo_init_fail() {
     let dir = TestDir::new("sit", "repo_init_fail");
+    #[cfg(unix)]
+    let path = "test";
+    #[cfg(unix)] {
+        let mut perms = fs::metadata(dir.path(".")).unwrap().permissions();
+        perms.set_readonly(true);
+        fs::set_permissions(dir.path("."), perms).unwrap();
+    }
+    #[cfg(windows)]
+    let path = ":";
     dir.cmd()
         .arg("-r")
-        .arg("/this/path/does/not/exist")
+        .arg(path)
         .arg("init")
         .expect_failure();
 }

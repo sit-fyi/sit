@@ -27,8 +27,7 @@ which = "2.0"
 sit-core = { path = "../sit-core", version = "0.4.0" }
 
 [dev-dependencies]
-cli_test_dir = "0.1"
+cli_test_dir = { git = "https://github.com/emk/subtitles-rs", rev = "be71b89" }
 
 [features]
 windows7 = ["sit-core/windows7"]
-

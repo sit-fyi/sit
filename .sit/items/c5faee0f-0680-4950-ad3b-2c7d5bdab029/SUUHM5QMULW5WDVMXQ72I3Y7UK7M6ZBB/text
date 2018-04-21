@@ -1,0 +1,3 @@
+This will not bode well with frozen builds (such as those in Nixpkgs)
+
+Proposed solution: track the release of the updated cli_test_dir crate to update it
