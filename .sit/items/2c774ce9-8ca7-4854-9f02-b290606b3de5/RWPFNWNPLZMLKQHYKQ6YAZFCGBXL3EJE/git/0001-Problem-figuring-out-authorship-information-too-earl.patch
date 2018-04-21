@@ -1,0 +1,119 @@
+From ed82af0ecc530653318728b0bac140f90bfd259f Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 21 Apr 2018 11:16:35 -0700
+Subject: [PATCH] Problem: figuring out authorship information too early
+
+Currently, `sit` would try to derive or ask for authorship
+information upon any launch, whether it is really needed
+or not (this information is only needed for `sit record`
+to function).
+
+While this is a minor annoyance, this also becomes an issue
+for test as they would have to handle this as if there's
+no .gitconfig to derive authorship from, the process tested
+will hang up because it'll be waiting for the user to enter
+their authorship information in the terminal interactively.
+
+Solution: only figure out authorship information when needed
+---
+ sit/src/main.rs | 77 +++++++++++++++++++++++++++++----------------------------
+ 1 file changed, 39 insertions(+), 38 deletions(-)
+
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 048a354..e220bd7 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -319,44 +319,6 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+     let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
+     let dot_sit = working_dir.join(".sit");
+ 
+-    if config.author.is_none() {
+-        if let Some(author) = cfg::Author::from_gitconfig(canonical_working_dir.join(".git/config")) {
+-            config.author = Some(author);
+-        } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
+-            config.author = Some(author);
+-        } else {
+-            println!("SIT needs your authorship identity to be configured\n");
+-            use question::{Question, Answer};
+-            let name = loop {
+-                match Question::new("What is your name?").ask() {
+-                    None => continue,
+-                    Some(Answer::RESPONSE(value)) => {
+-                        if value.trim() == "" {
+-                            continue;
+-                        } else {
+-                            break value;
+-                        }
+-                    },
+-                    Some(answer) => panic!("Invalid answer {:?}", answer),
+-                }
+-            };
+-            let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
+-                None => None,
+-                Some(Answer::RESPONSE(value)) => {
+-                    if value.trim() == "" {
+-                        None
+-                    } else {
+-                        Some(value)
+-                    }
+-                },
+-                Some(answer) => panic!("Invalid answer {:?}", answer),
+-            };
+-            config.author = Some(cfg::Author { name, email });
+-            let file = fs::File::create(config_path).expect("can't open config file for writing");
+-            serde_json::to_writer_pretty(file, &config).expect("can't write config");
+-        }
+-    }
+-
+     if let Some(matches) = matches.subcommand_matches("config") {
+         if matches.value_of("kind").unwrap() == "user" {
+             command_config::command(&config, matches.value_of("query"));
+@@ -470,6 +432,45 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("record") {
++
++            if config.author.is_none() {
++                if let Some(author) = cfg::Author::from_gitconfig(canonical_working_dir.join(".git/config")) {
++                    config.author = Some(author);
++                } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
++                    config.author = Some(author);
++                } else {
++                    println!("SIT needs your authorship identity to be configured\n");
++                    use question::{Question, Answer};
++                    let name = loop {
++                        match Question::new("What is your name?").ask() {
++                            None => continue,
++                            Some(Answer::RESPONSE(value)) => {
++                                if value.trim() == "" {
++                                    continue;
++                                } else {
++                                    break value;
++                                }
++                            },
++                            Some(answer) => panic!("Invalid answer {:?}", answer),
++                        }
++                    };
++                    let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
++                        None => None,
++                        Some(Answer::RESPONSE(value)) => {
++                            if value.trim() == "" {
++                                None
++                            } else {
++                                Some(value)
++                            }
++                        },
++                        Some(answer) => panic!("Invalid answer {:?}", answer),
++                    };
++                    config.author = Some(cfg::Author { name, email });
++                    let file = fs::File::create(config_path).expect("can't open config file for writing");
++                    serde_json::to_writer_pretty(file, &config).expect("can't write config");
++                }
++            }
++
+             let mut items = repo.item_iter().expect("can't list items");
+             let id = matches.value_of("id").unwrap();
+             match items.find(|i| i.id() == id) {
+-- 
+2.16.2
+

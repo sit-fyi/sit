@@ -1,0 +1,13 @@
+Currently, `sit` would try to derive or ask for authorship
+information upon any launch, whether it is really needed
+or not (this information is only needed for `sit record`
+to function).
+
+While this is a minor annoyance, this also becomes an issue
+for test as they would have to handle this as if there's
+no .gitconfig to derive authorship from, the process tested
+will hang up because it'll be waiting for the user to enter
+their authorship information in the terminal interactively.
+
+Solution: only figure out authorship information when needed
+
