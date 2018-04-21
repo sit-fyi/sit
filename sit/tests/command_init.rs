@@ -16,6 +16,30 @@ fn repo_init() {
     assert!(Repository::open(dir.path(".sit")).is_ok());
 }
 
+/// Should initialize a repository in an empty directory (absolute)
+#[test]
+fn repo_init_emptydir_absolute() {
+    let dir = TestDir::new("sit", "repo_init_emptydir_absolute");
+    dir.cmd()
+        .args(&["-r", dir.path(".").to_str().unwrap()])
+        .arg("init")
+        .expect_success();
+    assert!(dir.path("config.json").is_file());
+    assert!(Repository::open(dir.path(".")).is_ok());
+}
+
+/// Should initialize a repository in an empty directory (relative)
+#[test]
+fn repo_init_emptydir_relative() {
+    let dir = TestDir::new("sit", "repo_init_emptydir_relative");
+    dir.cmd()
+        .args(&["-r", "."])
+        .arg("init")
+        .expect_success();
+    assert!(dir.path("config.json").is_file());
+    assert!(Repository::open(dir.path(".")).is_ok());
+}
+
 /// Should return failing status when unable to initialize a repository
 #[test]
 fn repo_init_fail() {

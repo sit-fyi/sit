@@ -154,7 +154,7 @@ impl Repository {
     /// if a repository already exists.
     pub fn new_with_config<P: Into<PathBuf>>(path: P, config: Config) -> Result<Self, Error> {
         let path: PathBuf = path.into();
-        if path.is_dir() {
+        if path.is_dir() && fs::read_dir(&path)?.next().is_some() {
             Err(Error::AlreadyExists)
         } else {
             let mut config_path = path.clone();
