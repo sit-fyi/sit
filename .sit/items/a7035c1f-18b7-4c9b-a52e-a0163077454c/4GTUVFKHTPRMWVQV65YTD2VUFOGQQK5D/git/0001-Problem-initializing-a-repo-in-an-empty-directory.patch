@@ -1,0 +1,68 @@
+From 57be27680f60ae6c5b437fac1a0bcf3a3572911b Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 21 Apr 2018 09:40:12 -0700
+Subject: [PATCH] Problem: initializing a repo in an empty directory
+
+Currently, if one would try to run `sit -r . init`
+in an empty directory it will fail with the error
+message saying that the repository already exists.
+
+This is less than optimal in terms of UX.
+
+Solution: allow initializing a repository in an empty directory
+---
+ sit-core/src/repository.rs |  2 +-
+ sit/tests/command_init.rs  | 24 ++++++++++++++++++++++++
+ 2 files changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 1c6c0ea..5a9e85c 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -154,7 +154,7 @@ impl Repository {
+     /// if a repository already exists.
+     pub fn new_with_config<P: Into<PathBuf>>(path: P, config: Config) -> Result<Self, Error> {
+         let path: PathBuf = path.into();
+-        if path.is_dir() {
++        if path.is_dir() && fs::read_dir(&path)?.next().is_some() {
+             Err(Error::AlreadyExists)
+         } else {
+             let mut config_path = path.clone();
+diff --git a/sit/tests/command_init.rs b/sit/tests/command_init.rs
+index cc87108..2fd0772 100644
+--- a/sit/tests/command_init.rs
++++ b/sit/tests/command_init.rs
+@@ -16,6 +16,30 @@ fn repo_init() {
+     assert!(Repository::open(dir.path(".sit")).is_ok());
+ }
+ 
++/// Should initialize a repository in an empty directory (absolute)
++#[test]
++fn repo_init_emptydir_absolute() {
++    let dir = TestDir::new("sit", "repo_init_emptydir_absolute");
++    dir.cmd()
++        .args(&["-r", dir.path(".").to_str().unwrap()])
++        .arg("init")
++        .expect_success();
++    assert!(dir.path("config.json").is_file());
++    assert!(Repository::open(dir.path(".")).is_ok());
++}
++
++/// Should initialize a repository in an empty directory (relative)
++#[test]
++fn repo_init_emptydir_relative() {
++    let dir = TestDir::new("sit", "repo_init_emptydir_relative");
++    dir.cmd()
++        .args(&["-r", "."])
++        .arg("init")
++        .expect_success();
++    assert!(dir.path("config.json").is_file());
++    assert!(Repository::open(dir.path(".")).is_ok());
++}
++
+ /// Should return failing status when unable to initialize a repository
+ #[test]
+ fn repo_init_fail() {
+-- 
+2.16.2
+

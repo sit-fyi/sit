@@ -1,0 +1,8 @@
+Currently, if one would try to run `sit -r . init`
+in an empty directory it will fail with the error
+message saying that the repository already exists.
+
+This is less than optimal in terms of UX.
+
+Solution: allow initializing a repository in an empty directory
+
