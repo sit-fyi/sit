@@ -319,44 +319,6 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
     let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
     let dot_sit = working_dir.join(".sit");
 
-    if config.author.is_none() {
-        if let Some(author) = cfg::Author::from_gitconfig(canonical_working_dir.join(".git/config")) {
-            config.author = Some(author);
-        } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
-            config.author = Some(author);
-        } else {
-            println!("SIT needs your authorship identity to be configured\n");
-            use question::{Question, Answer};
-            let name = loop {
-                match Question::new("What is your name?").ask() {
-                    None => continue,
-                    Some(Answer::RESPONSE(value)) => {
-                        if value.trim() == "" {
-                            continue;
-                        } else {
-                            break value;
-                        }
-                    },
-                    Some(answer) => panic!("Invalid answer {:?}", answer),
-                }
-            };
-            let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
-                None => None,
-                Some(Answer::RESPONSE(value)) => {
-                    if value.trim() == "" {
-                        None
-                    } else {
-                        Some(value)
-                    }
-                },
-                Some(answer) => panic!("Invalid answer {:?}", answer),
-            };
-            config.author = Some(cfg::Author { name, email });
-            let file = fs::File::create(config_path).expect("can't open config file for writing");
-            serde_json::to_writer_pretty(file, &config).expect("can't write config");
-        }
-    }
-
     if let Some(matches) = matches.subcommand_matches("config") {
         if matches.value_of("kind").unwrap() == "user" {
             command_config::command(&config, matches.value_of("query"));
@@ -470,6 +432,45 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         }
 
         if let Some(matches) = matches.subcommand_matches("record") {
+
+            if config.author.is_none() {
+                if let Some(author) = cfg::Author::from_gitconfig(canonical_working_dir.join(".git/config")) {
+                    config.author = Some(author);
+                } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
+                    config.author = Some(author);
+                } else {
+                    println!("SIT needs your authorship identity to be configured\n");
+                    use question::{Question, Answer};
+                    let name = loop {
+                        match Question::new("What is your name?").ask() {
+                            None => continue,
+                            Some(Answer::RESPONSE(value)) => {
+                                if value.trim() == "" {
+                                    continue;
+                                } else {
+                                    break value;
+                                }
+                            },
+                            Some(answer) => panic!("Invalid answer {:?}", answer),
+                        }
+                    };
+                    let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
+                        None => None,
+                        Some(Answer::RESPONSE(value)) => {
+                            if value.trim() == "" {
+                                None
+                            } else {
+                                Some(value)
+                            }
+                        },
+                        Some(answer) => panic!("Invalid answer {:?}", answer),
+                    };
+                    config.author = Some(cfg::Author { name, email });
+                    let file = fs::File::create(config_path).expect("can't open config file for writing");
+                    serde_json::to_writer_pretty(file, &config).expect("can't write config");
+                }
+            }
+
             let mut items = repo.item_iter().expect("can't list items");
             let id = matches.value_of("id").unwrap();
             match items.find(|i| i.id() == id) {
