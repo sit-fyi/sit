@@ -1,0 +1,213 @@
+From cbdc40d9d29615e661eb52ab466f6b2d71b8c2e9 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 21 Apr 2018 11:23:45 -0700
+Subject: [PATCH] Problem: CLI tests fail on Windows
+
+Solution: update cli_test_dir to the version that works fine on Windows
+and fix one of the tests to actually induce a failure on Windows
+
+Change this as well for Unix as on some systems creating an arbitrary
+path is okay (in some containerized environments) by making the target
+directory read-only.
+---
+ .../GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.authors           |  1 +
+ .../GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.signature         | 17 +++++++++++++++++
+ .../GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.timestamp         |  1 +
+ .../.type/SummaryChanged                                |  0
+ .../GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/text               |  1 +
+ .../SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.authors           |  1 +
+ .../SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.signature         | 17 +++++++++++++++++
+ .../SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.timestamp         |  1 +
+ .../.type/DetailsChanged                                |  0
+ .../SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/text               |  3 +++
+ Cargo.lock                                              |  8 ++++----
+ sit/Cargo.toml                                          |  3 +--
+ sit/tests/command_init.rs                               | 11 ++++++++++-
+ 13 files changed, 57 insertions(+), 7 deletions(-)
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.authors
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.signature
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.timestamp
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.type/SummaryChanged
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/text
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.authors
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.signature
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.timestamp
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.type/DetailsChanged
+ create mode 100644 .sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/text
+
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.authors b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.authors
+new file mode 100644
+index 0000000..8022052
+--- /dev/null
++++ b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.authors
+@@ -0,0 +1 @@
++Yurii Rashkovskii <me@yrashk.com>
+\ No newline at end of file
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.signature b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.signature
+new file mode 100644
+index 0000000..7b3e6ef
+--- /dev/null
++++ b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.signature
+@@ -0,0 +1,17 @@
++-----BEGIN PGP SIGNATURE-----
++
++iQJCBAABCAAsFiEEjmkaFOaskcs7s6g8HWDXz9gIRf8FAlrbgY8OHG1lQHlyYXNo
++ay5jb20ACgkQHWDXz9gIRf/zpA//d0HuSjiphy23zix8Vjk897K4HYDvyT1txxln
++hKlTWRJyTaHm7Bvr21ErvD03gDQX68mKbPnHqY4bvdV4a/ICu/VhWRTNJVqMHeJB
++fgnZPUOsaNJ1fwTQv4qotInqsNrFzhCUbZivSB4Es29beqW26fTrWyx28kUTUFqC
++Ph/KxytE1SLzh4jrwej8uzjHBoKiwxKX/HTeAiuPI8sY8VboTQNQd7B6DV2vgbxg
++k303jeKkzGYvR/yoB64bTmP8MFpeIX3Z4A3OQv16nXzpGAkPWWcwbjbUEHaw5XiF
++Yavj/dsPwVP6jRhG/l2gPF8lFxEIgEOtzF/eUUO2bzikiRnZFTEbm10e0uu+TZtk
++ocLC+Adm9A0U961JufHWhOQ0vKIoBkAho7pmySxGEUKMt1bvi2cFjEboPf+McxHD
++P8VWYwm5KN1HGzeWAH4KqxrrC8IUo7cZCEx7hj3npfcTMpVcQSub3uHECrF8L3fJ
++/8JRqBVsXLXPqJOKCe1aJmBed6ACF6iseOKjg9Mbm6HF7rFUwo/rax+U+HSwmlTQ
++UBt6sBOMpLgoFnkOR7qSGOnoWBDIPOBO3lBOiH9HjdDojinDjpJbFsPQQpirtyfW
++QmYUunYWbgAOeXiKeV9B7xzdjjqkvXARqOPgi1xp+vm1zI8X/c0a+hnCfePX4OTZ
++tHDiGIw=
++=08QS
++-----END PGP SIGNATURE-----
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.timestamp b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.timestamp
+new file mode 100644
+index 0000000..2474af9
+--- /dev/null
++++ b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.timestamp
+@@ -0,0 +1 @@
++2018-04-21T18:23:09.502Z
+\ No newline at end of file
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.type/SummaryChanged b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/.type/SummaryChanged
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/text b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/text
+new file mode 100644
+index 0000000..676ee41
+--- /dev/null
++++ b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/GXK7PZBXUPOEE75TG4QFWWAIOMR6YCIU/text
+@@ -0,0 +1 @@
++Problem: cli_test_dir dependency depends on a git source
+\ No newline at end of file
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.authors b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.authors
+new file mode 100644
+index 0000000..8022052
+--- /dev/null
++++ b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.authors
+@@ -0,0 +1 @@
++Yurii Rashkovskii <me@yrashk.com>
+\ No newline at end of file
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.signature b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.signature
+new file mode 100644
+index 0000000..4a9e407
+--- /dev/null
++++ b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.signature
+@@ -0,0 +1,17 @@
++-----BEGIN PGP SIGNATURE-----
++
++iQJCBAABCAAsFiEEjmkaFOaskcs7s6g8HWDXz9gIRf8FAlrbgY8OHG1lQHlyYXNo
++ay5jb20ACgkQHWDXz9gIRf8Ijw/+PZ1rT0D0S0P5OMrI4HlQrVE8t6X/2qoChRfB
++iJdWbzrkzXhKeXy3/TloU/ndXfRFVda2o7E+duDyj4cWD4/Mq8+rxlvC47/m0n7n
++5S1Y9BSI3tO7mULrt3KRNF6mcbQEH8u4ol071tXXWj5ccDD1EIx3qTQGBxXNPEzf
++QxlnikP7OSpAoHmoyacN4Cc+1qV7BzscrXZNbNLAaGsw1deUHsysznz4r8+N6ZHz
++xegdBBcu1+g2blZIvHgugi6gjJhIKCBQeQ6Pvh+0gnI70mZByBav1RhEStn/xAiH
++pvLRQEUkKNyoMYbFBFsxMtz1H+D2A36DUPBIXqhWJLZgRp7Hu4KylsbHjnbdA3cy
++1zs4kG5U8opjfdamIXeH53D5Eq0FwGAIa6cjDniT8Bvj7tPAtChcP9GXnqQBck2h
++SG8HqD63mLposbLVxLj8+0ROJ26heN6nJRQAoM1hAkOYnFXjL5W6j8Aqyeoz3UVX
++DwFfNZrHtIlQPLDyIxPyVNln8NWXPYwVXYGCPd9GrkScz7vELkZHDceB24HeCK5j
++acYPIDK9tAUtTHCHoPzc5iWVbouO7rqde4QdgBeUlfAzZWBFBBKZJC65V0w83ny9
++9SBqOj86vaUsifvJ2so9H5NuQw8o7rzc7B1uRK3lKz2/i6/YcTkimrCTlh+fzcHj
++d2CezpE=
++=eCsL
++-----END PGP SIGNATURE-----
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.timestamp b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.timestamp
+new file mode 100644
+index 0000000..2474af9
+--- /dev/null
++++ b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.timestamp
+@@ -0,0 +1 @@
++2018-04-21T18:23:09.502Z
+\ No newline at end of file
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.type/DetailsChanged b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/.type/DetailsChanged
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/text b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/text
+new file mode 100644
+index 0000000..8b7f15a
+--- /dev/null
++++ b/.sit/items/c5faee0f-0680-4950-ad3b-2c7d5bdab029/SUUHM5QMULW5WDVMXQ72I3Y7UK7M6ZBB/text
+@@ -0,0 +1,3 @@
++This will not bode well with frozen builds (such as those in Nixpkgs)
++
++Proposed solution: track the release of the updated cli_test_dir crate to update it
+\ No newline at end of file
+diff --git a/Cargo.lock b/Cargo.lock
+index b6a7168..b25f08f 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -208,8 +208,8 @@ dependencies = [
+ 
+ [[package]]
+ name = "cli_test_dir"
+-version = "0.1.4"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
++version = "0.1.5"
++source = "git+https://github.com/emk/subtitles-rs?rev=be71b89#be71b897c93aa7b2ef56de6ae0a6f645e60dbf1f"
+ 
+ [[package]]
+ name = "config"
+@@ -1014,7 +1014,7 @@ version = "0.4.0"
+ dependencies = [
+  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
+- "cli_test_dir 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
++ "cli_test_dir 0.1.5 (git+https://github.com/emk/subtitles-rs?rev=be71b89)",
+  "config 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "dunce 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+  "fs_extra 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+@@ -1446,7 +1446,7 @@ dependencies = [
+ "checksum chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7c20ebe0b2b08b0aeddba49c609fe7957ba2e33449882cb186a180bc60682fa9"
+ "checksum chunked_transfer 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "498d20a7aaf62625b9bf26e637cf7736417cde1d0c99f1d04d1170229a85cf87"
+ "checksum clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f0f16b89cbb9ee36d87483dc939fe9f1e13c05898d56d7b230a0d4dff033a536"
+-"checksum cli_test_dir 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "d8fb20cba2f4b12fe7df665e23bf22551a45c61586026b4a0993bf5cd8a71c40"
++"checksum cli_test_dir 0.1.5 (git+https://github.com/emk/subtitles-rs?rev=be71b89)" = "<none>"
+ "checksum config 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e595d1735d8ab6b04906bbdcfc671cce2a5e609b6f8e92865e67331cc2f41ba4"
+ "checksum constant_time_eq 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "8ff012e225ce166d4422e0e78419d901719760f62ae2b7969ca6b564d1b54a9e"
+ "checksum crc 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bd5d02c0aac6bd68393ed69e00bbc2457f3e89075c6349db7189618dc4ddc1d7"
+diff --git a/sit/Cargo.toml b/sit/Cargo.toml
+index 623e515..885c067 100644
+--- a/sit/Cargo.toml
++++ b/sit/Cargo.toml
+@@ -27,8 +27,7 @@ which = "2.0"
+ sit-core = { path = "../sit-core", version = "0.4.0" }
+ 
+ [dev-dependencies]
+-cli_test_dir = "0.1"
++cli_test_dir = { git = "https://github.com/emk/subtitles-rs", rev = "be71b89" }
+ 
+ [features]
+ windows7 = ["sit-core/windows7"]
+-
+diff --git a/sit/tests/command_init.rs b/sit/tests/command_init.rs
+index cc87108..88f8318 100644
+--- a/sit/tests/command_init.rs
++++ b/sit/tests/command_init.rs
+@@ -20,9 +20,18 @@ fn repo_init() {
+ #[test]
+ fn repo_init_fail() {
+     let dir = TestDir::new("sit", "repo_init_fail");
++    #[cfg(unix)]
++    let path = "test";
++    #[cfg(unix)] {
++        let mut perms = fs::metadata(dir.path(".")).unwrap().permissions();
++        perms.set_readonly(true);
++        fs::set_permissions(dir.path("."), perms).unwrap();
++    }
++    #[cfg(windows)]
++    let path = ":";
+     dir.cmd()
+         .arg("-r")
+-        .arg("/this/path/does/not/exist")
++        .arg(path)
+         .arg("init")
+         .expect_failure();
+ }
+-- 
+2.16.2
+

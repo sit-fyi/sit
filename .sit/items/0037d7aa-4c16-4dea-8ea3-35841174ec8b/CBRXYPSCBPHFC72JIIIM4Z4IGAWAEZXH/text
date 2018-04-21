@@ -1,0 +1,7 @@
+Solution: update cli_test_dir to the version that works fine on Windows
+and fix one of the tests to actually induce a failure on Windows
+
+Change this as well for Unix as on some systems creating an arbitrary
+path is okay (in some containerized environments) by making the target
+directory read-only.
+
