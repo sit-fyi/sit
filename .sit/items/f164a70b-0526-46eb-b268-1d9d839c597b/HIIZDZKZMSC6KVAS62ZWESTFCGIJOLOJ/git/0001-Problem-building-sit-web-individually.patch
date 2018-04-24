@@ -1,0 +1,34 @@
+From 26ed3783b12b2022f16957ae00f56d0eeab0cf66 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 24 Apr 2018 16:08:27 -0700
+Subject: [PATCH] Problem: building sit-web individually
+
+If, instead of running `cargo build` in the project root, one
+would attempt to run it in `sit-web/`, the build will fail with
+the following error:
+
+```
+error[E0599]: no function or associated item named `from_gitconfig` found for type `sit_core::cfg::Author` in the current scope
+```
+
+Solution: add `git` feature to `sit-core` dependency in sit-web
+---
+ sit-web/Cargo.toml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sit-web/Cargo.toml b/sit-web/Cargo.toml
+index 8e0b11a..6731265 100644
+--- a/sit-web/Cargo.toml
++++ b/sit-web/Cargo.toml
+@@ -24,7 +24,7 @@ rayon = "1.0"
+ digest = "0.7"
+ blake2 = "0.7"
+ hex = "0.3"
+-sit-core = { path = "../sit-core", version = "0.4.0" }
++sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
+ 
+ [build-dependencies]
+ include_dir = "0.1"
+-- 
+2.16.2
+
