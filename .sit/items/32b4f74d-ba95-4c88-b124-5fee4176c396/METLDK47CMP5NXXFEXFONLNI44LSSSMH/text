@@ -1,0 +1,3 @@
+sit-core has an optional dependency on `git2` crate. It's only required to read user git config in `sit` or other tools. While size bloat might be insignificant, the build process require the installation of CMake which makes building sit from sources just a notch more complicated. 
+
+Not a roadblock, but rather just a case of bringing it too many dependencies for a small feature.
