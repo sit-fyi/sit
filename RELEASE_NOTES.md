@@ -1,3 +1,11 @@
+# 0.3.1
+
+This is a minor bugfix release. In certain cases (for example,
+when non-semicolon comments are used), `sit` would emit a cryptic
+error and proceed (`line 0: error: ...`). This release replaces
+the library previously used in parsing git config to derive
+initial authorship with libgit2.
+
 # 0.3.0
 
 With this release, SIT transitions from Serverless Issue Tracking to

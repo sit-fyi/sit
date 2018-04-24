@@ -1,3 +1,9 @@
+# 0.3.1
+
+## Bugfixes
+
+* Deriving authorship from .gitconfig failed in some cases (06a458fd-c143-4748-be1d-a4de7d28f8d5)
+
 # 0.3.0
 
 ## Breaking changes
