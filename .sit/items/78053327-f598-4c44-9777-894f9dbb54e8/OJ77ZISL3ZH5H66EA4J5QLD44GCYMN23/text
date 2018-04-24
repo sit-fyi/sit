@@ -1,0 +1,10 @@
+If, instead of running `cargo build` in the project root, one
+would attempt to run it in `sit-web/`, the build will fail with
+the following error:
+
+```
+error[E0599]: no function or associated item named `from_gitconfig` found for type `sit_core::cfg::Author` in the current scope
+```
+
+Solution: add `git` feature to `sit-core` dependency in sit-web
+
