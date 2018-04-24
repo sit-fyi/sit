@@ -15,7 +15,6 @@ serde = "1.0"
 serde_json = "1.0"
 xdg = "2.1"
 jmespath = { version = "0.2", features = ["sync"] }
-tini = "0.2.0"
 fs_extra = "1.1"
 pbr = "1.0"
 tempdir = "0.3"
@@ -24,7 +23,7 @@ rayon = "1.0"
 question = "0.2"
 dunce = "0.1"
 which = "2.0"
-sit-core = { path = "../sit-core", version = "0.3.1" }
+sit-core = { path = "../sit-core", version = "0.3.1", features = ["git"] }
 
 [features]
 windows7 = ["sit-core/windows7"]

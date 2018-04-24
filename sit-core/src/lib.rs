@@ -19,7 +19,6 @@ extern crate tempdir;
 extern crate glob;
 extern crate data_encoding;
 #[macro_use] extern crate lazy_static;
-extern crate tini;
 
 // Hashing
 extern crate digest;
@@ -31,6 +30,8 @@ extern crate digest;
 #[cfg(feature = "memmap")] extern crate memmap;
 
 #[cfg(feature = "cesu8")] extern crate cesu8;
+
+#[cfg(feature = "git")] extern crate git2;
 
 #[cfg(test)] extern crate dunce;
 
