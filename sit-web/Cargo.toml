@@ -24,7 +24,7 @@ rayon = "1.0"
 digest = "0.7"
 blake2 = "0.7"
 hex = "0.3"
-sit-core = { path = "../sit-core", version = "0.4.0" }
+sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
 
 [build-dependencies]
 include_dir = "0.1"
