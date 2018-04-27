@@ -1,0 +1,134 @@
+From 344d131600484e4c484e71be1c6f74e5f88ee774 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 27 Apr 2018 08:39:58 -0700
+Subject: [PATCH] Problem: `sit item` is not tested
+
+Solution: develop a basic test for this subcommand
+---
+ sit/src/command_item.rs   | 29 ++++++++++++++++++++++++++++
+ sit/src/main.rs           |  9 ++-------
+ sit/tests/command_item.rs | 49 +++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 80 insertions(+), 7 deletions(-)
+ create mode 100644 sit/src/command_item.rs
+ create mode 100644 sit/tests/command_item.rs
+
+diff --git a/sit/src/command_item.rs b/sit/src/command_item.rs
+new file mode 100644
+index 0000000..c2f2976
+--- /dev/null
++++ b/sit/src/command_item.rs
+@@ -0,0 +1,29 @@
++use clap::ArgMatches;
++use sit_core::{Repository, Item, repository::{Error}};
++use std::io::ErrorKind as IoErrorKind;
++
++pub fn command(matches: &ArgMatches, repo: &Repository) -> i32 {
++    let named = matches.value_of("id");
++    let item = if named.is_none() {
++        repo.new_item()
++    } else {
++        repo.new_named_item(named.clone().unwrap())
++    };
++    match item {
++        Ok(item) => {
++            println!("{}", item.id());
++            return 0;
++        },
++        Err(Error::IoError(err)) => {
++            if err.kind() == IoErrorKind::AlreadyExists {
++                eprintln!("Item {} already exists", named.unwrap());
++                return 1;
++            } else {
++                panic!("can't create an item: {:?}", err)
++            }
++        },
++        Err(err) =>
++            panic!("can't create an item: {:?}", err),
++    }
++}
++
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 3a73714..1935e01 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -27,6 +27,7 @@ use rebuild::rebuild_repository;
+ mod command_config;
+ mod command_args;
+ mod command_init;
++mod command_item;
+ 
+ #[cfg(unix)]
+ extern crate xdg;
+@@ -371,13 +372,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+             println!("{}", repo.path().to_str().unwrap());
+             return 0;
+         } else if let Some(matches) = matches.subcommand_matches("item") {
+-            let item = (if matches.value_of("id").is_none() {
+-                repo.new_item()
+-            } else {
+-                repo.new_named_item(matches.value_of("id").unwrap())
+-            }).expect("can't create an item");
+-            println!("{}", item.id());
+-            return 0;
++            return command_item::command(matches, &repo);
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("items") {
+diff --git a/sit/tests/command_item.rs b/sit/tests/command_item.rs
+new file mode 100644
+index 0000000..03fb540
+--- /dev/null
++++ b/sit/tests/command_item.rs
+@@ -0,0 +1,49 @@
++extern crate cli_test_dir;
++extern crate sit_core;
++
++use cli_test_dir::*;
++use sit_core::{Repository, Item};
++
++/// Should create an item
++#[test]
++fn item() {
++    let dir = TestDir::new("sit", "item");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let mut items = repo.item_iter().unwrap();
++    let item = items.next().unwrap();
++    assert_eq!(item.id(), id.trim());
++    assert!(items.next().is_none());
++}
++
++/// Should create a named item
++#[test]
++fn item_named() {
++    let dir = TestDir::new("sit", "item_named");
++    dir.cmd()
++        .arg("init")
++       .expect_success();
++    let id = String::from_utf8(dir.cmd().args(&["item", "--id", "test"]).expect_success().stdout).unwrap();
++    assert_eq!(id.trim(), "test");
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let mut items = repo.item_iter().unwrap();
++    let item = items.next().unwrap();
++    assert_eq!(item.id(), id.trim());
++    assert!(items.next().is_none());
++}
++
++/// Should fail if creating a named item with a duplicate name
++/// (item with such name already exists)
++#[test]
++fn item_existing() {
++    let dir = TestDir::new("sit", "existing");
++    dir.cmd()
++        .arg("init")
++       .expect_success();
++    dir.cmd().args(&["item", "--id", "test"]).expect_success();
++    let err = String::from_utf8(dir.cmd().args(&["item", "--id", "test"]).expect_failure().stderr).unwrap();
++    assert_eq!(err.trim(), "Item test already exists");
++}
+-- 
+2.16.2
+
