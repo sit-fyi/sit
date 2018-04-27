@@ -27,6 +27,7 @@ use rebuild::rebuild_repository;
 mod command_config;
 mod command_args;
 mod command_init;
+mod command_item;
 
 #[cfg(unix)]
 extern crate xdg;
@@ -371,13 +372,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             println!("{}", repo.path().to_str().unwrap());
             return 0;
         } else if let Some(matches) = matches.subcommand_matches("item") {
-            let item = (if matches.value_of("id").is_none() {
-                repo.new_item()
-            } else {
-                repo.new_named_item(matches.value_of("id").unwrap())
-            }).expect("can't create an item");
-            println!("{}", item.id());
-            return 0;
+            return command_item::command(matches, &repo);
         }
 
         if let Some(matches) = matches.subcommand_matches("items") {
