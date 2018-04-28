@@ -313,6 +313,23 @@ impl Repository {
         })
     }
 
+    /// Finds an item by name (if there is one)
+    pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item> {
+        let path = self.items_path().join(name.as_ref());
+        if path.is_dir() && path.strip_prefix(self.items_path()).is_ok() {
+            let mut test = path.clone();
+            test.pop();
+            if test != self.items_path() {
+                return None;
+            }
+            let id = path.file_name().unwrap().to_os_string();
+            let item = Item { repository: self, id };
+            Some(item)
+        } else {
+            None
+        }
+    }
+
     /// Returns path to modules. The target directory may not exist.
     pub fn modules_path(&self) -> &Path {
         &self.modules_path
@@ -347,12 +364,18 @@ impl Repository {
     }
 }
 
+impl PartialEq for Repository {
+    fn eq(&self, rhs: &Repository) -> bool {
+        (self as *const Repository) == (rhs as *const Repository)
+    }
+}
+
 use super::Item as ItemTrait;
 
 use std::ffi::OsString;
 
 /// An item residing in a repository
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Item<'a> {
     repository: &'a Repository,
     id: OsString,
@@ -878,6 +901,25 @@ mod tests {
         assert_matches!(item1.unwrap_err(), Error::IoError(_));
         // there's still just one item
         assert_eq!(repo.item_iter().unwrap().count(), 1);
+    }
+
+    #[test]
+    fn find_item() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(&tmp).unwrap();
+        // create an item
+        let item = repo.new_named_item("one").unwrap();
+       // find an existing item
+        assert_eq!(repo.item("one").unwrap(), item);
+        // find a non-existing item
+        assert!(repo.item("two").is_none());
+        // point outside of items
+        assert!(repo.item("/").is_none());
+        // point anywhere not one level below items
+        assert!(repo.item("one/..").is_none());
+        item.new_record(vec![("test/it", &[1u8][..])].into_iter(), false).unwrap();
+        assert!(repo.item("one/it").is_none());
     }
 
     #[test]
