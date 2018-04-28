@@ -1,0 +1,8 @@
+Currently, we find items by iterating through
+the items directory, allocating `Item` for each
+found item, and then searching through them
+for a matching ID. This can't be fast.
+
+Solution: introduce Repository.item(name) method
+to find the issue directly (if it exists)
+

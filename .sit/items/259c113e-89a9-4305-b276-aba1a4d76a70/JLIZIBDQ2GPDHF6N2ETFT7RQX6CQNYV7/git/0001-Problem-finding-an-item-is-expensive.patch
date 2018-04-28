@@ -1,0 +1,131 @@
+From db98d87580094331b3dcceb109c8d43321ffc738 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 28 Apr 2018 10:40:31 -0700
+Subject: [PATCH] Problem: finding an item is expensive
+
+Currently, we find items by iterating through
+the items directory, allocating `Item` for each
+found item, and then searching through them
+for a matching ID. This can't be fast.
+
+Solution: introduce Repository.item(name) method
+to find the issue directly (if it exists)
+---
+ sit-core/src/repository.rs | 44 +++++++++++++++++++++++++++++++++++++++++++-
+ sit/src/main.rs            |  9 +++------
+ 2 files changed, 46 insertions(+), 7 deletions(-)
+
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 5a9e85c..ebd357d 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -313,6 +313,23 @@ impl Repository {
+         })
+     }
+ 
++    /// Finds an item by name (if there is one)
++    pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item> {
++        let path = self.items_path().join(name.as_ref());
++        if path.is_dir() && path.strip_prefix(self.items_path()).is_ok() {
++            let mut test = path.clone();
++            test.pop();
++            if test != self.items_path() {
++                return None;
++            }
++            let id = path.file_name().unwrap().to_os_string();
++            let item = Item { repository: self, id };
++            Some(item)
++        } else {
++            None
++        }
++    }
++
+     /// Returns path to modules. The target directory may not exist.
+     pub fn modules_path(&self) -> &Path {
+         &self.modules_path
+@@ -347,12 +364,18 @@ impl Repository {
+     }
+ }
+ 
++impl PartialEq for Repository {
++    fn eq(&self, rhs: &Repository) -> bool {
++        (self as *const Repository) == (rhs as *const Repository)
++    }
++}
++
+ use super::Item as ItemTrait;
+ 
+ use std::ffi::OsString;
+ 
+ /// An item residing in a repository
+-#[derive(Debug)]
++#[derive(Debug, PartialEq)]
+ pub struct Item<'a> {
+     repository: &'a Repository,
+     id: OsString,
+@@ -880,6 +903,25 @@ mod tests {
+         assert_eq!(repo.item_iter().unwrap().count(), 1);
+     }
+ 
++    #[test]
++    fn find_item() {
++         let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(&tmp).unwrap();
++        // create an item
++        let item = repo.new_named_item("one").unwrap();
++       // find an existing item
++        assert_eq!(repo.item("one").unwrap(), item);
++        // find a non-existing item
++        assert!(repo.item("two").is_none());
++        // point outside of items
++        assert!(repo.item("/").is_none());
++        // point anywhere not one level below items
++        assert!(repo.item("one/..").is_none());
++        item.new_record(vec![("test/it", &[1u8][..])].into_iter(), false).unwrap();
++        assert!(repo.item("one/it").is_none());
++    }
++
+     #[test]
+     fn new_record() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 3a73714..6a76406 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -469,9 +469,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+                 }
+             }
+ 
+-            let mut items = repo.item_iter().expect("can't list items");
+             let id = matches.value_of("id").unwrap();
+-            match items.find(|i| i.id() == id) {
++            match repo.item(id) {
+                 None => {
+                     eprintln!("Item {} not found", id);
+                     return 1;
+@@ -601,9 +600,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("records") {
+-            let mut items = repo.item_iter().expect("can't list items");
+             let id = matches.value_of("id").unwrap();
+-            match items.find(|i| i.id() == id) {
++            match repo.item(id) {
+                 None => {
+                     eprintln!("Item {} not found", id);
+                     return 1;
+@@ -708,9 +706,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("reduce") {
+-            let mut items = repo.item_iter().expect("can't list items");
+             let id = matches.value_of("id").unwrap();
+-            match items.find(|i| i.id() == id) {
++            match repo.item(id) {
+                 None => {
+                     eprintln!("Item {} not found", id);
+                     return 1;
+-- 
+2.16.2
+
