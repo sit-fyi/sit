@@ -469,9 +469,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                 }
             }
 
-            let mut items = repo.item_iter().expect("can't list items");
             let id = matches.value_of("id").unwrap();
-            match items.find(|i| i.id() == id) {
+            match repo.item(id) {
                 None => {
                     eprintln!("Item {} not found", id);
                     return 1;
@@ -601,9 +600,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         }
 
         if let Some(matches) = matches.subcommand_matches("records") {
-            let mut items = repo.item_iter().expect("can't list items");
             let id = matches.value_of("id").unwrap();
-            match items.find(|i| i.id() == id) {
+            match repo.item(id) {
                 None => {
                     eprintln!("Item {} not found", id);
                     return 1;
@@ -708,9 +706,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         }
 
         if let Some(matches) = matches.subcommand_matches("reduce") {
-            let mut items = repo.item_iter().expect("can't list items");
             let id = matches.value_of("id").unwrap();
-            match items.find(|i| i.id() == id) {
+            match repo.item(id) {
                 None => {
                     eprintln!("Item {} not found", id);
                     return 1;
