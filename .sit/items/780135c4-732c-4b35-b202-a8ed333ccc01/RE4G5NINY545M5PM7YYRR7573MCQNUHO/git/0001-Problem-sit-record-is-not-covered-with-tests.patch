@@ -1,0 +1,933 @@
+From 9ae57b97d98e55d79bdd9cdd12a48015ca8bae02 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 1 May 2018 20:02:31 -0700
+Subject: [PATCH] Problem: `sit record` is not covered with tests
+
+Solution: develop the initial suite of tests
+---
+ Cargo.lock                  |   2 +
+ appveyor.yml                |   1 +
+ sit-core/src/cfg.rs         |  11 +-
+ sit/Cargo.toml              |   2 +
+ sit/src/command_record.rs   | 188 +++++++++++++++++++++
+ sit/src/main.rs             | 174 +------------------
+ sit/tests/command_record.rs | 404 ++++++++++++++++++++++++++++++++++++++++++++
+ 7 files changed, 608 insertions(+), 174 deletions(-)
+ create mode 100644 sit/src/command_record.rs
+ create mode 100644 sit/tests/command_record.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index c0f0150..dfc6cb4 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1059,12 +1059,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ name = "sit"
+ version = "0.4.0"
+ dependencies = [
++ "atty 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
+  "chrono 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
+  "cli_test_dir 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+  "config 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "dunce 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+  "fs_extra 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
++ "git2 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+  "glob 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
+  "jmespath 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "pbr 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+diff --git a/appveyor.yml b/appveyor.yml
+index be5a61a..a2d18d9 100644
+--- a/appveyor.yml
++++ b/appveyor.yml
+@@ -8,6 +8,7 @@ environment:
+       target: x86_64-pc-windows-msvc
+ 
+ install:
++  - cinst gnupg-modern
+   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
+   - rustup-init -yv --default-toolchain %channel% --default-host %target%
+   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
+diff --git a/sit-core/src/cfg.rs b/sit-core/src/cfg.rs
+index db027a2..7ee0b75 100644
+--- a/sit-core/src/cfg.rs
++++ b/sit-core/src/cfg.rs
+@@ -21,12 +21,13 @@ impl Display for Author {
+ 
+ impl Author {
+     #[cfg(feature = "git")]
+-    pub fn from_gitconfig(_path: PathBuf) -> Option<Author> {
++    pub fn from_gitconfig(path: PathBuf) -> Option<Author> {
+         use git2;
+-        let gitconfig = match git2::Config::open_default() {
++        let mut gitconfig = match git2::Config::open_default() {
+             Err(_) => return None,
+             Ok(config) => config,
+         };
++        gitconfig.add_file(&path, git2::ConfigLevel::Local, true).ok()?;
+         let name = match gitconfig.get_string("user.name") {
+             Ok(name) => name,
+             Err(_) => return None,
+@@ -43,7 +44,7 @@ impl Author {
+ }
+ 
+ use std::collections::HashMap;
+-#[derive(Default, Serialize, Deserialize)]
++#[derive(Default, Clone, Serialize, Deserialize)]
+ pub struct JMESPathConfig {
+     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+     pub filters: HashMap<String, String>,
+@@ -57,7 +58,7 @@ impl JMESPathConfig {
+     }
+ }
+ 
+-#[derive(Default, Serialize, Deserialize)]
++#[derive(Default, Clone, Serialize, Deserialize)]
+ pub struct Signing {
+     #[serde(default)]
+     pub enabled: bool,
+@@ -73,7 +74,7 @@ impl Signing {
+     }
+ }
+ 
+-#[derive(Serialize, Deserialize)]
++#[derive(Serialize, Clone, Deserialize)]
+ pub struct ExtensibleConfiguration<T> {
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub author: Option<Author>,
+diff --git a/sit/Cargo.toml b/sit/Cargo.toml
+index 007b780..c19bd3e 100644
+--- a/sit/Cargo.toml
++++ b/sit/Cargo.toml
+@@ -23,10 +23,12 @@ rayon = "1.0"
+ question = "0.2"
+ dunce = "0.1"
+ which = "2.0"
++atty = "0.2"
+ sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
+ 
+ [dev-dependencies]
+ cli_test_dir = "0.1.5"
++git2 = { version = "0.7", default-features = false }
+ 
+ [features]
+ windows7 = ["sit-core/windows7"]
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+new file mode 100644
+index 0000000..bfc9282
+--- /dev/null
++++ b/sit/src/command_record.rs
+@@ -0,0 +1,188 @@
++use clap::{self, ArgMatches};
++use sit_core::{Repository, Record};
++use sit_core::cfg::{self, Configuration};
++use chrono::prelude::*;
++use std::process::exit;
++use std::fs;
++use std::path::{Path, PathBuf};
++use std::env;
++use tempfile;
++use atty;
++use tempdir;
++use serde_json;
++
++pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Repository, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
++    if !matches.is_present("no-author") && config.author.is_none() {
++        if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
++            config.author = Some(author);
++        } else {
++            if atty::is(atty::Stream::Stdin) {
++                println!("SIT needs your authorship identity to be configured\n");
++                use question::{Question, Answer};
++                let name = loop {
++                    match Question::new("What is your name?").ask() {
++                        None => continue,
++                        Some(Answer::RESPONSE(value)) => {
++                            if value.trim() == "" {
++                                continue;
++                            } else {
++                                break value;
++                            }
++                        },
++                        Some(answer) => panic!("Invalid answer {:?}", answer),
++                    }
++                };
++                let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
++                    None => None,
++                    Some(Answer::RESPONSE(value)) => {
++                        if value.trim() == "" {
++                            None
++                        } else {
++                            Some(value)
++                        }
++                    },
++                    Some(answer) => panic!("Invalid answer {:?}", answer),
++                };
++                config.author = Some(cfg::Author { name, email });
++                let file = fs::File::create(config_path).expect("can't open config file for writing");
++                serde_json::to_writer_pretty(file, &config).expect("can't write config");
++            } else {
++                eprintln!("SIT needs your authorship identity to be configured (supported sources: sit, git), or re-run this command in a terminal\n");
++                return 1;
++            }
++        }
++    }
++
++    let id = matches.value_of("id").unwrap();
++    match repo.item(id) {
++        None => {
++            eprintln!("Item {} not found", id);
++            return 1;
++        },
++        Some(item) => {
++            let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
++            let types: Vec<_> = match matches.value_of("type") {
++                Some(types) => types.split(",").collect(),
++                None => vec![],
++            };
++
++            if !files.clone().any(|f| f.starts_with(".type/")) && types.len() == 0 {
++                println!("At least one record type (.type/TYPE file) or `-t/--type` command line argument is required.");
++                return 1;
++            }
++            let files = files.into_iter()
++                .map(move |name| {
++                    let path = PathBuf::from(&name);
++                    if !path.is_file() {
++                        eprintln!("{} does not exist or is not a regular file", path.to_str().unwrap());
++                        exit(1);
++                    }
++                    let abs_name = ::dunce::canonicalize(path).expect("can't canonicalize path");
++                    let cur_dir = ::dunce::canonicalize(env::current_dir().expect("can't get current directory")).expect("can't canonicalize current directory");
++                    match abs_name.strip_prefix(&cur_dir) {
++                        Err(_) => {
++                            eprintln!("Path {} is not relative to {} current directory", name, cur_dir.to_str().unwrap());
++                            exit(1);
++                        },
++                        Ok(path) => String::from(path.to_str().unwrap()),
++                    }
++                })
++                .map(|name| (name.clone(), ::std::fs::File::open(name).expect("can't open file")));
++
++            let type_files = types.iter().map(|t|
++                (format!(".type/{}", *t),
++                 tempfile::tempfile_in(repo.path())
++                     .expect(&format!("can't create a temporary file (.type/{})", t))));
++
++            use std::io::{Write, Seek, SeekFrom};
++
++            // .authors
++            let authorship_files = if !matches.is_present("no-author") {
++                let mut authors = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.authors)");
++                authors.write(format!("{}", config.author.clone().unwrap()).as_bytes()).expect("can't write to a tempoary file (.authors)");
++                authors.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.authors)");
++                vec![(".authors".into(), authors)].into_iter()
++            } else {
++                vec![].into_iter()
++            };
++
++            let tmp = tempdir::TempDir::new_in(repo.path(), "sit").unwrap();
++            let record_path = tmp.path();
++
++            let record = if !matches.is_present("no-timestamp") {
++                let mut f = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.timestamp)");
++                let utc: DateTime<Utc> = Utc::now();
++                f.write(format!("{:?}", utc).as_bytes()).expect("can't write to a temporary file (.timestamp)");
++                f.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.timestamp)");
++                item.new_record_in(record_path, files.chain(type_files).chain(authorship_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
++            } else {
++                item.new_record_in(record_path, files.chain(type_files).chain(authorship_files), true)
++            }.expect("can't create a record");
++
++
++            let signing = matches.is_present("sign") || config.signing.enabled;
++
++            if signing {
++                use std::ffi::OsString;
++                let program = OsString::from(matches.value_of("gnupg").map(String::from)
++                    .unwrap_or(match config.signing.gnupg {
++                        Some(ref command) => command.clone(),
++                        None => String::from("gpg"),
++                    }));
++                let key = match matches.value_of("signing-key").map(String::from).or_else(|| config.signing.key.clone()) {
++                    Some(key) => Some(OsString::from(key)),
++                    None => None,
++                };
++                let mut command = ::std::process::Command::new(program);
++
++                command
++                    .stdin(::std::process::Stdio::piped())
++                    .stdout(::std::process::Stdio::piped())
++                    .arg("--sign")
++                    .arg("--armor")
++                    .arg("--detach-sign")
++                    .arg("-o")
++                    .arg("-");
++
++                if key.is_some() {
++                    let _ = command.arg("--default-key").arg(key.unwrap());
++                }
++
++                let mut child = command.spawn().expect("failed spawning gnupg");
++
++                {
++                    let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
++                    stdin.write_all(record.encoded_hash().as_bytes()).expect("Failed to write to stdin");
++                }
++
++                let output = child.wait_with_output().expect("failed to read stdout");
++
++                if !output.status.success() {
++                    eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
++                    return 1;
++                } else {
++                    use sit_core::repository::DynamicallyHashable;
++                    let dynamically_hashed_record = record.dynamically_hashed();
++                    let mut file = fs::File::create(record.actual_path().join(".signature"))
++                        .expect("can't open signature file");
++                    file.write(&output.stdout).expect("can't write signature file");
++                    drop(file);
++                    let new_hash = dynamically_hashed_record.encoded_hash();
++                    let mut new_path = record.path();
++                    new_path.pop();
++                    new_path.push(&new_hash);
++                    fs::rename(record.actual_path(), new_path).expect("can't rename record");
++                    println!("{}", new_hash);
++                    return 0;
++                }
++
++            } else {
++                fs::rename(record.actual_path(), record.path()).expect("can't rename record");
++            }
++
++            println!("{}", record.encoded_hash());
++        }
++    }
++    return 0;
++}
++
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 441f273..dfc209e 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -1,7 +1,6 @@
+ extern crate sit_core;
+ 
+ extern crate chrono;
+-use chrono::prelude::*;
+ extern crate tempfile;
+ #[macro_use] extern crate clap;
+ 
+@@ -28,6 +27,7 @@ mod command_config;
+ mod command_args;
+ mod command_init;
+ mod command_item;
++mod command_record;
+ 
+ #[cfg(unix)]
+ extern crate xdg;
+@@ -39,6 +39,8 @@ extern crate pbr;
+ extern crate tempdir;
+ extern crate glob;
+ 
++extern crate atty;
++
+ extern crate rayon;
+ use rayon::prelude::*;
+ 
+@@ -307,7 +309,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+     settings
+         .merge(config::File::with_name(config_path).required(false)).unwrap();
+ 
+-    let mut config: cfg::Configuration = settings.try_into().expect("can't load config");
++    let config: cfg::Configuration = settings.try_into().expect("can't load config");
+ 
+     if matches.subcommand_name().is_none() {
+         app.print_help().expect("can't print help");
+@@ -425,173 +427,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("record") {
+-
+-            if config.author.is_none() {
+-                if let Some(author) = cfg::Author::from_gitconfig(canonical_working_dir.join(".git/config")) {
+-                    config.author = Some(author);
+-                } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
+-                    config.author = Some(author);
+-                } else {
+-                    println!("SIT needs your authorship identity to be configured\n");
+-                    use question::{Question, Answer};
+-                    let name = loop {
+-                        match Question::new("What is your name?").ask() {
+-                            None => continue,
+-                            Some(Answer::RESPONSE(value)) => {
+-                                if value.trim() == "" {
+-                                    continue;
+-                                } else {
+-                                    break value;
+-                                }
+-                            },
+-                            Some(answer) => panic!("Invalid answer {:?}", answer),
+-                        }
+-                    };
+-                    let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
+-                        None => None,
+-                        Some(Answer::RESPONSE(value)) => {
+-                            if value.trim() == "" {
+-                                None
+-                            } else {
+-                                Some(value)
+-                            }
+-                        },
+-                        Some(answer) => panic!("Invalid answer {:?}", answer),
+-                    };
+-                    config.author = Some(cfg::Author { name, email });
+-                    let file = fs::File::create(config_path).expect("can't open config file for writing");
+-                    serde_json::to_writer_pretty(file, &config).expect("can't write config");
+-                }
+-            }
+-
+-            let id = matches.value_of("id").unwrap();
+-            match repo.item(id) {
+-                None => {
+-                    eprintln!("Item {} not found", id);
+-                    return 1;
+-                },
+-                Some(mut item) => {
+-                    let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
+-                    let types: Vec<_> = matches.value_of("type").unwrap().split(",").collect();
+-
+-                    if !files.clone().any(|f| f.starts_with(".type/")) && types.len() == 0 {
+-                        println!("At least one record type (.type/TYPE file) or `-t/--type` command line argument is required.");
+-                        return 1;
+-                    }
+-                    let files = files.into_iter()
+-                            .map(move |name| {
+-                                let path = PathBuf::from(&name);
+-                                if !path.is_file() {
+-                                    eprintln!("{} does not exist or is not a regular file", path.to_str().unwrap());
+-                                    exit(1);
+-                                }
+-                                let abs_name = ::dunce::canonicalize(path).expect("can't canonicalize path");
+-                                let cur_dir = ::dunce::canonicalize(env::current_dir().expect("can't get current directory")).expect("can't canonicalize current directory");
+-                                match abs_name.strip_prefix(&cur_dir) {
+-                                    Err(_) => {
+-                                        eprintln!("Path {} is not relative to {} current directory", name, cur_dir.to_str().unwrap());
+-                                        exit(1);
+-                                    },
+-                                    Ok(path) => String::from(path.to_str().unwrap()),
+-                                }
+-                            })
+-                            .map(|name| (name.clone(), ::std::fs::File::open(name).expect("can't open file")));
+-
+-                    let type_files = types.iter().map(|t|
+-                                                          (format!(".type/{}", *t),
+-                                                           tempfile::tempfile_in(repo.path())
+-                                                               .expect(&format!("can't create a temporary file (.type/{})", t))));
+-
+-                    use std::io::{Write, Seek, SeekFrom};
+-
+-                    // .authors
+-                    let mut authors = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.authors)");
+-                    authors.write(format!("{}", config.author.clone().unwrap()).as_bytes()).expect("can't write to a tempoary file (.authors)");
+-                    authors.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.authors)");
+-                    let authorship_files = if !matches.is_present("no-author") {
+-                        vec![(".authors".into(), authors)].into_iter()
+-                    } else {
+-                        vec![].into_iter()
+-                    };
+-
+-                    let tmp = tempdir::TempDir::new_in(repo.path(), "sit").unwrap();
+-                    let record_path = tmp.path();
+-
+-                    let record = if !matches.is_present("no-timestamp") {
+-                        let mut f = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.timestamp)");
+-                        let utc: DateTime<Utc> = Utc::now();
+-                        f.write(format!("{:?}", utc).as_bytes()).expect("can't write to a temporary file (.timestamp)");
+-                        f.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.timestamp)");
+-                        item.new_record_in(record_path, files.chain(type_files).chain(authorship_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
+-                    } else {
+-                        item.new_record_in(record_path, files.chain(type_files).chain(authorship_files), true)
+-                    }.expect("can't create a record");
+-
+-
+-                    let signing = matches.is_present("sign") || config.signing.enabled;
+-
+-                    if signing {
+-                        use std::ffi::OsString;
+-                        let program = OsString::from(matches.value_of("gnupg").map(String::from)
+-                            .unwrap_or(match config.signing.gnupg {
+-                            Some(ref command) => command.clone(),
+-                            None => String::from("gpg"),
+-                        }));
+-                        let key = match matches.value_of("signing-key").map(String::from).or_else(|| config.signing.key.clone()) {
+-                            Some(key) => Some(OsString::from(key)),
+-                            None => None,
+-                        };
+-                        let mut command = ::std::process::Command::new(program);
+-
+-                        command
+-                            .stdin(::std::process::Stdio::piped())
+-                            .stdout(::std::process::Stdio::piped())
+-                            .arg("--sign")
+-                            .arg("--armor")
+-                            .arg("--detach-sign")
+-                            .arg("-o")
+-                            .arg("-");
+-
+-                        if key.is_some() {
+-                            let _ = command.arg("--default-key").arg(key.unwrap());
+-                        }
+-
+-                        let mut child = command.spawn().expect("failed spawning gnupg");
+-
+-                        {
+-                            let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
+-                            stdin.write_all(record.encoded_hash().as_bytes()).expect("Failed to write to stdin");
+-                        }
+-
+-                        let output = child.wait_with_output().expect("failed to read stdout");
+-
+-                        if !output.status.success() {
+-                            eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
+-                            return 1;
+-                        } else {
+-                            use sit_core::repository::DynamicallyHashable;
+-                            let dynamically_hashed_record = record.dynamically_hashed();
+-                            let mut file = fs::File::create(record.actual_path().join(".signature"))
+-                                .expect("can't open signature file");
+-                            file.write(&output.stdout).expect("can't write signature file");
+-                            drop(file);
+-                            let new_hash = dynamically_hashed_record.encoded_hash();
+-                            let mut new_path = record.path();
+-                            new_path.pop();
+-                            new_path.push(&new_hash);
+-                            fs::rename(record.actual_path(), new_path).expect("can't rename record");
+-                            println!("{}", new_hash);
+-                            return 0;
+-                        }
+-
+-                    } else {
+-                        fs::rename(record.actual_path(), record.path()).expect("can't rename record");
+-                    }
+-
+-                    println!("{}", record.encoded_hash());
+-                }
+-            }
+-            return 0;
++            return command_record::command(matches, &repo, config.clone(), canonical_working_dir, config_path);
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("records") {
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+new file mode 100644
+index 0000000..9bb9a51
+--- /dev/null
++++ b/sit/tests/command_record.rs
+@@ -0,0 +1,404 @@
++extern crate cli_test_dir;
++extern crate sit_core;
++extern crate git2;
++extern crate chrono;
++extern crate which;
++
++use cli_test_dir::*;
++use sit_core::{Repository, Item, record::RecordExt};
++use std::process;
++
++/// Should derive authorship from the config file
++#[test]
++fn record_authorship() {
++    let dir = TestDir::new("sit", "record_no_authorship_local_git");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    #[cfg(unix)]
++    dir.create_file(".config/sit/config.json", r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
++    #[cfg(windows)]
++    dir.create_file("sit_config.json", r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", &id, "-t", "Sometype"])
++        .expect_success();
++    verify_authors(&dir, &id,"Test <test@test.com>");
++}
++
++
++/// Should fail if there's no authorship configured and no git configs available
++#[test]
++fn record_no_authorship_no_git() {
++    let dir = TestDir::new("sit", "record_no_authorship_no_git");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id = dir.cmd()
++        .arg("item")
++        .expect_success().stdout;
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", ::std::str::from_utf8(&id).unwrap(), "-t","Sometype"])
++        .expect_failure();
++}
++
++/// Should not attempt to record record authorship if specifically asked to do so
++#[test]
++fn record_no_authorship_no_author() {
++    let dir = TestDir::new("sit", "record_no_authorship_no_author");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", &id, "--no-author", "-t", "Sometype"])
++        .expect_success();
++}
++
++/// Should derive authorship from /working/directory/.git/config if it is otherwise unavailable
++#[test]
++fn record_no_authorship_local_git() {
++    let dir = TestDir::new("sit", "record_no_authorship_local_git");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.create_file(".git/config", "[user]\nname=Test\nemail=test@test.com");
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", &id, "-t", "Sometype"])
++        .expect_success();
++    verify_authors(&dir, &id,"Test <test@test.com>");
++}
++
++/// Should derive authorship from $HOME/.gitconfig if it is otherwise unavailable
++#[test]
++fn record_no_authorship_user_git() {
++    let dir = TestDir::new("sit", "record_no_authorship_user_git");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.create_file(".gitconfig","[user]\nname=Test\nemail=test@test.com");
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .args(&["record", &id, "-t","Sometype"])
++        .expect_success();
++    verify_authors(&dir, &id,"Test <test@test.com>");
++}
++
++/// Should prefer .git/config over $HOME/.gitconfig if authorship information is unavailable otherwise
++#[test]
++fn record_no_authorship_local_over_user_git() {
++    let dir = TestDir::new("sit", "record_no_authorship_local_over_user_git");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.create_file(".gitconfig","[user]\nname=Test\nemail=test@test.com");
++    dir.create_file(".git/config","[user]\nname=User\nemail=user@test.com");
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .args(&["record", &id, "-t","Sometype"])
++        .expect_success();
++    verify_authors(&dir, &id,"User <user@test.com>");
++}
++
++/// Should record a timestamp
++#[test]
++fn record_should_record_timestamp() {
++    let dir = TestDir::new("sit", "record_should_record_timestamp");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .args(&["record", &id, "--no-author", "-t","Sometype"])
++        .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    let mut s = String::new();
++    use std::io::Read;
++    record.file(".timestamp").unwrap().read_to_string(&mut s).unwrap();
++    use chrono::prelude::*;
++    let date = DateTime::parse_from_rfc3339(&s).unwrap();
++    let now = Utc::now();
++    assert_eq!(now.signed_duration_since(date).num_seconds(), 0);
++    assert!(now.signed_duration_since(date).num_milliseconds() > 0);
++}
++
++/// Should not record a timestamp if asked to do so
++#[test]
++fn record_should_not_record_timestamp() {
++    let dir = TestDir::new("sit", "record_should_not_record_timestamp");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", &id, "--no-author", "--no-timestamp", "-t","Sometype"])
++        .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    assert!(record.file(".timestamp").is_none());
++}
++
++/// Should fail if any file to be recorded does not exist
++#[test]
++fn record_should_not_record_if_files_are_missing() {
++    let dir = TestDir::new("sit", "record_should_not_record_if_files_are_missing");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.create_file("exists","");
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", &id, "--no-author", "-t","Sometype", "exists", "missing"])
++        .expect_failure();
++}
++
++/// Should fail if no type is supplied
++#[test]
++fn record_should_fail_if_no_type() {
++     let dir = TestDir::new("sit", "record_should_fail_if_no_type");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.create_file("file", "");
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", &id, "--no-author", "file"])
++        .expect_failure();
++}
++
++/// Should not require -t if .type/... is supplied
++#[test]
++fn record_dot_type_sufficiency() {
++    let dir = TestDir::new("sit", "record_dot_type_sufficiency");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.create_file(".type/MyType","");
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", &id, "--no-author", ".type/MyType"])
++        .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    assert!(record.file(".type/MyType").is_some());
++}
++
++
++/// Should merge types from files and -t
++#[test]
++fn record_should_merge_types() {
++    let dir = TestDir::new("sit", "record_should_merge_types");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.create_file(".type/MyType","");
++    dir.create_file(".type/OurType","");
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .args(&["record", &id, "--no-author", "-t","Sometype,SomeOtherType",".type/MyType", ".type/OurType"])
++        .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    assert!(record.file(".type/Sometype").is_some());
++    assert!(record.file(".type/SomeOtherType").is_some());
++    assert!(record.file(".type/MyType").is_some());
++    assert!(record.file(".type/OurType").is_some());
++}
++
++/// Should record files
++#[test]
++fn record_should_record_files() {
++    let dir = TestDir::new("sit", "record_should_record_files");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.create_file("file1","file1");
++    dir.create_file("files/file2","file2");
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .args(&["record", &id, "--no-author", "-t","Sometype","file1", "files/file2"])
++        .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    let mut s = String::new();
++    use std::io::Read;
++    record.file("file1").unwrap().read_to_string(&mut s).unwrap();
++    assert_eq!(s, "file1");
++    s.clear();
++    record.file("files/file2").unwrap().read_to_string(&mut s).unwrap();
++    assert_eq!(s, "file2");
++}
++
++/// Should sign if configuration says so
++#[test]
++fn record_should_sign_if_configured() {
++    #[cfg(unix)]
++    let dir = TestDir::new("sit", "record_should_sign_if_configured");
++    #[cfg(windows)] // workaround for "File name too long" error
++    let dir = TestDir::new("sit", "rssic");
++
++    let gpg = which::which("gpg").expect("should have gpg installed");
++
++    let mut genkey = process::Command::new(&gpg)
++        .args(&["--batch", "--generate-key","-"])
++        .env("GNUPGHOME", dir.path(".").to_str().unwrap())
++        .stdin(::std::process::Stdio::piped())
++        .stdout(::std::process::Stdio::null())
++        .stderr(::std::process::Stdio::null())
++        .spawn().unwrap();
++
++    {
++        use std::io::Write;
++        let stdin = genkey.stdin.as_mut().expect("Failed to open stdin");
++        stdin.write_all(r#"
++        Key-Type: default
++        Subkey-Type: default
++        Name-Real: Test
++        Name-Comment: Test
++        Name-Email: test@test.com
++        Expire-Date: 0
++        %no-protection
++        %commit
++        "#.as_bytes()).expect("Failed to write to stdin");
++    }
++    genkey.expect_success();
++
++    #[cfg(unix)]
++    let cfg = ".config/sit/config.json";
++    #[cfg(windows)]
++    let cfg = "sit_config.json";
++    dir.create_file(cfg, r#"{"author": {"name": "Test", "email": "test@test.com"}, "signing": {"enabled": true, "key": "test@test.com"}}"#);
++
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("GNUPGHOME", dir.path(".").to_str().unwrap())
++        .args(&["record", &id, "--no-author", "-t","Sometype"])
++        .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    assert!(record.file(".signature").is_some());
++}
++
++/// Should sign if instructed via command line
++#[test]
++fn record_should_sign_if_instructed_cmdline() {
++    #[cfg(unix)]
++    let dir = TestDir::new("sit", "record_should_sign_if_instructed_cmdline");
++    #[cfg(windows)] // workaround for "File name too long" error
++    let dir = TestDir::new("sit", "rssiic");
++
++    let gpg = which::which("gpg").expect("should have gpg installed");
++
++    let mut genkey = process::Command::new(&gpg)
++        .args(&["--batch", "--generate-key","-"])
++        .env("GNUPGHOME", dir.path(".").to_str().unwrap())
++        .stdin(::std::process::Stdio::piped())
++        .stdout(::std::process::Stdio::null())
++        .stderr(::std::process::Stdio::null())
++        .spawn().unwrap();
++
++    {
++        use std::io::Write;
++        let stdin = genkey.stdin.as_mut().expect("Failed to open stdin");
++        stdin.write_all(r#"
++        Key-Type: default
++        Subkey-Type: default
++        Name-Real: Test
++        Name-Comment: Test
++        Name-Email: test@test.com
++        Expire-Date: 0
++        %no-protection
++        %commit
++        "#.as_bytes()).expect("Failed to write to stdin");
++    }
++    genkey.expect_success();
++
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("GNUPGHOME", dir.path(".").to_str().unwrap())
++        .args(&["record", "--sign",  "--signing-key", "test@test.com", &id, "--no-author", "-t","Sometype"])
++        .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    assert!(record.file(".signature").is_some());
++}
++
++
++fn verify_authors<S0: AsRef<str>, S: AsRef<str>>(dir: &TestDir, id: S0, expected: S) {
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    let mut s = String::new();
++    use std::io::Read;
++    record.file(".authors").unwrap().read_to_string(&mut s).unwrap();
++    assert_eq!(s, expected.as_ref());
++}
++
+-- 
+2.16.2
+
