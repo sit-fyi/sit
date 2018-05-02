@@ -1,0 +1,45 @@
+From 22dc5ce4841b3b003d1f22a5a4ce8d4d96b8535d Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 2 May 2018 07:25:28 -0700
+Subject: [PATCH] Problem: gnupg-signing tests might fail with "file name too
+ long"
+
+Previously, this error has only been experienced on Windows,
+but it affects other platforms, too.
+
+Solution: always use a shorter name to avoid this issue.
+---
+ sit/tests/command_record.rs | 10 ++--------
+ 1 file changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index f017132..2ea4821 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -281,10 +281,7 @@ fn record_should_record_files() {
+ /// Should sign if configuration says so
+ #[test]
+ fn record_should_sign_if_configured() {
+-    #[cfg(unix)]
+-    let dir = TestDir::new("sit", "record_should_sign_if_configured");
+-    #[cfg(windows)] // workaround for "File name too long" error
+-    let dir = TestDir::new("sit", "rssic");
++    let dir = TestDir::new("sit", "rssic"); // workaround for "File name too long" error
+ 
+     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
+ 
+@@ -340,10 +337,7 @@ fn record_should_sign_if_configured() {
+ /// Should sign if instructed via command line
+ #[test]
+ fn record_should_sign_if_instructed_cmdline() {
+-    #[cfg(unix)]
+-    let dir = TestDir::new("sit", "record_should_sign_if_instructed_cmdline");
+-    #[cfg(windows)] // workaround for "File name too long" error
+-    let dir = TestDir::new("sit", "rssiic");
++    let dir = TestDir::new("sit", "rssiic"); // workaround for "File name too long" error
+ 
+     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
+ 
+-- 
+2.16.2
+

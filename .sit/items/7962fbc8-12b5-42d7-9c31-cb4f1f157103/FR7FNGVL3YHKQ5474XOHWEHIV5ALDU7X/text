@@ -1,0 +1,5 @@
+Previously, this error has only been experienced on Windows,
+but it affects other platforms, too.
+
+Solution: always use a shorter name to avoid this issue.
+
