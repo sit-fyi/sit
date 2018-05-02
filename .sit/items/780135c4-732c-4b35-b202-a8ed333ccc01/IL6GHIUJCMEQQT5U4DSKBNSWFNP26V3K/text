@@ -1,0 +1,62 @@
+Merge request RE4G5NINY545M5PM7YYRR7573MCQNUHO passed against revision bbf846fa0ca74fd728bdb8c5995965c7f7df1c0f
+<details><summary>Log</summary><p>```
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 8 tests
+test repo_init_fail ... ok
+test repo_init_emptydir_relative ... ok
+test repo_init_path_concat ... ok
+test repo_init_repo_path ... ok
+test repo_init_emptydir_absolute ... ok
+test repo_init ... ok
+test repo_reinit ... ok
+test repo_init_workdir ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 3 tests
+test item_named ... ok
+test item ... ok
+test item_existing ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+
+running 15 tests
+test record_should_sign_if_instructed_cmdline ... FAILED
+test record_should_sign_if_configured ... FAILED
+test record_should_not_record_if_files_are_missing ... ok
+test record_dot_type_sufficiency ... ok
+test record_should_merge_types ... ok
+test record_no_authorship_no_author ... ok
+test record_no_authorship_no_git ... ok
+test record_should_not_record_timestamp ... ok
+test record_no_authorship_user_git ... ok
+test record_should_record_files ... ok
+test record_authorship ... ok
+test record_no_authorship_local_over_user_git ... ok
+test record_should_fail_if_no_type ... ok
+test record_no_authorship_local_git ... ok
+test record_should_record_timestamp ... ok
+
+failures:
+
+---- record_should_sign_if_instructed_cmdline stdout ----
+	thread 'record_should_sign_if_instructed_cmdline' panicked at 'expected command to succeed, got ExitStatus(ExitStatus(512))', /home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/cli_test_dir-0.1.5/src/lib.rs:484:13
+note: Run with `RUST_BACKTRACE=1` for a backtrace.
+
+---- record_should_sign_if_configured stdout ----
+	thread 'record_should_sign_if_configured' panicked at 'expected command to succeed, got ExitStatus(ExitStatus(512))', /home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/cli_test_dir-0.1.5/src/lib.rs:484:13
+
+
+failures:
+    record_should_sign_if_configured
+    record_should_sign_if_instructed_cmdline
+
+test result: FAILED. 13 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out```
+</p></details>
