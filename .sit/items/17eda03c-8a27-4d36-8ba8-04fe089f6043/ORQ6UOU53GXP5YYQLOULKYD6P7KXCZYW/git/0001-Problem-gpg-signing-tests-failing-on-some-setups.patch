@@ -1,0 +1,52 @@
+From d2093dd634b02b166ce9c54d5d3e1af1aa85f58f Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 2 May 2018 00:20:21 -0700
+Subject: [PATCH] Problem: gpg-signing tests failing on some setups
+
+Solution: attempt to use gpg2 if available and use --gen-key
+
+The problem was two-fold:
+
+Firstly, on some setups, gpg is gpg 1.x and it does not
+understand some options gpg2 does.
+
+Secondly, --generate-key was not universaly understood
+by gpg or gpg2, so I settled with --gen-key instead
+(which *so far* was seemingly understood universally)
+---
+ sit/tests/command_record.rs | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index 9bb9a51..f017132 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -286,10 +286,10 @@ fn record_should_sign_if_configured() {
+     #[cfg(windows)] // workaround for "File name too long" error
+     let dir = TestDir::new("sit", "rssic");
+ 
+-    let gpg = which::which("gpg").expect("should have gpg installed");
++    let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
+ 
+     let mut genkey = process::Command::new(&gpg)
+-        .args(&["--batch", "--generate-key","-"])
++        .args(&["--batch", "--gen-key","-"])
+         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
+         .stdin(::std::process::Stdio::piped())
+         .stdout(::std::process::Stdio::null())
+@@ -345,10 +345,10 @@ fn record_should_sign_if_instructed_cmdline() {
+     #[cfg(windows)] // workaround for "File name too long" error
+     let dir = TestDir::new("sit", "rssiic");
+ 
+-    let gpg = which::which("gpg").expect("should have gpg installed");
++    let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
+ 
+     let mut genkey = process::Command::new(&gpg)
+-        .args(&["--batch", "--generate-key","-"])
++        .args(&["--batch", "--gen-key","-"])
+         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
+         .stdin(::std::process::Stdio::piped())
+         .stdout(::std::process::Stdio::null())
+-- 
+2.16.2
+

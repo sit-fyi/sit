@@ -1,0 +1,11 @@
+Solution: attempt to use gpg2 if available and use --gen-key
+
+The problem was two-fold:
+
+Firstly, on some setups, gpg is gpg 1.x and it does not
+understand some options gpg2 does.
+
+Secondly, --generate-key was not universaly understood
+by gpg or gpg2, so I settled with --gen-key instead
+(which *so far* was seemingly understood universally)
+
