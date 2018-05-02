@@ -21,12 +21,13 @@ impl Display for Author {
 
 impl Author {
     #[cfg(feature = "git")]
-    pub fn from_gitconfig(_path: PathBuf) -> Option<Author> {
+    pub fn from_gitconfig(path: PathBuf) -> Option<Author> {
         use git2;
-        let gitconfig = match git2::Config::open_default() {
+        let mut gitconfig = match git2::Config::open_default() {
             Err(_) => return None,
             Ok(config) => config,
         };
+        gitconfig.add_file(&path, git2::ConfigLevel::Local, true).ok()?;
         let name = match gitconfig.get_string("user.name") {
             Ok(name) => name,
             Err(_) => return None,
@@ -43,7 +44,7 @@ impl Author {
 }
 
 use std::collections::HashMap;
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct JMESPathConfig {
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub filters: HashMap<String, String>,
@@ -57,7 +58,7 @@ impl JMESPathConfig {
     }
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Signing {
     #[serde(default)]
     pub enabled: bool,
@@ -73,7 +74,7 @@ impl Signing {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Clone, Deserialize)]
 pub struct ExtensibleConfiguration<T> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author: Option<Author>,

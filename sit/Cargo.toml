@@ -23,10 +23,12 @@ rayon = "1.0"
 question = "0.2"
 dunce = "0.1"
 which = "2.0"
+atty = "0.2"
 sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
 
 [dev-dependencies]
 cli_test_dir = "0.1.5"
+git2 = { version = "0.7", default-features = false }
 
 [features]
 windows7 = ["sit-core/windows7"]
