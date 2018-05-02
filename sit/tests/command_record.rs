@@ -281,10 +281,7 @@ fn record_should_record_files() {
 /// Should sign if configuration says so
 #[test]
 fn record_should_sign_if_configured() {
-    #[cfg(unix)]
-    let dir = TestDir::new("sit", "record_should_sign_if_configured");
-    #[cfg(windows)] // workaround for "File name too long" error
-    let dir = TestDir::new("sit", "rssic");
+    let dir = TestDir::new("sit", "rssic"); // workaround for "File name too long" error
 
     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
 
@@ -340,10 +337,7 @@ fn record_should_sign_if_configured() {
 /// Should sign if instructed via command line
 #[test]
 fn record_should_sign_if_instructed_cmdline() {
-    #[cfg(unix)]
-    let dir = TestDir::new("sit", "record_should_sign_if_instructed_cmdline");
-    #[cfg(windows)] // workaround for "File name too long" error
-    let dir = TestDir::new("sit", "rssiic");
+    let dir = TestDir::new("sit", "rssiic"); // workaround for "File name too long" error
 
     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
 
