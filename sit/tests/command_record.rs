@@ -286,10 +286,10 @@ fn record_should_sign_if_configured() {
     #[cfg(windows)] // workaround for "File name too long" error
     let dir = TestDir::new("sit", "rssic");
 
-    let gpg = which::which("gpg").expect("should have gpg installed");
+    let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
 
     let mut genkey = process::Command::new(&gpg)
-        .args(&["--batch", "--generate-key","-"])
+        .args(&["--batch", "--gen-key","-"])
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
         .stdin(::std::process::Stdio::piped())
         .stdout(::std::process::Stdio::null())
@@ -345,10 +345,10 @@ fn record_should_sign_if_instructed_cmdline() {
     #[cfg(windows)] // workaround for "File name too long" error
     let dir = TestDir::new("sit", "rssiic");
 
-    let gpg = which::which("gpg").expect("should have gpg installed");
+    let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
 
     let mut genkey = process::Command::new(&gpg)
-        .args(&["--batch", "--generate-key","-"])
+        .args(&["--batch", "--gen-key","-"])
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
         .stdin(::std::process::Stdio::piped())
         .stdout(::std::process::Stdio::null())
