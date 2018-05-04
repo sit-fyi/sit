@@ -13,12 +13,12 @@ install:
           $newPath = ($path.Split(';') | Where-Object { $_ -eq 'C:\ProgramData\chocolatey\bin' }) -join ';'
           [Environment]::SetEnvironmentVariable("path", $newPath, "machine")
   - cmd: appveyor-retry choco install gpg4win
+  - refreshenv
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
   - rustup-init -yv --default-toolchain %channel% --default-host %target%
   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
   - rustc -vV
   - cargo -vV
-  - set PATH=%PATH%;'C:\Program Files (x86)\GnuPG\bin'
 
 build: false
 
