@@ -1,0 +1,58 @@
+From bcc2d0efff0b71f480d2531d93b37fdc612a45ab Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 4 May 2018 15:04:56 -0700
+Subject: [PATCH] Problem: crates are still using "Issue Tracker" wording
+
+This also means sit and sit-web display that in the help.
+
+(facepalm)
+
+Solution: update them to reflect recent positioning changes
+---
+ sit-core/Cargo.toml | 2 +-
+ sit-web/Cargo.toml  | 2 +-
+ sit/Cargo.toml      | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/sit-core/Cargo.toml b/sit-core/Cargo.toml
+index 73cd3a7..ec6046d 100644
+--- a/sit-core/Cargo.toml
++++ b/sit-core/Cargo.toml
+@@ -5,7 +5,7 @@ authors = ["Yurii Rashkovskii <me@yrashk.com>"]
+ license = "MIT/Apache-2.0"
+ repository = "https://github.com/sit-it/sit"
+ documentation = "https://docs.rs/sit-core"
+-description = "Core library for SIT Issue Tracker"
++description = "Core library for SIT (Serverless Information Tracker)"
+ 
+ [dependencies]
+ derive-error = "0.0"
+diff --git a/sit-web/Cargo.toml b/sit-web/Cargo.toml
+index 6731265..56689bb 100644
+--- a/sit-web/Cargo.toml
++++ b/sit-web/Cargo.toml
+@@ -1,7 +1,7 @@
+ [package]
+ name = "sit-web"
+ version = "0.4.0"
+-description = "SIT's an Issue Tracker Web Interface"
++description = "Serverless Information Tracker Web Interface"
+ authors = ["Yurii Rashkovskii <me@yrashk.com>"]
+ license = "MIT/Apache-2.0"
+ 
+diff --git a/sit/Cargo.toml b/sit/Cargo.toml
+index c19bd3e..52dab97 100644
+--- a/sit/Cargo.toml
++++ b/sit/Cargo.toml
+@@ -1,7 +1,7 @@
+ [package]
+ name = "sit"
+ version = "0.4.0"
+-description = "SIT's an Issue Tracker"
++description = "Serverless Information Tracker"
+ authors = ["Yurii Rashkovskii <me@yrashk.com>"]
+ license = "MIT/Apache-2.0"
+ 
+-- 
+2.16.2
+
