@@ -77,6 +77,20 @@ information tracking tool (with issue tracking extracted to a module)
 All our releases are hosted on [GitHub](https://github.com/sit-it/sit/releases)
 and binary files can be downloaded from there.
 
+You can also use this oneliner to install it for your local user:
+
+```
+curl -s http://sit-it.org/install.sh | sh
+```
+
+*Please note that while this is a convenient way to install SIT, it is not
+the most secure one because you're trusting install.sh to not do any harm.
+We're doing our best (within reason) to ensure this file isn't hijacked by a malicious
+actor. If this is a concern for you, please use the links referenced above or
+build SIT from sources.*
+
+
+
 ## Build Instructions
 
 As SIT is currently in its early days, sometimes it might make sense to use a
