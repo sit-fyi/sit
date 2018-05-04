@@ -1,0 +1,5 @@
+This can be perceived as "less secure" (and it actually is)
+
+Solution: finalize setting up https for the website
+(currently GitHub Pages) and enforce https in the link
+

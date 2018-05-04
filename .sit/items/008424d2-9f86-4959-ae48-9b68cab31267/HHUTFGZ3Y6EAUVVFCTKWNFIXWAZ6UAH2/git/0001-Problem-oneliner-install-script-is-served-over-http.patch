@@ -1,0 +1,29 @@
+From 346a744daa678b0bb4d659eb221dbb67e080f5a4 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 4 May 2018 09:10:51 -0700
+Subject: [PATCH] Problem: oneliner install script is served over http
+
+This can be perceived as "less secure" (and it actually is)
+
+Solution: finalize setting up https for the website
+(currently GitHub Pages) and enforce https in the link
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index cd160d5..45a894a 100644
+--- a/README.md
++++ b/README.md
+@@ -80,7 +80,7 @@ and binary files can be downloaded from there.
+ You can also use this oneliner to install it for your local user:
+ 
+ ```
+-curl -s http://sit-it.org/install.sh | sh
++curl -s https://sit-it.org/install.sh | sh
+ ```
+ 
+ *Please note that while this is a convenient way to install SIT, it is not
+-- 
+2.16.2
+
