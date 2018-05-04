@@ -1,3 +1,8 @@
+# 0.3.2
+
+This is a minor release, updating SIT's description in
+Cargo crates and command line help.
+
 # 0.3.1
 
 This is a minor bugfix release. In certain cases (for example,

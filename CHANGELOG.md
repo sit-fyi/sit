@@ -1,3 +1,9 @@
+# 0.3.2
+
+## Improvements
+
+* Removed "SIT's an Issue Tracker" description (168d72bb-c5e6-482b-8b59-48d60e9fa4aa)
+
 # 0.3.1
 
 ## Bugfixes
