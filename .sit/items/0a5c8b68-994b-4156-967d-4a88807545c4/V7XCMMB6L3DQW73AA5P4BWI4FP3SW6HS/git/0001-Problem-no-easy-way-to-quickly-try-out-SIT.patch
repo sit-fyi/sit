@@ -1,0 +1,38 @@
+From e8effe0112bc6f0424afe2adf3e1be7bf501677a Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 4 May 2018 01:18:19 -0700
+Subject: [PATCH] Problem: no easy way to quickly try out SIT
+
+Solution: introduce a shell one-liner
+---
+ README.md | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/README.md b/README.md
+index 0052b3f..cd160d5 100644
+--- a/README.md
++++ b/README.md
+@@ -77,6 +77,20 @@ information tracking tool (with issue tracking extracted to a module)
+ All our releases are hosted on [GitHub](https://github.com/sit-it/sit/releases)
+ and binary files can be downloaded from there.
+ 
++You can also use this oneliner to install it for your local user:
++
++```
++curl -s http://sit-it.org/install.sh | sh
++```
++
++*Please note that while this is a convenient way to install SIT, it is not
++the most secure one because you're trusting install.sh to not do any harm.
++We're doing our best (within reason) to ensure this file isn't hijacked by a malicious
++actor. If this is a concern for you, please use the links referenced above or
++build SIT from sources.*
++
++
++
+ ## Build Instructions
+ 
+ As SIT is currently in its early days, sometimes it might make sense to use a
+-- 
+2.16.2
+
