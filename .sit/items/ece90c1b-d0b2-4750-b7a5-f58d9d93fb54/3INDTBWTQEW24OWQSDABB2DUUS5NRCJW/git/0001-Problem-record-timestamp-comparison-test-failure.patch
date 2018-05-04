@@ -1,0 +1,34 @@
+From b959793b8fc5fa4740b3d9eac18ffeecae673c42 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 4 May 2018 10:50:11 -0700
+Subject: [PATCH] Problem: record timestamp comparison test failure
+
+On some systems, `record_should_record_timestamp`
+test fails one of its assertions.
+
+Solution: introduce a more generic way to compare
+the timestamps to ensure the ordering (now has
+to be equal or greater than the recorded timestamp)
+---
+ sit/tests/command_record.rs | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index 2ea4821..40e198e 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -140,9 +140,8 @@ fn record_should_record_timestamp() {
+     record.file(".timestamp").unwrap().read_to_string(&mut s).unwrap();
+     use chrono::prelude::*;
+     let date = DateTime::parse_from_rfc3339(&s).unwrap();
+-    let now = Utc::now();
+-    assert_eq!(now.signed_duration_since(date).num_seconds(), 0);
+-    assert!(now.signed_duration_since(date).num_milliseconds() > 0);
++    let now = DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap();
++    assert!(now >= date);
+ }
+ 
+ /// Should not record a timestamp if asked to do so
+-- 
+2.16.2
+

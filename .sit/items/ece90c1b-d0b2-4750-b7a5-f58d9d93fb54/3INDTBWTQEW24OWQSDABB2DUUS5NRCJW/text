@@ -1,0 +1,7 @@
+On some systems, `record_should_record_timestamp`
+test fails one of its assertions.
+
+Solution: introduce a more generic way to compare
+the timestamps to ensure the ordering (now has
+to be equal or greater than the recorded timestamp)
+
