@@ -140,9 +140,8 @@ fn record_should_record_timestamp() {
     record.file(".timestamp").unwrap().read_to_string(&mut s).unwrap();
     use chrono::prelude::*;
     let date = DateTime::parse_from_rfc3339(&s).unwrap();
-    let now = Utc::now();
-    assert_eq!(now.signed_duration_since(date).num_seconds(), 0);
-    assert!(now.signed_duration_since(date).num_milliseconds() > 0);
+    let now = DateTime::parse_from_rfc3339(&Utc::now().to_rfc3339()).unwrap();
+    assert!(now >= date);
 }
 
 /// Should not record a timestamp if asked to do so
