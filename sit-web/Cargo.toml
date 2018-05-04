@@ -1,7 +1,7 @@
 [package]
 name = "sit-web"
 version = "0.4.0"
-description = "SIT's an Issue Tracker Web Interface"
+description = "Serverless Information Tracker Web Interface"
 authors = ["Yurii Rashkovskii <me@yrashk.com>"]
 license = "MIT/Apache-2.0"
 
