@@ -18,6 +18,7 @@ install:
   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
   - rustc -vV
   - cargo -vV
+  - set PATH=%PATH%;'C:\Program Files (x86)\GnuPG\bin'
 
 build: false
 
