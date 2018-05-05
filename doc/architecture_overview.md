@@ -51,7 +51,7 @@ done using `sit-web` (such as one for issue tracking):
 
 <center>
 <p align="center">
-<img src="webui_example.png">
+<img src="https://github.com/sit-it/issue-tracking/blob/master/web/documentation/webui_example.png?raw=true">
 </p>
 </center>
 
