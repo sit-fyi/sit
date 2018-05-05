@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="http://sit-it.org"><img src="logo.png" alt="Markdownify" width="150"></a>
+  <a href="http://sit.sh"><img src="logo.png" alt="SIT" width="150"></a>
   <br>
   <br>
   SIT
@@ -132,18 +132,18 @@ you can send the updates to this repository:
 1. Create a branch (as a convention, you can use your issue ID or an added record ID as a branch name, but free to choose anything else, preferrably unique)
 2. Add new files in `.sit` and commit them. Commit message can be simply "Added issue <ISSUE-ID>"
    or, say, "Commented on issue <ISSUE-ID>"
-3. Push it out to the Inbox: `GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit-it.org:sit-it/sit-inbox.git <branch>`
+3. Push it out to the Inbox: `GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit.sh:sit-it/sit-inbox.git <branch>`
 4. If the commit only contains new records (nothing else is permitted!) the Inbox
    will accept the push and immediately forward it to sit's master repository on GitHub.
    Otherwise, the push will be rejected.
 
 To further simplify the process of sending records to the upstream,
-it's highly recommended to add a remote (such as `issues`) for `git@git.sit-it.org:sit-it/sit-inbox.git`
+it's highly recommended to add a remote (such as `issues`) for `git@git.sit.sh:sit-it/sit-inbox.git`
 and this to your `~/.ssh/config`:
 
 ```
-host git.sit-it.org
-  HostName git.sit-it.org
+host git.sit.sh
+  HostName git.sit.sh
   IdentityFile /path/to/sit/repo/sit-inbox
   User git
 ```
