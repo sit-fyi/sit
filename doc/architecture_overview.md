@@ -47,13 +47,7 @@ of all items using `sit items**.
 
 **NB**: This section is using the "plumbing" command line interface. It helps with
 understanding how SIT works but ultimately most common interactive workflows should be
-done using `sit-web` (such as one for issue tracking):
-
-<center>
-<p align="center">
-<img src="https://github.com/sit-it/issue-tracking/blob/master/web/documentation/webui_example.png?raw=true">
-</p>
-</center>
+done using `sit-web` (such as one for issue tracking)
 
 By default, `sit items` will list all items by their IDs. However,
 this is hardly practical if you just want to see a list of items you want to be able
