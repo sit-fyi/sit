@@ -80,7 +80,7 @@ and binary files can be downloaded from there.
 You can also use this oneliner to install it for your local user:
 
 ```
-curl -s https://sit-it.org/install.sh | sh
+curl -s https://sit.sh/install.sh | sh
 ```
 
 *Please note that while this is a convenient way to install SIT, it is not
