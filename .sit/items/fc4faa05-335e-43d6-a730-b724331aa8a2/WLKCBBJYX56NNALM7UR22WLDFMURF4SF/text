@@ -1,0 +1,6 @@
+On some systems, gpg would be GnuPG 1.x and gpg2 would be GnuPG 2.x.
+
+This causes SIT to fail as it expects 2.x-compatible binary
+
+Solution: try gpg2 first, and fall back to gpg
+
