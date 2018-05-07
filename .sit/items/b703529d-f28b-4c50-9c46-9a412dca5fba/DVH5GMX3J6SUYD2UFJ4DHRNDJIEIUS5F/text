@@ -1,0 +1,2 @@
+Cosmetically better patch (no compile-time warning for an unused
+import)
