@@ -1,0 +1,109 @@
+From ddd24705f4c946238fa275330f87a39fb1d440fc Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 7 May 2018 15:45:52 -0700
+Subject: [PATCH] Problem: Repository::new_named_item duplicate check on
+ aarch64
+
+Tests pertaining to duplicate name fail in debug mode on aarch64,
+the OS error is never returned.
+
+Solution: use FastISel instead of GlobalISel
+
+Tracking issue has been filed with Rust:
+https://github.com/rust-lang/rust/issues/50516
+---
+ .cargo/config                                                        | 3 +++
+ .../2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.authors                        | 1 +
+ .../2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.timestamp                      | 1 +
+ .../2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.type/SummaryChanged            | 0
+ .../2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/text                            | 1 +
+ .../JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.authors                        | 1 +
+ .../.prev/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF                           | 0
+ .../JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.timestamp                      | 1 +
+ .../JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.type/DetailsChanged            | 0
+ .../JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/text                            | 5 +++++
+ 10 files changed, 13 insertions(+)
+ create mode 100644 .cargo/config
+ create mode 100644 .sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.authors
+ create mode 100644 .sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.timestamp
+ create mode 100644 .sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.type/SummaryChanged
+ create mode 100644 .sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/text
+ create mode 100644 .sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.authors
+ create mode 100644 .sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.prev/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF
+ create mode 100644 .sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.timestamp
+ create mode 100644 .sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.type/DetailsChanged
+ create mode 100644 .sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/text
+
+diff --git a/.cargo/config b/.cargo/config
+new file mode 100644
+index 0000000..15e7649
+--- /dev/null
++++ b/.cargo/config
+@@ -0,0 +1,3 @@
++# https://github.com/rust-lang/rust/issues/50516
++[target.'cfg(all(debug_assertions, target_arch = "aarch64"))']
++rustflags = ["-C", "llvm-args=-fast-isel"]
+diff --git a/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.authors b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.authors
+new file mode 100644
+index 0000000..8022052
+--- /dev/null
++++ b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.authors
+@@ -0,0 +1 @@
++Yurii Rashkovskii <me@yrashk.com>
+\ No newline at end of file
+diff --git a/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.timestamp b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.timestamp
+new file mode 100644
+index 0000000..b691f4f
+--- /dev/null
++++ b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.timestamp
+@@ -0,0 +1 @@
++2018-05-07T20:16:50.974Z
+\ No newline at end of file
+diff --git a/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.type/SummaryChanged b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/.type/SummaryChanged
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/text b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/text
+new file mode 100644
+index 0000000..e00d738
+--- /dev/null
++++ b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF/text
+@@ -0,0 +1 @@
++Problem: workaround for std::fs:create_dir not failing on existing directory on aarch64, debug
+\ No newline at end of file
+diff --git a/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.authors b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.authors
+new file mode 100644
+index 0000000..8022052
+--- /dev/null
++++ b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.authors
+@@ -0,0 +1 @@
++Yurii Rashkovskii <me@yrashk.com>
+\ No newline at end of file
+diff --git a/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.prev/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.prev/2UT54I7HQDVAOTKROJO5XHKPAETRWMQF
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.timestamp b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.timestamp
+new file mode 100644
+index 0000000..b691f4f
+--- /dev/null
++++ b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.timestamp
+@@ -0,0 +1 @@
++2018-05-07T20:16:50.974Z
+\ No newline at end of file
+diff --git a/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.type/DetailsChanged b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/.type/DetailsChanged
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/text b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/text
+new file mode 100644
+index 0000000..b354cbc
+--- /dev/null
++++ b/.sit/items/ed4bbb0c-2973-4de1-b5f8-648d3011ae86/JESGGRQLIKCQCF4OKGNVXQSMMWLDBHQW/text
+@@ -0,0 +1,5 @@
++std::fs::create_dir does not fail on existing directory on aarch64, when built in debug, leading to failing tests and change in behavior (item with the same name can be created more than once). This issue has been resolved with a workaround handling this special case specifically in this configuration.
++
++However, this is not the most beautiful solution.
++
++Tracking issue filed with Rust: https://github.com/rust-lang/rust/issues/50516
+\ No newline at end of file
+-- 
+2.16.2
+
