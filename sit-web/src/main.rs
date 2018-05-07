@@ -38,6 +38,19 @@ extern crate hex;
 extern crate mime_guess;
 mod webapp;
 
+extern crate which;
+
+use std::ffi::OsString;
+use which::which;
+
+pub fn gnupg(config: &cfg::Configuration) -> Result<OsString, which::Error> {
+    let program = match config.signing.gnupg {
+            Some(ref command) => command.clone().into(),
+            None => which("gpg2").or_else(|_| which("gpg"))?.to_str().unwrap().into(),
+    };
+    Ok(program)
+}
+
 fn main() {
     #[cfg(unix)]
     let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
