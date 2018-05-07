@@ -1,0 +1,5 @@
+std::fs::create_dir does not fail on existing directory on aarch64, when built in debug, leading to failing tests and change in behavior (item with the same name can be created more than once). This issue has been resolved with a workaround handling this special case specifically in this configuration.
+
+However, this is not the most beautiful solution.
+
+Tracking issue filed with Rust: https://github.com/rust-lang/rust/issues/50516

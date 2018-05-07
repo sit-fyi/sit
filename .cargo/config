@@ -1,0 +1,3 @@
+# https://github.com/rust-lang/rust/issues/50516
+[target.'cfg(all(debug_assertions, target_arch = "aarch64"))']
+rustflags = ["-C", "llvm-args=-fast-isel"]
