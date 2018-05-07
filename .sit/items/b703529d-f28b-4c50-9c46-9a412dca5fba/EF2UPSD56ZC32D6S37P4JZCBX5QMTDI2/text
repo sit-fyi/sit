@@ -1,0 +1,13 @@
+Tests pertaining to duplicate name fail in debug mode on aarch64,
+the OS error is never returned.
+
+Solution: work around the problem specifically for this environment
+
+This patch will ensure that the existence of the directory is
+checked on aarch64 in debug mode. It is not perfect, however,
+because there's still a gap between the check and the attempt to
+create the directory (however small it might be to a human eye)
+
+Tracking issue has been filed with Rust:
+https://github.com/rust-lang/rust/issues/50516
+
