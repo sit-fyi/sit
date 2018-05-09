@@ -182,7 +182,7 @@ fn record_should_not_record_if_files_are_missing() {
         .expect_failure();
 }
 
-/// Should fail if no type is supplied
+/// Should not fail if no type is supplied
 #[test]
 fn record_should_fail_if_no_type() {
      let dir = TestDir::new("sit", "record_should_fail_if_no_type");
@@ -196,7 +196,7 @@ fn record_should_fail_if_no_type() {
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .args(&["record", &id, "--no-author", "file"])
-        .expect_failure();
+        .expect_success();
 }
 
 /// Should not require -t if .type/... is supplied
