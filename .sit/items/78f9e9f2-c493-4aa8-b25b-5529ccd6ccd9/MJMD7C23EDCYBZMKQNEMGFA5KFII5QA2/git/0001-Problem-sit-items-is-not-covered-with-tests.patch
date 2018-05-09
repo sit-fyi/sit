@@ -1,0 +1,352 @@
+From 5b9ae2a86d9f51033a3ad7d0cbf2a514f8c2aac1 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 8 May 2018 18:18:08 -0700
+Subject: [PATCH] Problem: `sit items` is not covered with tests
+
+Solution: provide initial coverage
+---
+ sit/src/command_items.rs   |  55 ++++++++++++++
+ sit/src/main.rs            |  51 +------------
+ sit/tests/command_items.rs | 185 +++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 243 insertions(+), 48 deletions(-)
+ create mode 100644 sit/src/command_items.rs
+ create mode 100644 sit/tests/command_items.rs
+
+diff --git a/sit/src/command_items.rs b/sit/src/command_items.rs
+new file mode 100644
+index 0000000..3ba4af2
+--- /dev/null
++++ b/sit/src/command_items.rs
+@@ -0,0 +1,55 @@
++use clap::ArgMatches;
++use sit_core::{self, Repository, item::ItemReduction, cfg::Configuration};
++use serde_json;
++use rayon::prelude::*;
++use super::get_named_expression;
++use jmespath;
++
++pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
++    let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
++
++    let filter_expr = matches.value_of("named-filter")
++        .and_then(|name|
++            get_named_expression(name, &repo, ".items/filters", &config.items.filters))
++        .or_else(|| matches.value_of("filter").or_else(|| Some("`true`")).map(String::from))
++        .unwrap();
++
++    let filter_defined = matches.is_present("named-filter") || matches.is_present("filter");
++
++    let query_expr = matches.value_of("named-query")
++        .and_then(|name|
++            get_named_expression(name, &repo, ".items/queries", &config.items.queries))
++        .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
++        .unwrap();
++
++    let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
++    let query = jmespath::compile(&query_expr).expect("can't compile query expression");
++
++    let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
++    let items_with_reducers: Vec<_> = items.into_iter().map(|i| (i, reducer.clone())).collect();
++    items_with_reducers.into_par_iter()
++        .map(|(item, mut reducer)| {
++            let result = item.reduce_with_reducer(&mut reducer).expect("can't reduce item");
++            let data = jmespath::Variable::from(serde_json::Value::Object(result));
++            let result = if filter_defined {
++                filter.search(&data).unwrap().as_boolean().unwrap()
++            } else {
++                true
++            };
++            if result {
++                let view = query.search(&data).unwrap();
++                if view.is_string() {
++                    Some(view.as_string().unwrap().clone())
++                } else {
++                    Some(serde_json::to_string_pretty(&view).unwrap())
++                }
++            } else {
++                None
++            }
++        })
++        .filter(Option::is_some).map(Option::unwrap)
++        .for_each(|view| {
++            println!("{}", view);
++        });
++    return 0;
++}
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index dfc209e..5d11d80 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -28,6 +28,7 @@ mod command_args;
+ mod command_init;
+ mod command_item;
+ mod command_record;
++mod command_items;
+ 
+ #[cfg(unix)]
+ extern crate xdg;
+@@ -42,7 +43,6 @@ extern crate glob;
+ extern crate atty;
+ 
+ extern crate rayon;
+-use rayon::prelude::*;
+ 
+ extern crate question;
+ 
+@@ -51,7 +51,7 @@ extern crate dunce;
+ extern crate which;
+ 
+ use std::collections::HashMap;
+-fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
++pub fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
+                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
+     let path = repo.path().join(repo_path.as_ref()).join(name.as_ref());
+     if path.is_file() {
+@@ -378,52 +378,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("items") {
+-            let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
+-
+-            let filter_expr = matches.value_of("named-filter")
+-                .and_then(|name|
+-                              get_named_expression(name, &repo, ".items/filters", &config.items.filters))
+-                .or_else(|| matches.value_of("filter").or_else(|| Some("`true`")).map(String::from))
+-                .unwrap();
+-
+-            let filter_defined = matches.is_present("named-filter") || matches.is_present("filter");
+-
+-            let query_expr = matches.value_of("named-query")
+-                .and_then(|name|
+-                              get_named_expression(name, &repo, ".items/queries", &config.items.queries))
+-                .or_else(|| matches.value_of("query").or_else(|| Some("id")).map(String::from))
+-                .unwrap();
+-
+-            let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
+-            let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+-
+-            let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+-            let items_with_reducers: Vec<_> =  items.into_iter().map(|i| (i, reducer.clone())) .collect();
+-            items_with_reducers.into_par_iter()
+-                .map(|(item, mut reducer)| {
+-                    let result = item.reduce_with_reducer(&mut reducer).expect("can't reduce item");
+-                    let data = jmespath::Variable::from(serde_json::Value::Object(result));
+-                    let result = if filter_defined {
+-                        filter.search(&data).unwrap().as_boolean().unwrap()
+-                    } else {
+-                        true
+-                    };
+-                    if result {
+-                        let view = query.search(&data).unwrap();
+-                        if view.is_string() {
+-                            Some(view.as_string().unwrap().clone())
+-                        } else {
+-                            Some(serde_json::to_string_pretty(&view).unwrap())
+-                        }
+-                    } else {
+-                        None
+-                    }
+-                })
+-                .filter(Option::is_some).map(Option::unwrap)
+-                .for_each(|view| {
+-                    println!("{}", view);
+-                });
+-                return 0;
++            return command_items::command(matches, &repo, config);
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("record") {
+diff --git a/sit/tests/command_items.rs b/sit/tests/command_items.rs
+new file mode 100644
+index 0000000..beba1c7
+--- /dev/null
++++ b/sit/tests/command_items.rs
+@@ -0,0 +1,185 @@
++extern crate cli_test_dir;
++extern crate sit_core;
++
++use cli_test_dir::*;
++
++/// Should list no items if there are none
++#[test]
++fn no_items() {
++    let dir = TestDir::new("sit", "no_items");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let output = String::from_utf8(dir.cmd().arg("items").expect_success().stdout).unwrap();
++    assert_eq!(output, "");
++}
++
++/// Should list an item if there's one
++#[test]
++fn item() {
++    let dir = TestDir::new("sit", "item");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    let output = String::from_utf8(dir.cmd().arg("items").expect_success().stdout).unwrap();
++    assert_eq!(output, id);
++}
++
++/// Should apply filter
++#[test]
++fn item_filter() {
++    let dir = TestDir::new("sit", "filter");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id_ = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // filter out item we just created
++    let output = String::from_utf8(dir.cmd().args(&["items","-f", &format!("id != '{}'", id.trim())]).expect_success().stdout).unwrap();
++    assert_eq!(output, id_);
++}
++
++/// Should apply named filter
++#[test]
++fn item_named_filter() {
++    let dir = TestDir::new("sit", "named_filter");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id_ = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    dir.create_file(".sit/.items/filters/f1", &format!("id != '{}'", id.trim()));
++    // filter out item we just created
++    let output = String::from_utf8(dir.cmd().args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
++    assert_eq!(output, id_);
++}
++
++/// Should apply named filter
++#[test]
++fn item_named_user_filter() {
++    let dir = TestDir::new("sit", "named_user_filter");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id_ = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // filter out item we just created
++    let cfg = &format!(r#"{{"items": {{"filters": {{"f1": "id != '{}'"}}}}}}"#, id.trim());
++    #[cfg(unix)]
++    dir.create_file(".config/sit/config.json", cfg);
++    #[cfg(windows)]
++    dir.create_file("sit_config.json", cfg);
++    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
++    assert_eq!(output, id_);
++}
++
++/// Should prefer repo named filter over user named filer
++#[test]
++fn item_repo_over_named_user_filter() {
++    let dir = TestDir::new("sit", "named_repo_over_user_filter");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id_ = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    let cfg = &format!(r#"{{"items": {{"filters": {{"f1": "id == '{}'"}}}}}}"#, id.trim());
++    #[cfg(unix)]
++    dir.create_file(".config/sit/config.json", cfg);
++    #[cfg(windows)]
++    dir.create_file("sit_config.json", cfg);
++    // filter out item we just created
++    dir.create_file(".sit/.items/filters/f1", &format!("id != '{}'", id.trim()));
++    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
++    assert_eq!(output, id_);
++}
++
++
++/// Should apply query
++#[test]
++fn item_query() {
++    let dir = TestDir::new("sit", "query");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.create_file(".sit/reducers/test.js",r#"
++    module.exports = function(state, record) {
++        return Object.assign(state, {value: "hello"});
++    }
++    "#);
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // create a record
++    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
++    let output = String::from_utf8(dir.cmd().args(&["items","-q", "join(' ', ['item', id, value])"]).expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("item {} hello", id.trim()));
++}
++
++/// Should apply named query
++#[test]
++fn item_named_query() {
++    let dir = TestDir::new("sit", "named_query");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.create_file(".sit/reducers/test.js",r#"
++    module.exports = function(state, record) {
++        return Object.assign(state, {value: "hello"});
++    }
++    "#);
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // create a record
++    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
++    dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
++    let output = String::from_utf8(dir.cmd().args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("item {} hello", id.trim()));
++}
++
++/// Should apply named user query
++#[test]
++fn item_named_user_query() {
++    let dir = TestDir::new("sit", "named_user_query");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.create_file(".sit/reducers/test.js",r#"
++    module.exports = function(state, record) {
++        return Object.assign(state, {value: "hello"});
++    }
++    "#);
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // create a record
++    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
++    let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id, value])"}}}"#;
++    #[cfg(unix)]
++    dir.create_file(".config/sit/config.json", cfg);
++    #[cfg(windows)]
++    dir.create_file("sit_config.json", cfg);
++    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("item {} hello", id.trim()));
++}
++
++/// Should prefer repo named query over user user named query
++#[test]
++fn item_repo_over_named_user_query() {
++    let dir = TestDir::new("sit", "repo_over_named_user_query");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.create_file(".sit/reducers/test.js",r#"
++    module.exports = function(state, record) {
++        return Object.assign(state, {value: "hello"});
++    }
++    "#);
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // create a record
++    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
++    let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id])"}}}"#;
++    #[cfg(unix)]
++    dir.create_file(".config/sit/config.json", cfg);
++    #[cfg(windows)]
++    dir.create_file("sit_config.json", cfg);
++    dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
++    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("item {} hello", id.trim()));
++}
++
+-- 
+2.16.2
+
