@@ -1,0 +1,65 @@
+From a970b030eb70ea4f112d2624382c2cc9f9b2c380 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 8 May 2018 19:13:30 -0700
+Subject: [PATCH] Problem: some `sit items` tests fail on with unconfigured SIT
+
+This is happening because of the use of `sit record` that
+requires an identity.
+
+Soluton: switch to sit-core's API
+---
+ sit/tests/command_items.rs | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/sit/tests/command_items.rs b/sit/tests/command_items.rs
+index beba1c7..9c1cb26 100644
+--- a/sit/tests/command_items.rs
++++ b/sit/tests/command_items.rs
+@@ -1,6 +1,8 @@
+ extern crate cli_test_dir;
+ extern crate sit_core;
+ 
++use sit_core::{Repository, Item};
++
+ use cli_test_dir::*;
+ 
+ /// Should list no items if there are none
+@@ -109,7 +111,7 @@ fn item_query() {
+     "#);
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+     // create a record
+-    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
++    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
+     let output = String::from_utf8(dir.cmd().args(&["items","-q", "join(' ', ['item', id, value])"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
+ }
+@@ -128,7 +130,7 @@ fn item_named_query() {
+     "#);
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+     // create a record
+-    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
++    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
+     dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
+     let output = String::from_utf8(dir.cmd().args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
+@@ -148,7 +150,7 @@ fn item_named_user_query() {
+     "#);
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+     // create a record
+-    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
++    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
+     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id, value])"}}}"#;
+     #[cfg(unix)]
+     dir.create_file(".config/sit/config.json", cfg);
+@@ -172,7 +174,7 @@ fn item_repo_over_named_user_query() {
+     "#);
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+     // create a record
+-    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
++    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
+     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id])"}}}"#;
+     #[cfg(unix)]
+     dir.create_file(".config/sit/config.json", cfg);
+-- 
+2.16.2
+
