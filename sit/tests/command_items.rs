@@ -1,6 +1,8 @@
 extern crate cli_test_dir;
 extern crate sit_core;
 
+use sit_core::{Repository, Item};
+
 use cli_test_dir::*;
 
 /// Should list no items if there are none
@@ -109,7 +111,7 @@ fn item_query() {
     "#);
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
     // create a record
-    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
+    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
     let output = String::from_utf8(dir.cmd().args(&["items","-q", "join(' ', ['item', id, value])"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
 }
@@ -128,7 +130,7 @@ fn item_named_query() {
     "#);
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
     // create a record
-    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
+    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
     dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
     let output = String::from_utf8(dir.cmd().args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
@@ -148,7 +150,7 @@ fn item_named_user_query() {
     "#);
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
     // create a record
-    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
+    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id, value])"}}}"#;
     #[cfg(unix)]
     dir.create_file(".config/sit/config.json", cfg);
@@ -172,7 +174,7 @@ fn item_repo_over_named_user_query() {
     "#);
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
     // create a record
-    dir.cmd().args(&["record", "-t", "Test", id.trim()]).expect_success();
+    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id])"}}}"#;
     #[cfg(unix)]
     dir.create_file(".config/sit/config.json", cfg);
