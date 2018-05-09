@@ -124,11 +124,7 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Rep
 
             if signing {
                 use std::ffi::OsString;
-                let program = OsString::from(matches.value_of("gnupg").map(String::from)
-                    .unwrap_or(match config.signing.gnupg {
-                        Some(ref command) => command.clone(),
-                        None => String::from("gpg"),
-                    }));
+                let program = super::gnupg(matches, &config).expect("can't find GnuPG");
                 let key = match matches.value_of("signing-key").map(String::from).or_else(|| config.signing.key.clone()) {
                     Some(key) => Some(OsString::from(key)),
                     None => None,

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::fs;
 use std::process::exit;
 
-use clap::{Arg, App, SubCommand};
+use clap::{Arg, App, SubCommand, ArgMatches};
 
 use sit_core::{Item, Record};
 use sit_core::item::ItemReduction;
@@ -49,6 +49,7 @@ extern crate question;
 extern crate dunce;
 
 extern crate which;
+use which::which;
 
 use std::collections::HashMap;
 pub fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
@@ -65,6 +66,17 @@ pub fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
         exprs.get(name.as_ref()).map(String::clone)
     }
 }
+
+use std::ffi::OsString;
+pub fn gnupg(matches: &ArgMatches, config: &cfg::Configuration) -> Result<OsString, which::Error> {
+    let program = OsString::from(matches.value_of("gnupg").map(String::from)
+        .unwrap_or(match config.signing.gnupg {
+            Some(ref command) => command.clone(),
+            None => which("gpg2").or_else(|_| which("gpg"))?.to_str().unwrap().into(),
+        }));
+    Ok(program)
+}
+
 
 fn main() {
     exit(main_with_result(true));
@@ -422,13 +434,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                                let verify = matches.is_present("verify") && rec.path().join(".signature").is_file();
 
                                if verify {
-                                   use std::ffi::OsString;
                                    use std::io::Write;
-                                   let program = OsString::from(matches.value_of("gnupg").map(String::from)
-                                       .unwrap_or(match config.signing.gnupg {
-                                           Some(ref command) => command.clone(),
-                                           None => String::from("gpg"),
-                                       }));
+                                   let program = gnupg(matches, &config).expect("can't find GnuPG");
                                    let mut command = ::std::process::Command::new(program);
 
                                    command

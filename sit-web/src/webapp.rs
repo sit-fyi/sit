@@ -110,6 +110,7 @@ fn path_to_response<P: Into<PathBuf>>(path: P, request: &Request) -> Response {
     }.with_etag(request, hash)
 }
 
+
 use itertools::Itertools;
 use sit_core;
 
@@ -264,10 +265,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
            if config.signing.enabled {
               use std::ffi::OsString;
               use std::io::Write;
-              let program = match config.signing.gnupg {
-                           Some(ref command) => command.clone(),
-                           None => String::from("gpg"),
-              };
+              let program = super::gnupg(&config).unwrap();
               let key = match config.signing.key.clone() {
                   Some(key) => Some(OsString::from(key)),
                   None => None,
