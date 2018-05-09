@@ -1,0 +1,61 @@
+From 4f6a6b034912f2f8bef05ff60df2b67e33c74df8 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 9 May 2018 09:57:08 -0700
+Subject: [PATCH] Problem: sit's requirement for .type/
+
+Currently, sit (as a CLI tool) requires at least .type files to
+be specified either through -t argument or .type/... files.
+
+This requirement comes from an earlier time when it was assumed
+that every record must have a type. That made sense with issue tracking
+and the way it was implemented.
+
+However, this may become a hindrance in other modules as they would
+have to comply with this requirement for no good reason.
+
+Solution: remove the requirement to have at least one type specified
+---
+ sit/src/command_record.rs   | 4 ----
+ sit/tests/command_record.rs | 4 ++--
+ 2 files changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+index bfc9282..0efde3a 100644
+--- a/sit/src/command_record.rs
++++ b/sit/src/command_record.rs
+@@ -66,10 +66,6 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Rep
+                 None => vec![],
+             };
+ 
+-            if !files.clone().any(|f| f.starts_with(".type/")) && types.len() == 0 {
+-                println!("At least one record type (.type/TYPE file) or `-t/--type` command line argument is required.");
+-                return 1;
+-            }
+             let files = files.into_iter()
+                 .map(move |name| {
+                     let path = PathBuf::from(&name);
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index 40e198e..fb0d4c0 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -182,7 +182,7 @@ fn record_should_not_record_if_files_are_missing() {
+         .expect_failure();
+ }
+ 
+-/// Should fail if no type is supplied
++/// Should not fail if no type is supplied
+ #[test]
+ fn record_should_fail_if_no_type() {
+      let dir = TestDir::new("sit", "record_should_fail_if_no_type");
+@@ -196,7 +196,7 @@ fn record_should_fail_if_no_type() {
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+         .args(&["record", &id, "--no-author", "file"])
+-        .expect_failure();
++        .expect_success();
+ }
+ 
+ /// Should not require -t if .type/... is supplied
+-- 
+2.16.2
+

@@ -1,0 +1,12 @@
+Currently, sit (as a CLI tool) requires at least .type files to
+be specified either through -t argument or .type/... files.
+
+This requirement comes from an earlier time when it was assumed
+that every record must have a type. That made sense with issue tracking
+and the way it was implemented.
+
+However, this may become a hindrance in other modules as they would
+have to comply with this requirement for no good reason.
+
+Solution: remove the requirement to have at least one type specified
+
