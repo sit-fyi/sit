@@ -1,0 +1,165 @@
+From b3a0d82eedaa921a273201f391d944a7a9e26378 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 7 May 2018 14:12:44 -0700
+Subject: [PATCH] Problem: systems where gpg and gpg2 are different GnuPGs
+
+On some systems, gpg would be GnuPG 1.x and gpg2 would be GnuPG 2.x.
+
+This causes SIT to fail as it expects 2.x-compatible binary
+
+Solution: try gpg2 first, and fall back to gpg
+---
+ Cargo.lock                |  1 +
+ sit-web/Cargo.toml        |  1 +
+ sit-web/src/main.rs       | 13 +++++++++++++
+ sit-web/src/webapp.rs     |  6 ++----
+ sit/src/command_record.rs |  6 +-----
+ sit/src/main.rs           | 21 ++++++++++++++-------
+ 6 files changed, 32 insertions(+), 16 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index dfc6cb4..6bd1129 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1132,6 +1132,7 @@ dependencies = [
+  "sit-core 0.4.0",
+  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+  "tempfile 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
++ "which 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "xdg 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ ]
+ 
+diff --git a/sit-web/Cargo.toml b/sit-web/Cargo.toml
+index 56689bb..b49ff6b 100644
+--- a/sit-web/Cargo.toml
++++ b/sit-web/Cargo.toml
+@@ -24,6 +24,7 @@ rayon = "1.0"
+ digest = "0.7"
+ blake2 = "0.7"
+ hex = "0.3"
++which = "2.0"
+ sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
+ 
+ [build-dependencies]
+diff --git a/sit-web/src/main.rs b/sit-web/src/main.rs
+index daa1662..ebb3061 100644
+--- a/sit-web/src/main.rs
++++ b/sit-web/src/main.rs
+@@ -38,6 +38,19 @@ extern crate hex;
+ extern crate mime_guess;
+ mod webapp;
+ 
++extern crate which;
++
++use std::ffi::OsString;
++use which::which;
++
++pub fn gnupg(config: &cfg::Configuration) -> Result<OsString, which::Error> {
++    let program = match config.signing.gnupg {
++            Some(ref command) => command.clone().into(),
++            None => which("gpg2").or_else(|_| which("gpg"))?.to_str().unwrap().into(),
++    };
++    Ok(program)
++}
++
+ fn main() {
+     #[cfg(unix)]
+     let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 4967fc7..866844a 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -110,6 +110,7 @@ fn path_to_response<P: Into<PathBuf>>(path: P, request: &Request) -> Response {
+     }.with_etag(request, hash)
+ }
+ 
++
+ use itertools::Itertools;
+ use sit_core;
+ 
+@@ -264,10 +265,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+            if config.signing.enabled {
+               use std::ffi::OsString;
+               use std::io::Write;
+-              let program = match config.signing.gnupg {
+-                           Some(ref command) => command.clone(),
+-                           None => String::from("gpg"),
+-              };
++              let program = super::gnupg(&config).unwrap();
+               let key = match config.signing.key.clone() {
+                   Some(key) => Some(OsString::from(key)),
+                   None => None,
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+index bfc9282..652a298 100644
+--- a/sit/src/command_record.rs
++++ b/sit/src/command_record.rs
+@@ -124,11 +124,7 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Rep
+ 
+             if signing {
+                 use std::ffi::OsString;
+-                let program = OsString::from(matches.value_of("gnupg").map(String::from)
+-                    .unwrap_or(match config.signing.gnupg {
+-                        Some(ref command) => command.clone(),
+-                        None => String::from("gpg"),
+-                    }));
++                let program = super::gnupg(matches, &config).expect("can't find GnuPG");
+                 let key = match matches.value_of("signing-key").map(String::from).or_else(|| config.signing.key.clone()) {
+                     Some(key) => Some(OsString::from(key)),
+                     None => None,
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index dfc209e..941e752 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -9,7 +9,7 @@ use std::path::PathBuf;
+ use std::fs;
+ use std::process::exit;
+ 
+-use clap::{Arg, App, SubCommand};
++use clap::{Arg, App, SubCommand, ArgMatches};
+ 
+ use sit_core::{Item, Record};
+ use sit_core::item::ItemReduction;
+@@ -49,6 +49,7 @@ extern crate question;
+ extern crate dunce;
+ 
+ extern crate which;
++use which::which;
+ 
+ use std::collections::HashMap;
+ fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
+@@ -66,6 +67,17 @@ fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
+     }
+ }
+ 
++use std::ffi::OsString;
++pub fn gnupg(matches: &ArgMatches, config: &cfg::Configuration) -> Result<OsString, which::Error> {
++    let program = OsString::from(matches.value_of("gnupg").map(String::from)
++        .unwrap_or(match config.signing.gnupg {
++            Some(ref command) => command.clone(),
++            None => which("gpg2").or_else(|_| which("gpg"))?.to_str().unwrap().into(),
++        }));
++    Ok(program)
++}
++
++
+ fn main() {
+     exit(main_with_result(true));
+ }
+@@ -467,13 +479,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+                                let verify = matches.is_present("verify") && rec.path().join(".signature").is_file();
+ 
+                                if verify {
+-                                   use std::ffi::OsString;
+                                    use std::io::Write;
+-                                   let program = OsString::from(matches.value_of("gnupg").map(String::from)
+-                                       .unwrap_or(match config.signing.gnupg {
+-                                           Some(ref command) => command.clone(),
+-                                           None => String::from("gpg"),
+-                                       }));
++                                   let program = gnupg(matches, &config).expect("can't find GnuPG");
+                                    let mut command = ::std::process::Command::new(program);
+ 
+                                    command
+-- 
+2.16.2
+
