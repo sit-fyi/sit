@@ -1,0 +1,250 @@
+From fa0a89b2290ddb08bf3ce9e5aff07e0bd2805cfe Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 10 May 2018 14:28:48 -0700
+Subject: [PATCH] Problem: `sit reduce` is not tested automatically
+
+Solution: provide the initial test coverage for it
+---
+ sit/src/command_reduce.rs   |  36 +++++++++++++
+ sit/src/main.rs             |  31 +----------
+ sit/tests/command_reduce.rs | 129 ++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 167 insertions(+), 29 deletions(-)
+ create mode 100644 sit/src/command_reduce.rs
+ create mode 100644 sit/tests/command_reduce.rs
+
+diff --git a/sit/src/command_reduce.rs b/sit/src/command_reduce.rs
+new file mode 100644
+index 0000000..7ad844c
+--- /dev/null
++++ b/sit/src/command_reduce.rs
+@@ -0,0 +1,36 @@
++use clap::ArgMatches;
++use sit_core::{self, Repository, item::ItemReduction, cfg::Configuration};
++use serde_json;
++use super::get_named_expression;
++use jmespath;
++
++pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
++    let id = matches.value_of("id").unwrap();
++    match repo.item(id) {
++        None => {
++            eprintln!("Item {} not found", id);
++            return 1;
++        },
++        Some(item) => {
++            let query_expr = matches.value_of("named-query")
++                .and_then(|name|
++                    get_named_expression(name, &repo, ".items/queries", &config.items.queries))
++                .or_else(|| matches.value_of("query").or_else(|| Some("@")).map(String::from))
++                .unwrap();
++
++            let query = jmespath::compile(&query_expr).expect("can't compile query expression");
++
++            let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
++            let result = item.reduce_with_reducer(&mut reducer).expect("can't reduce item");
++            let data = jmespath::Variable::from(serde_json::Value::Object(result));
++            let view = query.search(&data).unwrap();
++            if view.is_string() {
++                println!("{}", view.as_string().unwrap());
++            } else {
++                println!("{}", serde_json::to_string_pretty(&view).unwrap());
++            }
++
++        }
++    }
++    return 0;
++}
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index e69bac4..7d63d1a 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -12,7 +12,6 @@ use std::process::exit;
+ use clap::{Arg, App, SubCommand, ArgMatches};
+ 
+ use sit_core::{Item, Record};
+-use sit_core::item::ItemReduction;
+ 
+ extern crate serde;
+ extern crate serde_json;
+@@ -29,6 +28,7 @@ mod command_init;
+ mod command_item;
+ mod command_record;
+ mod command_items;
++mod command_reduce;
+ 
+ #[cfg(unix)]
+ extern crate xdg;
+@@ -499,34 +499,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("reduce") {
+-            let id = matches.value_of("id").unwrap();
+-            match repo.item(id) {
+-                None => {
+-                    eprintln!("Item {} not found", id);
+-                    return 1;
+-                },
+-                Some(item) => {
+-                    let query_expr = matches.value_of("named-query")
+-                        .and_then(|name|
+-                            get_named_expression(name, &repo, ".items/queries", &config.items.queries))
+-                        .or_else(|| matches.value_of("query").or_else(|| Some("@")).map(String::from))
+-                        .unwrap();
+-
+-                    let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+-
+-                    let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
+-                    let result = item.reduce_with_reducer(&mut reducer).expect("can't reduce item");
+-                    let data = jmespath::Variable::from(serde_json::Value::Object(result));
+-                    let view = query.search(&data).unwrap();
+-                    if view.is_string() {
+-                        println!("{}", view.as_string().unwrap());
+-                    } else {
+-                        println!("{}", serde_json::to_string_pretty(&view).unwrap());
+-                    }
+-
+-                }
+-            }
+-            return 0;
++            return command_reduce::command(matches, &repo, config);
+         }
+ 
+         if let Some(matches) = matches.subcommand_matches("config") {
+diff --git a/sit/tests/command_reduce.rs b/sit/tests/command_reduce.rs
+new file mode 100644
+index 0000000..90b8136
+--- /dev/null
++++ b/sit/tests/command_reduce.rs
+@@ -0,0 +1,129 @@
++extern crate cli_test_dir;
++extern crate sit_core;
++extern crate serde_json;
++
++use sit_core::{Repository, Item};
++
++use cli_test_dir::*;
++
++/// Should fail if there is no item to reduce
++#[test]
++fn no_item() {
++    let dir = TestDir::new("sit", "no_item");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.cmd().args(&["reduce", "some-item"]).expect_failure();
++}
++
++/// Should return the entire reduced item
++#[test]
++fn item() {
++    let dir = TestDir::new("sit", "item");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.create_file(".sit/reducers/test.js",r#"
++    module.exports = function(state, record) {
++        return Object.assign(state, {value: "hello"});
++    }
++    "#);
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // create a record
++    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
++    let output = String::from_utf8(dir.cmd().args(&["reduce", id.trim()]).expect_success().stdout).unwrap();
++    use serde_json::Map;
++    let mut expect = Map::new();
++    expect.insert("id".into(), serde_json::Value::String(id.trim().into()));
++    expect.insert("value".into(), serde_json::Value::String("hello".into()));
++    assert_eq!(serde_json::from_str::<serde_json::Value>(output.trim()).unwrap(), serde_json::Value::Object(expect));
++
++}
++
++/// Should apply query
++#[test]
++fn item_query() {
++    let dir = TestDir::new("sit", "query");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.create_file(".sit/reducers/test.js",r#"
++    module.exports = function(state, record) {
++        return Object.assign(state, {value: "hello"});
++    }
++    "#);
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // create a record
++    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
++    let output = String::from_utf8(dir.cmd().args(&["reduce", id.trim(), "-q", "join(' ', ['item', id, value])"]).expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("item {} hello", id.trim()));
++}
++
++/// Should apply named query
++#[test]
++fn item_named_query() {
++    let dir = TestDir::new("sit", "named_query");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.create_file(".sit/reducers/test.js",r#"
++    module.exports = function(state, record) {
++        return Object.assign(state, {value: "hello"});
++    }
++    "#);
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // create a record
++    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
++    dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
++    let output = String::from_utf8(dir.cmd().args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("item {} hello", id.trim()));
++}
++
++/// Should apply named user query
++#[test]
++fn item_named_user_query() {
++    let dir = TestDir::new("sit", "named_user_query");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.create_file(".sit/reducers/test.js",r#"
++    module.exports = function(state, record) {
++        return Object.assign(state, {value: "hello"});
++    }
++    "#);
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // create a record
++    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
++    let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id, value])"}}}"#;
++    #[cfg(unix)]
++    dir.create_file(".config/sit/config.json", cfg);
++    #[cfg(windows)]
++    dir.create_file("sit_config.json", cfg);
++    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("item {} hello", id.trim()));
++}
++
++/// Should prefer repo named query over user user named query
++#[test]
++fn item_repo_over_named_user_query() {
++    let dir = TestDir::new("sit", "repo_over_named_user_query");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.create_file(".sit/reducers/test.js",r#"
++    module.exports = function(state, record) {
++        return Object.assign(state, {value: "hello"});
++    }
++    "#);
++    let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
++    // create a record
++    Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
++    let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id])"}}}"#;
++    #[cfg(unix)]
++    dir.create_file(".config/sit/config.json", cfg);
++    #[cfg(windows)]
++    dir.create_file("sit_config.json", cfg);
++    dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
++    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("item {} hello", id.trim()));
++}
+-- 
+2.16.2
+
