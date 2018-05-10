@@ -12,7 +12,6 @@ use std::process::exit;
 use clap::{Arg, App, SubCommand, ArgMatches};
 
 use sit_core::{Item, Record};
-use sit_core::item::ItemReduction;
 
 extern crate serde;
 extern crate serde_json;
@@ -29,6 +28,7 @@ mod command_init;
 mod command_item;
 mod command_record;
 mod command_items;
+mod command_reduce;
 
 #[cfg(unix)]
 extern crate xdg;
@@ -499,34 +499,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         }
 
         if let Some(matches) = matches.subcommand_matches("reduce") {
-            let id = matches.value_of("id").unwrap();
-            match repo.item(id) {
-                None => {
-                    eprintln!("Item {} not found", id);
-                    return 1;
-                },
-                Some(item) => {
-                    let query_expr = matches.value_of("named-query")
-                        .and_then(|name|
-                            get_named_expression(name, &repo, ".items/queries", &config.items.queries))
-                        .or_else(|| matches.value_of("query").or_else(|| Some("@")).map(String::from))
-                        .unwrap();
-
-                    let query = jmespath::compile(&query_expr).expect("can't compile query expression");
-
-                    let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-                    let result = item.reduce_with_reducer(&mut reducer).expect("can't reduce item");
-                    let data = jmespath::Variable::from(serde_json::Value::Object(result));
-                    let view = query.search(&data).unwrap();
-                    if view.is_string() {
-                        println!("{}", view.as_string().unwrap());
-                    } else {
-                        println!("{}", serde_json::to_string_pretty(&view).unwrap());
-                    }
-
-                }
-            }
-            return 0;
+            return command_reduce::command(matches, &repo, config);
         }
 
         if let Some(matches) = matches.subcommand_matches("config") {
