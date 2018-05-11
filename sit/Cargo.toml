@@ -29,6 +29,7 @@ sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
 [dev-dependencies]
 cli_test_dir = "0.1.5"
 git2 = { version = "0.7", default-features = false }
+remove_dir_all = "0.5"
 
 [features]
 windows7 = ["sit-core/windows7"]
