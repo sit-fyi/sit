@@ -1,0 +1,4 @@
+Previous patch wouldn't pass tests on Windows
+because `std::fs::remove_dir_all` is insufficient
+on Windows. This patch uses `remove_dir_all`
+crate that addresses this shortcoming.
