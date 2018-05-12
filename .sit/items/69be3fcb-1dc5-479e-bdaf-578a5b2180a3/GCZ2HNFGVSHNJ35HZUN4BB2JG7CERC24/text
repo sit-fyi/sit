@@ -1,0 +1,14 @@
+On systems without explicitly SIT configuration
+or gitconfig for deriving this information,
+calling `sit record` results in an error:
+
+```
+SIT needs your authorship identity to be configured (supported sources:
+sit, git), or re-run this command in a terminal
+...
+thread '<test name>' panicked at 'expected command to succeed, got
+ExitStatus(ExitStatus(256))',
+```
+
+Solution: disable authorship collection in those tests
+

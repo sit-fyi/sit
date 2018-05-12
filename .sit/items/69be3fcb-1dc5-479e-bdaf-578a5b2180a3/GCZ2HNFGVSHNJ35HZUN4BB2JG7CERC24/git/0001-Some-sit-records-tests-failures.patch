@@ -1,0 +1,82 @@
+From 1808e75db93d227068deaa7fac19154bcd1a501c Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 11 May 2018 17:34:16 -0700
+Subject: [PATCH] Some: `sit records` tests failures
+
+On systems without explicitly SIT configuration
+or gitconfig for deriving this information,
+calling `sit record` results in an error:
+
+```
+SIT needs your authorship identity to be configured (supported sources:
+sit, git), or re-run this command in a terminal
+...
+thread '<test name>' panicked at 'expected command to succeed, got
+ExitStatus(ExitStatus(256))',
+```
+
+Solution: disable authorship collection in those tests
+---
+ sit/tests/command_records.rs | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/sit/tests/command_records.rs b/sit/tests/command_records.rs
+index 3632123..ee72db4 100644
+--- a/sit/tests/command_records.rs
++++ b/sit/tests/command_records.rs
+@@ -31,7 +31,7 @@ fn record() {
+         .arg("init")
+         .expect_success();
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
++    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+     let output = String::from_utf8(dir.cmd().args(&["records", id.trim()]).expect_success().stdout).unwrap();
+     assert_eq!(output, record);
+ }
+@@ -45,8 +45,8 @@ fn filter() {
+         .arg("init")
+         .expect_success();
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
+-    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
++    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
++    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+     // filter out item we just created
+     let output = String::from_utf8(dir.cmd().args(&["records", id.trim(), "-f", &format!("hash != '{}'", record.trim())]).expect_success().stdout).unwrap();
+     assert_eq!(output, record1);
+@@ -60,8 +60,8 @@ fn named_filter() {
+         .arg("init")
+         .expect_success();
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
+-    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
++    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
++    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+     // filter out item we just created
+     dir.create_file(".sit/.records/filters/f1", &format!("hash != '{}'", record.trim()));
+     let output = String::from_utf8(dir.cmd().args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
+@@ -77,8 +77,8 @@ fn named_user_filter() {
+         .arg("init")
+         .expect_success();
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
+-    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
++    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
++    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+     // filter out item we just created
+     let cfg = &format!(r#"{{"records": {{"filters": {{"f1": "hash != '{}'"}}}}}}"#, record.trim());
+     #[cfg(unix)]
+@@ -97,8 +97,8 @@ fn repo_over_named_user_filter() {
+         .arg("init")
+         .expect_success();
+        let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
+-    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
++    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
++    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+     // filter out item we just created
+     let cfg = &format!(r#"{{"records": {{"filters": {{"f1": "hash != '{}'"}}}}}}"#, record1.trim());
+     #[cfg(unix)]
+-- 
+2.16.2
+
