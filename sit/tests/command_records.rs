@@ -31,7 +31,7 @@ fn record() {
         .arg("init")
         .expect_success();
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
+    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
     let output = String::from_utf8(dir.cmd().args(&["records", id.trim()]).expect_success().stdout).unwrap();
     assert_eq!(output, record);
 }
@@ -45,8 +45,8 @@ fn filter() {
         .arg("init")
         .expect_success();
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
-    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
+    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
     // filter out item we just created
     let output = String::from_utf8(dir.cmd().args(&["records", id.trim(), "-f", &format!("hash != '{}'", record.trim())]).expect_success().stdout).unwrap();
     assert_eq!(output, record1);
@@ -60,8 +60,8 @@ fn named_filter() {
         .arg("init")
         .expect_success();
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
-    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
+    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
     // filter out item we just created
     dir.create_file(".sit/.records/filters/f1", &format!("hash != '{}'", record.trim()));
     let output = String::from_utf8(dir.cmd().args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
@@ -77,8 +77,8 @@ fn named_user_filter() {
         .arg("init")
         .expect_success();
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
-    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
+    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
     // filter out item we just created
     let cfg = &format!(r#"{{"records": {{"filters": {{"f1": "hash != '{}'"}}}}}}"#, record.trim());
     #[cfg(unix)]
@@ -97,8 +97,8 @@ fn repo_over_named_user_filter() {
         .arg("init")
         .expect_success();
        let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
-    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
-    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "-t", "Type"]).expect_success().stdout).unwrap();
+    let record = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+    let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
     // filter out item we just created
     let cfg = &format!(r#"{{"records": {{"filters": {{"f1": "hash != '{}'"}}}}}}"#, record1.trim());
     #[cfg(unix)]
