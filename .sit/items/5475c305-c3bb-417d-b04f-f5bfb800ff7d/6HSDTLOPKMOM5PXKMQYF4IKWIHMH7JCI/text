@@ -1,0 +1,3 @@
+While working on a first draft to implement proposed collections, I noticed that there's going to be a significant number of path conventions coming out of it (a glimpse of it is already seen in the proposed solution above). This got me to think a little bit more. Maybe it is more reasonable to keep only one collection per repository for the sake of simplicity and if *some* modules or programs want to use multiple collections, they'd have tomake a convention as to where these "sub-repositories" should be put inside of the main one. This will require a change to sit-web to enable serving multiple repositories at once (which as already noted as an idea in b51d2d99-ccaf-4800-9321-b03a29b0ab3b).
+
+The jury is still out.
