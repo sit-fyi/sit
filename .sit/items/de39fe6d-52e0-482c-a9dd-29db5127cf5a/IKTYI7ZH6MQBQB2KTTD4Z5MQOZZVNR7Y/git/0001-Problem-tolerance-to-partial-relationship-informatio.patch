@@ -1,0 +1,98 @@
+From 08368c0702259c37e0b2276cac100ba862a30d41 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 18 May 2018 19:43:45 -0700
+Subject: [PATCH] Problem: tolerance to partial relationship information
+
+Records that refer to unresolvable records (not
+currently available in the repository) don't get iterated.
+
+This makes SIT not tolerant to partial information
+availability, which is arguably not offline/decentralization
+friendly enough.
+
+Solution: enforce parent validation only if such a parent exists
+---
+ sit-core/src/repository.rs | 60 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 60 insertions(+)
+
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 15cfa53..42c030f 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -511,6 +511,8 @@ impl<'a> Iterator for ItemRecordIter<'a> {
+                     Err(_) => false,
+                     Ok(dir) => {
+                         dir.filter_map(Result::ok)
++                            // only use links pointing to actual directories
++                            .filter(|l| item_path.join(l.file_name()).is_dir())
+                             // has to be already processed
+                             .all(|l| self.parents.iter().any(|p| p.as_str() == l.file_name().to_str().unwrap()))
+ 
+@@ -1018,6 +1020,64 @@ mod tests {
+         assert!(row_3.iter().any(|r| r == &record3));
+     }
+ 
++
++    #[test]
++    fn partial_ordering() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++
++        // first repo
++        let repo1 = Repository::new(&tmp).unwrap();
++        // create an item
++        let item1 = repo1.new_item().unwrap();
++        // create a few top records
++        let _record0 = item1.new_record(vec![("test", &[2u8][..])].into_iter(), false).unwrap();
++        // this record will link only to one top record
++        let record1 = item1.new_record(vec![("test", &[3u8][..])].into_iter(), true).unwrap();
++        let record2 = item1.new_record(vec![("test", &[1u8][..])].into_iter(), false).unwrap();
++        // now attempt to create a record that should link both together
++        let record3 = item1.new_record(vec![("test", &[3u8][..])].into_iter(), true).unwrap();
++
++
++        let mut tmp1 = TempDir::new("sit").unwrap().into_path();
++        tmp1.push(".sit");
++
++        // second repo
++        let repo2 = Repository::new(&tmp1).unwrap();
++        // create an item
++        let item2 = repo2.new_item().unwrap();
++        // replicate one of the top records only
++        let record2_2 = item2.new_record(record2.file_iter(), false).unwrap();
++
++        // now copy record3 that linked both top records in the first repo
++        // to the second repo
++        let record3_2 = item2.new_record(record3.file_iter(), false).unwrap();
++        // ensure their hashes match
++        assert_eq!(record3_2.hash(), record3.hash());
++
++        // now copy record1 that linked both top records in the first repo
++        // to the second repo
++        let record1_2 = item2.new_record(record1.file_iter(), false).unwrap();
++        // ensure their hashes match
++        assert_eq!(record1_2.hash(), record1.hash());
++
++        // now, look at the records in the second item
++        let mut records: Vec<_> = item2.record_iter().unwrap().collect();
++        let row_2 = records.pop().unwrap();
++        let row_1 = records.pop().unwrap();
++        assert_eq!(records.len(), 0);
++
++        // ensure the partially resolvable record to be there
++        assert_eq!(row_2.len(), 1);
++        assert!(row_2.iter().any(|r| r == &record3_2));
++
++        assert_eq!(row_1.len(), 2);
++        // as well as one of its parents
++        assert!(row_1.iter().any(|r| r == &record2_2));
++        // as well as the one that has no resolvable parents
++        assert!(row_1.iter().any(|r| r == &record1_2));
++    }
++
+     #[test]
+     fn record_deterministic_hashing() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+-- 
+2.16.2
+
