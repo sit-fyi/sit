@@ -3,6 +3,7 @@
 use serde_json::{Map, Value};
 
 use super::Reducer;
+use record::{File, OrderedFiles};
 
 #[derive(Debug, Error)]
 pub enum ReductionError<Err: ::std::error::Error + ::std::fmt::Debug> {
@@ -29,9 +30,8 @@ pub trait Item: Sized {
     ///
     /// Will reference all dangling records as its parent, unless
     /// `link_parents` is set to `false`
-    fn new_record<S: AsRef<str>, R: ::std::io::Read,
-                  I: Iterator<Item=(S, R)>>(&self, iter: I, link_parents: bool)
-       -> Result<Self::Record, Self::Error>;
+    fn new_record<'f, F: File + 'f, I: Into<OrderedFiles<'f, F>>>(&self, files: I, link_parents: bool)
+       -> Result<Self::Record, Self::Error> where F::Read: 'f;
 }
 
 /// [`Issue`] trait extension that defines and implements default reduction algorithms

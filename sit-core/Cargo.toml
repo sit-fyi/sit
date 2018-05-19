@@ -28,6 +28,7 @@ git2 = { version = "0.7", optional = true, default-features = false }
 [dev-dependencies]
 dunce = "0.1"
 assert_matches = "1.1"
+proptest = "0.7"
 
 [build-dependencies]
 cc = "1.0"
