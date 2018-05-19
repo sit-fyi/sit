@@ -1,0 +1,173 @@
+From 171b41ddcd29578d8509eba4208d8dcc84e0f30b Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 18 May 2018 16:58:00 -0700
+Subject: [PATCH 1/2] Problem: ordering records with parents on different
+ levels
+
+Consider the following layour of records:
+
+[1]-\
+|    \
+[2]   |
+   \  |
+    [3]
+
+In this case, record iterator will never include [3]
+
+Solution: track consumption of all processed records
+in the iterator.
+
+Previous solution tracked only previous "level" of
+records to establish the satisfaction of the conditions
+of inclusion.
+---
+ sit-core/src/repository.rs | 125 +++++++++++++++++++++++++--------------------
+ 1 file changed, 71 insertions(+), 54 deletions(-)
+
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index ebd357d..15cfa53 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -494,61 +494,44 @@ impl<'a> Iterator for ItemRecordIter<'a> {
+     type Item = Vec<Record<'a>>;
+ 
+     fn next(&mut self) -> Option<Self::Item> {
+-        // top level
+-        if self.parents.len() == 0 {
+-            let result: Vec<_> = self.dir.iter()
+-                .filter(|e| e.file_type().unwrap().is_dir())
+-                // find items
+-                // that don't have .prev/ID files in them
+-                .filter(|e|
+-                            !fs::read_dir(e.path()).unwrap()
+-                                .filter(Result::is_ok)
+-                                .map(Result::unwrap)
+-                                .any(|e| e.file_name().to_str().unwrap() == ".prev")
+-                )
+-                .map(|e| e.file_name())
+-                // filter out invalid record names (if any)
+-                .filter(|f| self.repository.config.encoding.decode(f.to_str().unwrap().as_bytes()).is_ok())
+-                .map(|f| Record {
+-                    hash: self.repository.config.encoding.decode(f.to_str().unwrap().as_bytes()).unwrap(),
+-                    item: self.item.clone(),
+-                    repository: self.repository,
+-                    actual_path: self.repository.items_path().join(&self.item).join(f.to_str().unwrap()),
+-                })
+-                .collect();
+-            if result.len() == 0 {
+-                return None
+-            }
+-            self.parents = result.iter().map(|r| r.encoded_hash()).collect();
+-            return Some(result);
+-        } else {
+-            let result: Vec<_> = self.dir.iter()
+-                // filter out invalid record names (if any)
+-                .filter(|e| self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).is_ok())
+-                .filter(|e| {
+-                    let links: Vec<_> = match fs::read_dir(e.path().join(".prev")) {
+-                        Err(_) => vec![],
+-                        Ok(dir) => dir
+-                            .filter(Result::is_ok)
+-                            .map(Result::unwrap)
+-                            .map(|e| String::from(e.file_name().to_str().unwrap()))
+-                            .collect(),
+-                    };
+-                    links.len() > 0 && links.iter().all(|l| self.parents.iter().any(|p| p == l))
+-                })
+-                .map(|e| Record {
+-                    hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
+-                    item: self.item.clone(),
+-                    repository: self.repository,
+-                    actual_path: self.repository.items_path().join(&self.item).join(e.file_name()),
+-                })
+-                .collect();
+-            if result.len() == 0 {
+-                return None
+-            }
+-            self.parents = result.iter().map(|r| r.encoded_hash()).collect();
+-            return Some(result);
++        let item_path = self.repository.items_path.join(&self.item);
++        // TODO: if https://github.com/rust-lang/rust/issues/43244 is finalized, try to use drain_filter instead
++        let (filtered, dir): (Vec<_>, Vec<_>) = ::std::mem::replace(&mut self.dir, vec![]).into_iter()
++            .partition(|e| {
++                if !e.file_type().unwrap().is_dir() {
++                    return false
++                }
++                let valid_name = self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).is_ok();
++                if !valid_name {
++                    return false;
++                }
++
++                let dot_prev = e.path().join(".prev");
++                let has_all_valid_parents = !dot_prev.is_dir() || match fs::read_dir(dot_prev) {
++                    Err(_) => false,
++                    Ok(dir) => {
++                        dir.filter_map(Result::ok)
++                            // has to be already processed
++                            .all(|l| self.parents.iter().any(|p| p.as_str() == l.file_name().to_str().unwrap()))
++
++                    }
++                };
++                has_all_valid_parents
++            });
++        let result: Vec<_> = filtered.iter()
++            .map(|e| Record {
++                hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
++                item: self.item.clone(),
++                repository: self.repository,
++                actual_path: item_path.join(e.file_name()),
++            })
++            .collect();
++        self.dir = dir;
++        if result.len() == 0 {
++            return None
+         }
++        self.parents.append(&mut result.iter().map(|r| r.encoded_hash()).collect());
++        Some(result)
+     }
+ }
+ 
+@@ -1001,6 +984,40 @@ mod tests {
+         assert!(row_3.iter().any(|r| r == &record5));
+     }
+ 
++    #[test]
++    fn multilevel_parents() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(&tmp).unwrap();
++        // create an item
++        let item = repo.new_item().unwrap();
++        // create a top record
++        let record1 = item.new_record(vec![("test", &[1u8][..])].into_iter(), false).unwrap();
++        // create a record right below it
++        let record2 = item.new_record(vec![("test", &[2u8][..])].into_iter(), true).unwrap();
++        // now attempt to create a record that should link both together
++        let record3 = item.new_record(vec![("test", &[3u8][..]),
++                                           (&format!(".prev/{}", record1.encoded_hash()), &[][..]),
++                                           (&format!(".prev/{}", record2.encoded_hash()), &[][..]),
++        ].into_iter(), false).unwrap();
++
++        // now, look at their ordering
++        let mut records: Vec<_> = item.record_iter().unwrap().collect();
++        let row_3 = records.pop().unwrap();
++        let row_2 = records.pop().unwrap();
++        let row_1 = records.pop().unwrap();
++        assert_eq!(records.len(), 0);
++
++        assert_eq!(row_1.len(), 1);
++        assert!(row_1.iter().any(|r| r == &record1));
++
++        assert_eq!(row_2.len(), 1);
++        assert!(row_2.iter().any(|r| r == &record2));
++
++        assert_eq!(row_3.len(), 1);
++        assert!(row_3.iter().any(|r| r == &record3));
++    }
++
+     #[test]
+     fn record_deterministic_hashing() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+-- 
+2.16.2
+
