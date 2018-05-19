@@ -1,0 +1,18 @@
+Consider the following layour of records:
+
+```
+[1]-\
+|    \
+[2]   |
+   \  |
+    [3]
+```
+
+In this case, record iterator will never include [3]
+
+Solution: track consumption of all processed records
+in the iterator.
+
+Previous solution tracked only previous "level" of
+records to establish the satisfaction of the conditions
+of inclusion.
