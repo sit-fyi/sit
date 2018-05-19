@@ -1,0 +1,9 @@
+Records that refer to unresolvable records (not
+currently available in the repository) don't get iterated.
+
+This makes SIT not tolerant to partial information
+availability, which is arguably not offline/decentralization
+friendly enough.
+
+Solution: enforce parent validation only if such a parent exists
+
