@@ -1,0 +1,35 @@
+As a solution for the need to sign records, a whole
+mechanism of `FilteredRecord` and `DynamicallyHashedRecord`
+was introduced.
+
+They are relatively hard to understand and have led to
+very error-prone practices. For example, the injection
+of the signature is done in an "off-site" record, its
+new hash is calculated by wrapping that record into
+a `DynamicallyHashedRecord` and its re-hashed value
+is used to finally move the record into its right place.
+
+Similarly, the verification of signature's validity is
+done by wrapping a record into a `FilteredRecord` to
+recalculate the hash without the signature.
+
+Also, it has led to the creation of a very confusing
+API of a `path()` and `actual_path()` for the `Record`.
+
+Solution: extracting ordering and hashing primitives
+
+This change takes a long (but, hopefully, right in the
+longterm) approach of, firstly, abstracting a file.
+Before, a file is always a tuple of its name and a reader
+(`Read`). Now, anything that implements `File` trait,
+will be treated as such.
+
+Secondly, this introduces the `OrderedFiles` primitive
+that always contains the list of files in an sorted order,
+to ensure that SIT will *always* process files in the correct
+order.
+
+With these changes, the end-user program can compute hashes
+on existing and to-be-created records without having to
+resort to tricky APIs and file management issues.
+
