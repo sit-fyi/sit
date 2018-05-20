@@ -8,7 +8,7 @@
 
 use std::path::{Path, PathBuf};
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Write;
 
 use tempdir::TempDir;
 
@@ -16,7 +16,7 @@ use glob;
 
 use serde_json;
 
-use super::hash::{HashingAlgorithm, Hasher};
+use super::hash::HashingAlgorithm;
 use super::encoding::Encoding;
 use super::id::IdGenerator;
 
@@ -70,6 +70,17 @@ pub struct Config {
     version: String,
     #[serde(flatten)]
     extra: HashMap<String, serde_json::Value>,
+}
+
+impl Config {
+    /// Returns hashing algorithm
+    pub fn hashing_algorithm(&self) -> &HashingAlgorithm {
+        &self.hashing_algorithm
+    }
+    /// Returns encoding
+    pub fn encoding(&self) -> &Encoding {
+        &self.encoding
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -381,72 +392,43 @@ pub struct Item<'a> {
     id: OsString,
 }
 
+use record::{File, OrderedFiles};
 
-fn process_file<S: AsRef<str>, R: ::std::io::Read>(hasher: &mut Hasher, name: S, mut reader: R, mut buf: &mut Vec<u8>, tempdir: &TempDir) -> Result<(), ::std::io::Error> {
-    #[cfg(windows)] // replace backslashes with slashes
-    let name_for_hashing = name.as_ref().replace("\\", "/");
-    #[cfg(unix)]
-    let name_for_hashing = name.as_ref();
-    hasher.process((name_for_hashing.as_ref() as &str).as_bytes());
-    let path = tempdir.path().join(PathBuf::from(name.as_ref() as &str));
-    let mut dir = path.clone();
-    dir.pop();
-    fs::create_dir_all(dir)?;
-    let mut file = fs::File::create(path)?;
-    loop {
-        let bytes_read = reader.read(&mut buf)?;
-        hasher.process(&buf);
-        file.write(&buf[0..bytes_read])?;
-        if bytes_read == 0 {
-            break;
-        }
-    }
-    Ok(())
-}
 impl<'a> Item<'a> {
-    pub fn new_record_in<P: AsRef<Path>, S: AsRef<str>, R: ::std::io::Read,
-        I: Iterator<Item=(S, R)>>(&self, path: P, iter: I, link_parents: bool) -> Result<<Item<'a> as ItemTrait>::Record, <Item<'a> as ItemTrait>::Error> {
+    pub fn new_record_in<'f, P: AsRef<Path>, F: File + 'f, I: Into<OrderedFiles<'f, F>>>(&self, path: P, files: I, link_parents: bool) ->
+           Result<<Item<'a> as ItemTrait>::Record, <Item<'a> as ItemTrait>::Error> where F::Read: 'f {
         let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
         let mut hasher = self.repository.config.hashing_algorithm.hasher();
-        let mut buf = vec![0; 4096];
 
-        let mut files: Vec<(Box<AsRef<str>>, Box<Read>)> = vec![];
-        // iterate over all files
-        for (name, mut reader) in iter {
-            files.push((Box::new(name) as Box<AsRef<str>>, Box::new(reader) as Box<Read>));
-        }
+        let files: OrderedFiles<F> = files.into();
 
         // Link parents if requested
-        if link_parents {
-            match self.record_iter()?.last() {
-                None => (),
-                Some(records) => {
-                    let parents = records.iter().map(|rec| (format!(".prev/{}", rec.encoded_hash()), &b""[..]));
+        let files = if link_parents {
+            let records = self.record_iter()?.last().unwrap_or(vec![]);
+            let parents: OrderedFiles<_> = records.iter().map(|rec| (format!(".prev/{}", rec.encoded_hash()), &b""[..])).into();
+            files + parents
+        } else {
+            files.boxed()
+        };
 
-                    for (name, mut reader) in parents {
-                        files.push((Box::new(name) as Box<AsRef<str>>, Box::new(reader) as Box<Read>));
-                    }
-                },
-            }
-        }
+        files.hash_and(&mut *hasher, |n| {
+            let path = tempdir.path().join(PathBuf::from(n));
+            let mut dir = path.clone();
+            dir.pop();
+            fs::create_dir_all(dir)?;
+            let file = fs::File::create(path)?;
+            Ok(file)
+        }, |mut f, c| f.write(c).map(|_| f))?;
 
-        // IMPORTANT: Sort lexicographically
-        files.sort_by(|&(ref name1, _), &(ref name2, _)|
-            name1.as_ref().as_ref().cmp(name2.as_ref().as_ref()));
-
-
-        for (name, mut reader) in files {
-            process_file(&mut *hasher, name.as_ref(), reader, &mut buf, &tempdir)?;
-        }
 
         let hash = hasher.result_box();
-        let actual_path = path.as_ref().join(PathBuf::from(self.repository.config.encoding.encode(&hash)));
-        fs::rename(tempdir.into_path(), &actual_path)?;
+        let path = path.as_ref().join(PathBuf::from(self.repository.config.encoding.encode(&hash)));
+        fs::rename(tempdir.into_path(), &path)?;
         Ok(Record {
             hash,
             item: self.id.clone(),
             repository: self.repository,
-            actual_path,
+            path,
         })
     }
 
@@ -475,9 +457,8 @@ impl<'a> ItemTrait for Item<'a> {
         })
     }
 
-    fn new_record<S: AsRef<str>, R: ::std::io::Read,
-        I: Iterator<Item=(S, R)>>(&self, iter: I, link_parents: bool) -> Result<Self::Record, Self::Error> {
-       self.new_record_in(self.repository.items_path.join(PathBuf::from(self.id())), iter, link_parents)
+    fn new_record<'f, F: File + 'f, I: Into<OrderedFiles<'f, F>>>(&self, files: I, link_parents: bool) -> Result<Self::Record, Self::Error> where F::Read: 'f {
+       self.new_record_in(self.repository.items_path.join(PathBuf::from(self.id())), files, link_parents)
     }
 
 }
@@ -525,7 +506,7 @@ impl<'a> Iterator for ItemRecordIter<'a> {
                 hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
                 item: self.item.clone(),
                 repository: self.repository,
-                actual_path: item_path.join(e.file_name()),
+                path: item_path.join(e.file_name()),
             })
             .collect();
         self.dir = dir;
@@ -581,135 +562,18 @@ pub struct Record<'a> {
     hash: Vec<u8>,
     item: OsString,
     repository: &'a Repository,
-    actual_path: PathBuf,
+    path: PathBuf,
 }
-
-/// Somethiing that can provide access to its underlying repository
-pub trait RepositoryProvider {
-    /// Returns underlying repository;
-    fn repository(&self) -> &Repository;
-}
-
-impl<'a> RepositoryProvider for Record<'a> {
-    fn repository(&self) -> &Repository {
-        self.repository
-    }
-}
-
-#[derive(Debug)]
-/// Record wrapper that dynamically rehashes wrapped Record's content
-pub struct DynamicallyHashedRecord<'a, T: RecordTrait + RepositoryProvider + 'a>(&'a T);
-
-impl<'a, T: RecordTrait<Str=String, Hash=Vec<u8>> + RepositoryProvider + 'a> RecordTrait for DynamicallyHashedRecord<'a, T> {
-    type Read = T::Read;
-    type Str = String;
-    type Hash = Vec<u8>;
-    type Iter = T::Iter;
-
-    fn hash(&self) -> Self::Hash {
-        let tempdir = TempDir::new_in(&self.0.repository().path(),"sit").unwrap();
-        let mut hasher = self.0.repository().config.hashing_algorithm.hasher();
-        let mut buf = vec![0; 4096];
-
-        let mut files: Vec<(Box<AsRef<str>>, Box<Read>)> = vec![];
-
-        for (name, reader) in self.file_iter() {
-            files.push((Box::new(name) as Box<AsRef<str>>, Box::new(reader) as Box<Read>));
-        }
-
-        // IMPORTANT: Sort lexicographically
-        files.sort_by(|&(ref name1, _), &(ref name2, _)|
-            name1.as_ref().as_ref().cmp(name2.as_ref().as_ref()));
-
-        for (name, mut reader) in files {
-            process_file(&mut *hasher, name.as_ref(), reader, &mut buf, &tempdir).unwrap();
-        }
-
-        hasher.result_box()
-    }
-
-    fn encoded_hash(&self) -> Self::Str {
-        self.0.repository().config.encoding.encode(self.hash().as_ref())
-    }
-
-    fn file_iter(&self) -> Self::Iter {
-        self.0.file_iter()
-    }
-
-    fn item_id(&self) -> Self::Str {
-        self.0.item_id()
-    }
-}
-
-#[derive(Debug)]
-/// Record with filtered content
-pub struct FilteredRecord<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvider + 'a,
-           F: Fn(&(S, R)) -> bool>(&'a T, F);
-
-impl<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvider + 'a, F: Copy + Fn(&(S, R)) -> bool> RecordTrait for FilteredRecord<'a, S, R, T, F> {
-    type Read = T::Read;
-    type Hash = T::Hash;
-    type Str = T::Str;
-    type Iter = ::std::iter::Filter<T::Iter, F>;
-
-    fn hash(&self) -> Self::Hash {
-        self.0.hash()
-    }
-
-    fn encoded_hash(&self) -> Self::Str {
-        self.0.encoded_hash()
-    }
-
-    fn file_iter(&self) -> Self::Iter {
-        self.0.file_iter().filter(self.1)
-    }
-
-    fn item_id(&self) -> Self::Str {
-        self.0.item_id()
-    }
-}
-
-impl <'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvider + 'a, F: Copy + Fn(&(S, R)) -> bool> RepositoryProvider for FilteredRecord<'a, S, R, T, F> {
-    fn repository(&self) -> &Repository {
-        self.0.repository()
-    }
-}
-
-/// Allows any Record to have its content dynamically rehashed
-pub trait DynamicallyHashable<'a> : RecordTrait + RepositoryProvider + Sized {
-    /// Returns a record that has its hash dynamically computed
-    fn dynamically_hashed(&'a self) -> DynamicallyHashedRecord<'a, Self> {
-        DynamicallyHashedRecord(self)
-    }
-}
-
-impl<'a> DynamicallyHashable<'a> for Record<'a> {}
-impl<'a, S: AsRef<str>, R: Read, T: RecordTrait<Str=S, Read=R> + RepositoryProvider + 'a, F: Copy + Fn(&(S, R)) -> bool> DynamicallyHashable<'a> for FilteredRecord<'a, S, R, T, F> {}
 
 impl<'a> Record<'a> {
 
-    /// Returns path to the record, as it should be per repository's naming scheme
-    ///
-    /// The record MIGHT not be at this path as this is the path where
-    /// it SHOULD BE. The actual path can be retrieved using `actual_path()`
-    pub fn path(&self) -> PathBuf {
-        self.repository.items_path.join(PathBuf::from(&self.item)).join(self.encoded_hash())
-    }
-
-    /// Returns an actual path to the record directory
-    pub fn actual_path(&self) -> &Path {
-        self.actual_path.as_path()
-    }
-
-
-    /// Returns a record with filtered files
-    pub fn filtered<F>(&'a self, filter: F) -> FilteredRecord<'a, <Record<'a> as RecordTrait>::Str,
-        <Record<'a> as RecordTrait>::Read,
-        Record<'a>, F> where F: Fn(&(<Record<'a> as RecordTrait>::Str, <Record<'a> as RecordTrait>::Read)) -> bool {
-        FilteredRecord(self, filter)
+    /// Returns path to the record
+    pub fn path(&self) -> &Path {
+        self.path.as_path()
     }
 
 }
+
 
 use serde::{Serialize, Serializer};
 
@@ -742,11 +606,11 @@ impl<'a> RecordTrait for Record<'a> {
     }
 
     fn file_iter(&self) -> Self::Iter {
-        let path = self.actual_path();
+        let path = self.path();
         let glob_pattern = format!("{}/**/*", path.to_str().unwrap());
         RecordFileIterator {
             glob: glob::glob(&glob_pattern).expect("invalid glob pattern"),
-            prefix: self.actual_path().into(),
+            prefix: self.path().into(),
             phantom: PhantomData,
         }
     }
@@ -1096,49 +960,6 @@ mod tests {
     }
 
     #[test]
-    fn record_dynamic_hashing() {
-        let mut tmp = TempDir::new("sit").unwrap().into_path();
-        tmp.push(".sit");
-        let repo = Repository::new(&tmp).unwrap();
-        let item = repo.new_item().unwrap();
-        let record = item.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
-        let record_dynamic = record.dynamically_hashed();
-        assert_eq!(record_dynamic.hash(), record.hash());
-        assert_eq!(record_dynamic.encoded_hash(), record.encoded_hash());
-        // now, put some file in the dynamic one
-        let hash = record.hash();
-        let encoded_hash = record.encoded_hash();
-        ::std::fs::File::create(record.path().join("dynamic")).unwrap();
-        assert_eq!(record.hash(), hash);
-        assert_eq!(record.encoded_hash(), encoded_hash);
-        assert_ne!(record_dynamic.hash(), record.hash());
-        assert_ne!(record_dynamic.encoded_hash(), record.encoded_hash());
-    }
-
-    #[test]
-    fn record_filtering() {
-         let mut tmp = TempDir::new("sit").unwrap().into_path();
-        tmp.push(".sit");
-        let repo = Repository::new(&tmp).unwrap();
-        let item = repo.new_item().unwrap();
-        let record = item.new_record(vec![("z/a", &[2u8][..]), ("test", &[1u8][..])].into_iter(), false).unwrap();
-        fn not_za(val: &(String, fs::File)) -> bool {
-            val.0 != "z/a"
-        }
-        let filtered = record.filtered(not_za);
-        // Check the content
-        assert_eq!(filtered.file_iter().count(), 1);
-        let files: Vec<_> = filtered.file_iter().map(|(name, _)| name).collect();
-        assert_eq!(files, vec!["test"]);
-        // Filtering alone doesn't change hash
-        assert_eq!(filtered.hash(), record.hash());
-        assert_eq!(filtered.encoded_hash(), record.encoded_hash());
-        // But doing it dynamically does
-        assert_ne!(filtered.dynamically_hashed().hash(), record.hash());
-        assert_ne!(filtered.dynamically_hashed().encoded_hash(), record.encoded_hash());
-    }
-
-    #[test]
     fn record_outside_naming_scheme() {
         let mut tmp = TempDir::new("sit").unwrap().into_path();
         tmp.push(".sit");
@@ -1167,7 +988,7 @@ mod tests {
         #[cfg(windows)]
         drop(files);
 
-        ::std::fs::rename(record2.actual_path(), record2.path()).unwrap();
+        ::std::fs::rename(record2.path(), repo.items_path().join(item.id()).join(record2.encoded_hash())).unwrap();
 
         // and now it can be
         let records: Vec<Vec<_>> = item.record_iter().unwrap().collect();

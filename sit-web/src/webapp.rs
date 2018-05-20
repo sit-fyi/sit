@@ -64,15 +64,14 @@ use std::path::PathBuf;
 use std::fs;
 use std::net::ToSocketAddrs;
 
-use sit_core::Repository;
+use sit_core::{Repository, record::OrderedFiles};
+use std::io::Cursor;
 
 use mime_guess::get_mime_type_str;
 
 use std::ffi::OsString;
 
 use rayon::prelude::*;
-
-use tempdir;
 
 use blake2::Blake2b;
 use digest::{Input, VariableOutput};
@@ -225,9 +224,9 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
            };
 
            let mut multipart = get_multipart_input(&request).expect("multipart request");
-           let mut files = vec![];
            let mut link = true;
            let mut used_files = vec![];
+
            loop {
               let mut part = multipart.next();
               if part.is_none() {
@@ -243,8 +242,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
                  if field.name.starts_with(".prev/") {
                     link = false;
                  }
-                 files.push((field.name.clone(), fs::File::open(&path).expect("can't open saved file")));
-                 used_files.push(path);
+                 used_files.push((field.name.clone(), path));
                  match field.next_entry_inplace() {
                      Ok(Some(_)) => continue,
                      Ok(None) => break,
@@ -253,16 +251,10 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
               }
            }
 
-           let tmp = tempdir::TempDir::new_in(repo.path(), "sit").unwrap();
-           let record_path = tmp.path();
+           let files: OrderedFiles<_> = used_files.iter().map(|(n, p)| (n.clone(), fs::File::open(p).expect("can't open saved file"))).into();
+           let files_: OrderedFiles<_> = used_files.iter().map(|(n, p)| (n.clone(), fs::File::open(p).expect("can't open saved file"))).into();
 
-           let record = item.new_record_in(record_path, files.into_iter(), link).expect("can't create record");
-
-           for file in used_files {
-             fs::remove_file(file).expect("can't remove file");
-           }
-
-           if config.signing.enabled {
+           let files: OrderedFiles<_> = if config.signing.enabled {
               use std::ffi::OsString;
               use std::io::Write;
               let program = super::gnupg(&config).unwrap();
@@ -290,30 +282,31 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
 
               {
                   let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
-                  stdin.write_all(record.encoded_hash().as_bytes()).expect("Failed to write to stdin");
+                  let mut hasher = repo.config().hashing_algorithm().hasher();
+                  files_.hash(&mut *hasher).expect("failed hashing files");
+                  let hash = hasher.result_box();
+                  let encoded_hash = repo.config().encoding().encode(&hash);
+                  stdin.write_all(encoded_hash.as_bytes()).expect("Failed to write to stdin");
               }
 
               let output = child.wait_with_output().expect("failed to read stdout");
 
               if !output.status.success() {
                   eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
+                  return Response::text(String::from_utf8_lossy(&output.stderr)).with_status_code(500);
               } else {
-                  use sit_core::repository::DynamicallyHashable;
-                  let dynamically_hashed_record = record.dynamically_hashed();
-                  let mut file = fs::File::create(record.actual_path().join(".signature"))
-                               .expect("can't open signature file");
-                 file.write(&output.stdout).expect("can't write signature file");
-                 drop(file);
-                 let new_hash = dynamically_hashed_record.encoded_hash();
-                 let mut new_path = record.path();
-                 new_path.pop();
-                 new_path.push(&new_hash);
-                 fs::rename(record.actual_path(), new_path).expect("can't rename record");
-                 return Response::json(&new_hash);
+                 let sig: OrderedFiles<_> = vec![(String::from(".signature"), Cursor::new(output.stdout))].into();
+                 files + sig
              }
 
           } else {
-                 fs::rename(record.actual_path(), record.path()).expect("can't rename record");
+              files.boxed()
+          };
+
+          let record = item.new_record(files, link).expect("can't create record");
+
+          for (_, file) in used_files {
+            fs::remove_file(file).expect("can't remove file");
           }
 
           Response::json(&record.encoded_hash())

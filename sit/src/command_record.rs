@@ -1,14 +1,13 @@
 use clap::{self, ArgMatches};
-use sit_core::{Repository, Record};
+use sit_core::{Repository, Record, Item, record::{OrderedFiles, BoxedOrderedFiles}};
 use sit_core::cfg::{self, Configuration};
 use chrono::prelude::*;
 use std::process::exit;
+use std::io::{self, Cursor, Write};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::env;
-use tempfile;
 use atty;
-use tempdir;
 use serde_json;
 
 pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Repository, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
@@ -60,65 +59,62 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Rep
             return 1;
         },
         Some(item) => {
-            let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
-            let types: Vec<_> = match matches.value_of("type") {
-                Some(types) => types.split(",").collect(),
-                None => vec![],
-            };
-
-            let files = files.into_iter()
-                .map(move |name| {
-                    let path = PathBuf::from(&name);
-                    if !path.is_file() {
-                        eprintln!("{} does not exist or is not a regular file", path.to_str().unwrap());
-                        exit(1);
-                    }
-                    let abs_name = ::dunce::canonicalize(path).expect("can't canonicalize path");
-                    let cur_dir = ::dunce::canonicalize(env::current_dir().expect("can't get current directory")).expect("can't canonicalize current directory");
-                    match abs_name.strip_prefix(&cur_dir) {
-                        Err(_) => {
-                            eprintln!("Path {} is not relative to {} current directory", name, cur_dir.to_str().unwrap());
+            fn record_files(matches: &ArgMatches, utc: DateTime<Utc>, config: &Configuration) -> Result<BoxedOrderedFiles<'static>, io::Error> {
+                let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
+                let files: OrderedFiles<_> = files.into_iter()
+                    .map(move |name| {
+                        let path = PathBuf::from(&name);
+                        if !path.is_file() {
+                            eprintln!("{} does not exist or is not a regular file", path.to_str().unwrap());
                             exit(1);
-                        },
-                        Ok(path) => String::from(path.to_str().unwrap()),
-                    }
-                })
-                .map(|name| (name.clone(), ::std::fs::File::open(name).expect("can't open file")));
+                        }
+                        let abs_name = ::dunce::canonicalize(path).expect("can't canonicalize path");
+                        let cur_dir = ::dunce::canonicalize(env::current_dir().expect("can't get current directory")).expect("can't canonicalize current directory");
+                        match abs_name.strip_prefix(&cur_dir) {
+                            Err(_) => {
+                                eprintln!("Path {} is not relative to {} current directory", name, cur_dir.to_str().unwrap());
+                                exit(1);
+                            },
+                            Ok(path) => String::from(path.to_str().unwrap()),
+                        }
+                    })
+                    .map(|name| (name.clone(), ::std::fs::File::open(name).expect("can't open file"))).into();
 
-            let type_files = types.iter().map(|t|
-                (format!(".type/{}", *t),
-                 tempfile::tempfile_in(repo.path())
-                     .expect(&format!("can't create a temporary file (.type/{})", t))));
+                let types: Vec<_> = match matches.value_of("type") {
+                    Some(types) => types.split(",").collect(),
+                    None => vec![],
+                };
 
-            use std::io::{Write, Seek, SeekFrom};
+                let type_files: OrderedFiles<_> = types.iter().map(|t|
+                    (format!(".type/{}", *t),&[][..])).into();
 
-            // .authors
-            let authorship_files = if !matches.is_present("no-author") {
-                let mut authors = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.authors)");
-                authors.write(format!("{}", config.author.clone().unwrap()).as_bytes()).expect("can't write to a tempoary file (.authors)");
-                authors.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.authors)");
-                vec![(".authors".into(), authors)].into_iter()
-            } else {
-                vec![].into_iter()
-            };
+                // .authors
+                let authorship_files: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-author") {
+                    let authors = format!("{}", config.author.clone().unwrap());
+                    Some(vec![(".authors".into(), Cursor::new(authors))].into())
+                } else {
+                    None
+                };
 
-            let tmp = tempdir::TempDir::new_in(repo.path(), "sit").unwrap();
-            let record_path = tmp.path();
+                let timestamp: Option<OrderedFiles<(String, _)>>= if !matches.is_present("no-timestamp") {
+                    let timestamp = format!("{:?}", utc);
+                    Some(vec![(".timestamp".into(), Cursor::new(timestamp))].into())
+                } else {
+                    None
+                };
 
-            let record = if !matches.is_present("no-timestamp") {
-                let mut f = tempfile::tempfile_in(repo.path()).expect("can't create a temporary file (.timestamp)");
-                let utc: DateTime<Utc> = Utc::now();
-                f.write(format!("{:?}", utc).as_bytes()).expect("can't write to a temporary file (.timestamp)");
-                f.seek(SeekFrom::Start(0)).expect("can't seek to the beginning of a temporary file (.timestamp)");
-                item.new_record_in(record_path, files.chain(type_files).chain(authorship_files).chain(vec![(String::from(".timestamp"), f)].into_iter()), true)
-            } else {
-                item.new_record_in(record_path, files.chain(type_files).chain(authorship_files), true)
-            }.expect("can't create a record");
+                Ok(files + type_files + authorship_files + timestamp)
+
+            }
+
+            let utc: DateTime<Utc> = Utc::now();
 
 
             let signing = matches.is_present("sign") || config.signing.enabled;
 
-            if signing {
+            let files = record_files(matches, utc, &config).expect("failed collecting files");
+
+            let files = if signing {
                 use std::ffi::OsString;
                 let program = super::gnupg(matches, &config).expect("can't find GnuPG");
                 let key = match matches.value_of("signing-key").map(String::from).or_else(|| config.signing.key.clone()) {
@@ -144,7 +140,11 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Rep
 
                 {
                     let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
-                    stdin.write_all(record.encoded_hash().as_bytes()).expect("Failed to write to stdin");
+                    let mut hasher = repo.config().hashing_algorithm().hasher();
+                    files.hash(&mut *hasher).expect("failed hashing files");
+                    let hash = hasher.result_box();
+                    let encoded_hash = repo.config().encoding().encode(&hash);
+                    stdin.write_all(encoded_hash.as_bytes()).expect("Failed to write to stdin");
                 }
 
                 let output = child.wait_with_output().expect("failed to read stdout");
@@ -153,24 +153,16 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Rep
                     eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
                     return 1;
                 } else {
-                    use sit_core::repository::DynamicallyHashable;
-                    let dynamically_hashed_record = record.dynamically_hashed();
-                    let mut file = fs::File::create(record.actual_path().join(".signature"))
-                        .expect("can't open signature file");
-                    file.write(&output.stdout).expect("can't write signature file");
-                    drop(file);
-                    let new_hash = dynamically_hashed_record.encoded_hash();
-                    let mut new_path = record.path();
-                    new_path.pop();
-                    new_path.push(&new_hash);
-                    fs::rename(record.actual_path(), new_path).expect("can't rename record");
-                    println!("{}", new_hash);
-                    return 0;
+                    let files = record_files(matches, utc, &config).expect("failed collecting files");
+                    let signature_file: OrderedFiles<(String, _)> = vec![(".signature".into(), Cursor::new(output.stdout))].into();
+                    files + signature_file
                 }
 
             } else {
-                fs::rename(record.actual_path(), record.path()).expect("can't rename record");
-            }
+                files
+            };
+
+            let record = item.new_record(files, true).expect("can't create a record");
 
             println!("{}", record.encoded_hash());
         }

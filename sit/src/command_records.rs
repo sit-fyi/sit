@@ -1,9 +1,8 @@
 use clap::ArgMatches;
-use sit_core::{Repository, Record, Item, cfg::Configuration};
+use sit_core::{Repository, Record, Item, cfg::Configuration, record::OrderedFiles};
 use serde_json;
 use super::get_named_expression;
 use jmespath;
-use std::fs;
 use super::gnupg;
 
 pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
@@ -43,7 +42,6 @@ pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -
                         let verify = matches.is_present("verify") && rec.path().join(".signature").is_file();
 
                         if verify {
-                            use std::io::Write;
                             let program = gnupg(matches, &config).expect("can't find GnuPG");
                             let mut command = ::std::process::Command::new(program);
 
@@ -58,14 +56,15 @@ pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -
                             let mut child = command.spawn().expect("failed spawning gnupg");
 
                             {
-                                use sit_core::repository::DynamicallyHashable;
-                                fn not_signature(val: &(String, fs::File)) -> bool {
-                                    &val.0 != ".signature"
-                                }
-                                let filtered_record = rec.filtered(not_signature);
-                                let filtered_dynamic = filtered_record.dynamically_hashed();
+                                let files: OrderedFiles<_> = rec.file_iter().into();
+                                let files = files - ".signature";
+                                let mut hasher = repo.config().hashing_algorithm().hasher();
+                                files.hash(&mut *hasher).expect("failed hashing files");
+                                let hash = hasher.result_box();
+                                let encoded_hash = repo.config().encoding().encode(&hash);
+                                use std::io::Write;
                                 let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
-                                stdin.write_all(filtered_dynamic.encoded_hash().as_bytes()).expect("Failed to write to stdin");
+                                stdin.write_all(encoded_hash.as_bytes()).expect("Failed to write to stdin");
                             }
 
                             let output = child.wait_with_output().expect("failed to read stdout");
