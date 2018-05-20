@@ -66,10 +66,6 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Rep
                 None => vec![],
             };
 
-            if !files.clone().any(|f| f.starts_with(".type/")) && types.len() == 0 {
-                println!("At least one record type (.type/TYPE file) or `-t/--type` command line argument is required.");
-                return 1;
-            }
             let files = files.into_iter()
                 .map(move |name| {
                     let path = PathBuf::from(&name);
