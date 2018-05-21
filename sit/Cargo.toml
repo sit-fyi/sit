@@ -24,6 +24,7 @@ question = "0.2"
 dunce = "0.1"
 which = "2.0"
 atty = "0.2"
+thread_local = "0.3"
 sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
 
 [dev-dependencies]

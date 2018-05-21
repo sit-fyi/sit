@@ -49,6 +49,8 @@ extern crate dunce;
 extern crate which;
 use which::which;
 
+extern crate thread_local;
+
 use std::collections::HashMap;
 pub fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {

@@ -1,9 +1,13 @@
 use clap::ArgMatches;
-use sit_core::{self, Repository, item::ItemReduction, cfg::Configuration};
+use sit_core::{self, reducers::duktape::DuktapeReducer, Repository, item::ItemReduction, cfg::Configuration};
 use serde_json;
 use rayon::prelude::*;
 use super::get_named_expression;
 use jmespath;
+
+use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use thread_local::ThreadLocal;
 
 pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
     let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
@@ -25,11 +29,14 @@ pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -
     let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
-    let reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-    let items_with_reducers: Vec<_> = items.into_iter().map(|i| (i, reducer.clone())).collect();
-    items_with_reducers.into_par_iter()
-        .map(|(item, mut reducer)| {
-            let result = item.reduce_with_reducer(&mut reducer).expect("can't reduce item");
+    let tl_reducer : ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>> = ThreadLocal::new();
+    let reducer = Arc::new(Mutex::new(DuktapeReducer::new(&repo).unwrap()));
+
+    items.into_par_iter()
+        .map(|item| {
+            let mut reducer = tl_reducer.get_or(|| Box::new(RefCell::new(reducer.lock().unwrap().clone()))).borrow_mut();
+            reducer.reset_state();
+            let result = item.reduce_with_reducer(&mut *reducer).expect("can't reduce item");
             let data = jmespath::Variable::from(serde_json::Value::Object(result));
             let result = if filter_defined {
                 filter.search(&data).unwrap().as_boolean().unwrap()
@@ -51,5 +58,5 @@ pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -
         .for_each(|view| {
             println!("{}", view);
         });
-    return 0;
+    0
 }

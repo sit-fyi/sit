@@ -43,6 +43,8 @@ extern crate which;
 use std::ffi::OsString;
 use which::which;
 
+extern crate thread_local;
+
 pub fn gnupg(config: &cfg::Configuration) -> Result<OsString, which::Error> {
     let program = match config.signing.gnupg {
             Some(ref command) => command.clone().into(),

@@ -302,7 +302,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
     /// Very useful for re-using the same set of reducers for
     /// multiple items, helps avoiding re-reading and re-compiling
     /// reducer functions every time.
-    pub fn reset_state(&self) {
+    pub fn reset_state(&mut self) {
         for i in 0..self.reducers {
             unsafe {
                 duktape::duk_push_object(self.context);
