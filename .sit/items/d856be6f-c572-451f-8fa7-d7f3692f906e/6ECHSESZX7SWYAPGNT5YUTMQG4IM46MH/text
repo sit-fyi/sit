@@ -1,0 +1,18 @@
+While it's not terribly bad, it's not perfect.
+
+Solution: don't clone DuktapeReducer unnecessarily
+
+Previously, DuktapeReducer was cloned for every
+item to be reduced. This is quite wasteful as every
+clone operation has a non-zero cost.
+
+However, when we're using Rayon, there's a limited
+number of workers reducing items, so we can actually
+clone enough of DuktapeReducers for every worker,
+and simply reset each one of them (this is cheaper)
+for every item reduction.
+
+In a non-scientific test, reducing ~4,000 items went
+from about 15 or so seconds to about 12 or so. That's
+a 20% improvement.
+
