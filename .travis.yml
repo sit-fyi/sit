@@ -12,11 +12,11 @@ matrix:
     - mkdir -p ~/.config/sit
     - 'echo "{\"author\": {\"name\": \"SIT Merge Request CI\"}}" > ~/.config/sit/config.json'
     - git config --global user.name "SIT Merge Request CI"
-    - git config --global user.email "bot@sit-it.org"
+    - git config --global user.email "bot@sit.fyi"
     - git checkout -b ci
     - PATH=`pwd`/target/debug:$PATH ./scripts/ci ${TRAVIS_COMMIT_RANGE:-HEAD..HEAD} "cargo test" `git rev-parse HEAD` | tee log
     - chmod 600 sit-inbox
-    - cat log | tail -1 | xargs git push git@git.sit-it.org:sit-it/sit-inbox.git
+    - cat log | tail -1 | xargs git push git@git.sit.fyi:sit-fyi/sit-inbox.git
     env: 
     - GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -i sit-inbox"
   - env:
@@ -29,7 +29,7 @@ matrix:
       mv ../cargo-deps-readme README.md && git add -f README.md)"
     - cargo-vendor-0.1.13-x86_64-unknown-linux-musl/cargo-vendor vendor sit-cargo-deps
     - (cd sit-cargo-deps && echo $TRAVIS_COMMIT > COMMIT && git add -f * && git -c
-      user.name="SIT Build Bot" -c user.email="bot@sit-it.org" commit -m "Updated
+      user.name="SIT Build Bot" -c user.email="bot@sit.fyi" commit -m "Updated
       cargo deps for $TRAVIS_COMMIT" && git tag deps-`git rev-parse --short $TRAVIS_COMMIT`
       && git push && git push --tags)
   - nodejs: node
