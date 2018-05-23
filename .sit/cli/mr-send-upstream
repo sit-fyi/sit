@@ -1,5 +1,5 @@
 echo
 echo You can now push this MR upstream:
 echo
-echo GIT_SSH_COMMAND=\"ssh -i sit-inbox\" git push git@git.sit.sh:sit-it/sit-inbox.git $1
+echo GIT_SSH_COMMAND=\"ssh -i sit-inbox\" git push git@git.sit.fyi:sit-fyi/sit-inbox.git $1
 

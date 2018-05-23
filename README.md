@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="http://sit.sh"><img src="logo.png" alt="SIT" width="150"></a>
+  <a href="http://sit.fyi"><img src="logo.png" alt="SIT" width="150"></a>
   <br>
   <br>
   SIT
@@ -10,9 +10,9 @@
 <h4 align="center">Serverless Information Tracker</h4>
 
 <p align="center">
- <a href="https://github.com/sit-it/sit/releases"><img alt="Release" src="https://img.shields.io/github/release/sit-it/sit.svg"></a>
- <a href="https://gitter.im/sit-it/Lobby"><img alt="Chat" src="https://badges.gitter.im/sit-it/Lobby.png"></a>
- <a href="https://travis-ci.org/sit-it/sit"><img alt="Build status" src="https://travis-ci.org/sit-it/sit.svg?branch=master"></a>
+ <a href="https://github.com/sit-fyi/sit/releases"><img alt="Release" src="https://img.shields.io/github/release/sit-fyi/sit.svg"></a>
+ <a href="https://gitter.im/sit-fyi/Lobby"><img alt="Chat" src="https://badges.gitter.im/sit-fyi/Lobby.png"></a>
+ <a href="https://travis-ci.org/sit-fyi/sit"><img alt="Build status" src="https://travis-ci.org/sit-fyi/sit.svg?branch=master"></a>
  <a href="https://ci.appveyor.com/project/yrashk/sit"><img alt="Windows Build status" src="https://ci.appveyor.com/api/projects/status/0iv6ltgk3pa122hx?svg=true"></a>
  <img alt="issues open/total" src="https://s3-us-west-1.amazonaws.com/sit-badges/issues.svg?refresh">
  <img alt="merge requests open/total" src="https://s3-us-west-1.amazonaws.com/sit-badges/merge_requests.svg?refresh">
@@ -20,7 +20,7 @@
 
 <p align="center">
   [
-    <a href="https://github.com/sit-it/sit/releases"><b>Download</b></a> |
+    <a href="https://github.com/sit-fyi/sit/releases"><b>Download</b></a> |
     <a href="doc/architecture_overview.md"><b>Overview</b></a> |
     <a href="#questions-bug-reports-etc"><b>Issues & Merge Requests</b></a>
   ]
@@ -44,7 +44,7 @@ workflows and interfaces easily.
 
 Currently available modules:
 
-* [Issue Tracking](https://github.com/sit-it/issue-tracking)
+* [Issue Tracking](https://github.com/sit-fyi/issue-tracking)
 
 ## Why Should I Care?
 
@@ -74,13 +74,13 @@ information tracking tool (with issue tracking extracted to a module)
 
 ## Obtaining SIT
 
-All our releases are hosted on [GitHub](https://github.com/sit-it/sit/releases)
+All our releases are hosted on [GitHub](https://github.com/sit-fyi/sit/releases)
 and binary files can be downloaded from there.
 
 You can also use this oneliner to install it for your local user:
 
 ```
-curl -s https://sit.sh/install.sh | sh
+curl -s https://sit.fyi/install.sh | sh
 ```
 
 *Please note that while this is a convenient way to install SIT, it is not
@@ -104,7 +104,7 @@ Now, after that has been taken care of, time to check
 out SIT and build it:
 
 ```
-git clone https://github.com/sit-it/sit
+git clone https://github.com/sit-fyi/sit
 cd sit
 cargo build --release
 ```
@@ -132,18 +132,18 @@ you can send the updates to this repository:
 1. Create a branch (as a convention, you can use your issue ID or an added record ID as a branch name, but free to choose anything else, preferrably unique)
 2. Add new files in `.sit` and commit them. Commit message can be simply "Added issue <ISSUE-ID>"
    or, say, "Commented on issue <ISSUE-ID>"
-3. Push it out to the Inbox: `GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit.sh:sit-it/sit-inbox.git <branch>`
+3. Push it out to the Inbox: `GIT_SSH_COMMAND="ssh -i sit-inbox" git push git@git.sit.fyi:sit-fyi/sit-inbox.git <branch>`
 4. If the commit only contains new records (nothing else is permitted!) the Inbox
    will accept the push and immediately forward it to sit's master repository on GitHub.
    Otherwise, the push will be rejected.
 
 To further simplify the process of sending records to the upstream,
-it's highly recommended to add a remote (such as `issues`) for `git@git.sit.sh:sit-it/sit-inbox.git`
+it's highly recommended to add a remote (such as `issues`) for `git@git.sit.fyi:sit-fyi/sit-inbox.git`
 and this to your `~/.ssh/config`:
 
 ```
-host git.sit.sh
-  HostName git.sit.sh
+host git.sit.fyi
+  HostName git.sit.fyi
   IdentityFile /path/to/sit/repo/sit-inbox
   User git
 ```
@@ -152,7 +152,7 @@ This way, pushing out, will be as nice as `git push issues <branch>`
 
 ### Preparing a merge request
 
-Please refer to [CONTRIBUTING](https://github.com/sit-it/sit/blob/master/CONTRIBUTING.md#preparing-a-merge-request) for the instruction.
+Please refer to [CONTRIBUTING](https://github.com/sit-fyi/sit/blob/master/CONTRIBUTING.md#preparing-a-merge-request) for the instruction.
 
 ## License
 
