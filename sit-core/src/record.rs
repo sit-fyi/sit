@@ -89,17 +89,14 @@ impl<'a, F: File> OrderedFiles<'a, F> {
     /// to avoid re-reading them to accomplish both of the operations. By itself, however,
     /// this function doesn't do anything in term of saving files (or any other functionality),
     /// that is responsibility of `per_file` and `per_chunk` callbacks.
-    pub fn hash_and<PF, F_, PC>(mut self, hasher: &mut Hasher, per_file: PF, per_chunk: PC) -> Result<(), io::Error>
-        where PF: Fn(&str) -> Result<F_, io::Error>, PC: Fn(F_, &[u8]) -> Result<F_, io::Error> {
+    pub fn hash_and<PF, F_, PC, E>(mut self, hasher: &mut Hasher, per_file: PF, per_chunk: PC) -> Result<(), E>
+        where PF: Fn(&str) -> Result<F_, E>, PC: Fn(F_, &[u8]) -> Result<F_, E>, E: From<io::Error> {
         let mut buf = vec![0; 4096];
         for file in self.0.iter_mut() {
-            #[cfg(windows)] // replace backslashes with slashes
-            let name_for_hashing: String = file.name().replace("\\", "/").into();
-            #[cfg(unix)]
-            let name_for_hashing: String = file.name().into();
-            hasher.process(name_for_hashing.as_bytes());
+            let name: String = file.name().into();
+            hasher.process(name.as_bytes());
             let mut reader = file.read();
-            let mut file_processor = per_file(&name_for_hashing)?;
+            let mut file_processor = per_file(&name)?;
             loop {
                 let bytes_read = reader.read(&mut buf)?;
                 hasher.process(&buf);
@@ -117,9 +114,16 @@ impl<'a, F: File> OrderedFiles<'a, F> {
     }
 }
 
-impl<'a, I, F> From<I> for OrderedFiles<'a, F> where I: IntoIterator<Item=F>, F: File + 'a {
+impl<'a, I, F> From<I> for OrderedFiles<'a, (String, F::Read)> where I: IntoIterator<Item=F>, F: File + 'a {
     fn from(i: I) -> Self {
-        let mut files: Vec<_> = i.into_iter().collect();
+        let mut files: Vec<_> = i.into_iter().map(|file| {
+            // replace backslashes with slashes (Windows)
+            let name_for_hashing: String = file.name().replace("\\", "/").into();
+            use relative_path::RelativePath;
+            let name_for_hashing: String = RelativePath::new(&name_for_hashing).normalize().as_str().into();
+            (name_for_hashing, file.into_read())
+        }).collect();
+
         files.sort_unstable_by(|f1, f2| f1.name().cmp(f2.name()));
         OrderedFiles(files, PhantomData)
     }
@@ -158,7 +162,7 @@ impl<'a, F, S> Sub<S> for OrderedFiles<'a, F> where F: File + 'a, S: AsRef<str> 
     fn sub(self, rhs: S) -> Self::Output {
         let name = rhs.as_ref();
         let files: Vec<_> = self.0.into_iter().filter(|f| f.name() != name).collect();
-        files.into()
+        OrderedFiles(files, PhantomData)
     }
 }
 
@@ -226,9 +230,15 @@ mod ordered_files_tests {
       }
 
     }
+
+    #[test]
+    fn ordered_files_normalizes() {
+        let files1: OrderedFiles<_> = vec![("test/../hello", &b""[..]), ("/test0", &b""[..]), ("a\\b", &b""[..]), ("./test1", &b""[..])].into();
+        let files2: OrderedFiles<_> = vec![("hello", &b""[..]), ("test0", &b""[..]), ("a/b", &b""[..]), ("test1", &b""[..])].into();
+        assert_eq!(files1.0.iter().map(|f| f.name()).collect::<Vec<_>>(),
+                   files2.0.iter().map(|f| f.name()).collect::<Vec<_>>());
+    }
 }
-
-
 
 /// Record is an immutable collection of files
 pub trait Record {

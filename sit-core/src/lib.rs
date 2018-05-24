@@ -35,6 +35,8 @@ extern crate digest;
 
 #[cfg(test)] extern crate dunce;
 
+extern crate relative_path;
+
 // Crates necessary for testing
 #[cfg(test)] #[macro_use] extern crate assert_matches;
 #[cfg(test)] #[macro_use] extern crate proptest;

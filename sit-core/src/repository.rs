@@ -104,6 +104,10 @@ pub enum Error {
     AlreadyExists,
     /// Item not found
     NotFound,
+    /// Path prefix error
+    ///
+    /// Currently, this is used when one attempts to create a record file outside of the record
+    PathPrefixError,
     /// Upgrade required
     #[error(no_from, non_std)]
     UpgradeRequired(Upgrade),
@@ -393,6 +397,7 @@ pub struct Item<'a> {
 }
 
 use record::{File, OrderedFiles};
+use relative_path::{RelativePath, Component as RelativeComponent};
 
 impl<'a> Item<'a> {
     pub fn new_record_in<'f, P: AsRef<Path>, F: File + 'f, I: Into<OrderedFiles<'f, F>>>(&self, path: P, files: I, link_parents: bool) ->
@@ -411,14 +416,21 @@ impl<'a> Item<'a> {
             files.boxed()
         };
 
-        files.hash_and(&mut *hasher, |n| {
-            let path = tempdir.path().join(PathBuf::from(n));
-            let mut dir = path.clone();
+        files.hash_and(&mut *hasher, |n| -> Result<fs::File, Error> {
+            let path = RelativePath::new(n).normalize();
+            if path.components().any(|c| match c {
+                RelativeComponent::Normal(_) => false,
+                _ => true,
+            }) {
+                return Err(Error::PathPrefixError);
+            }
+            let actual_path = path.to_path(tempdir.path());
+            let mut dir = actual_path.clone();
             dir.pop();
             fs::create_dir_all(dir)?;
-            let file = fs::File::create(path)?;
+            let file = fs::File::create(actual_path)?;
             Ok(file)
-        }, |mut f, c| f.write(c).map(|_| f))?;
+        }, |mut f, c| -> Result<fs::File, Error> { f.write(c).map(|_| f).map_err(|e| e.into()) })?;
 
 
         let hash = hasher.result_box();
@@ -795,6 +807,25 @@ mod tests {
         assert_eq!(records.pop().unwrap().hash(), record.hash());
     }
 
+    #[test]
+    fn record_files_path() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(&tmp).unwrap();
+        // create an item
+        let item = repo.new_item().unwrap();
+        // attempt to create a record with an invalid filename
+        assert_matches!(item.new_record(vec![(".", &b"hello"[..])].into_iter(), false), Err(Error::IoError(_)));
+        assert_matches!(item.new_record(vec![("../test", &b"hello"[..])].into_iter(), false), Err(Error::PathPrefixError));
+        assert_matches!(item.new_record(vec![("something/../../test", &b"hello"[..])].into_iter(), false), Err(Error::PathPrefixError));
+        // however, these are alright
+        assert_matches!(item.new_record(vec![("something/../test", &b"hello"[..])].into_iter(), false), Ok(_));
+        assert_matches!(item.new_record(vec![("./test1", &b"hello"[..])].into_iter(), false), Ok(_));
+        // root is normalized, too
+        let record = item.new_record(vec![("/test2", &b"hello"[..])].into_iter(), false).unwrap();
+        assert_eq!(record.file_iter().next().unwrap().name(), "test2");
+    }
+
 
     #[test]
     fn new_record_parents_linking() {
@@ -952,11 +983,9 @@ mod tests {
         let item2 = repo.new_item().unwrap();
         let record2 = item2.new_record(vec![("test", &[1u8][..]), ("z/a", &[2u8][..])].into_iter(), false).unwrap();
         assert_eq!(record1.hash(), record2.hash());
-        #[cfg(windows)] {
-            let item3 = repo.new_item().unwrap();
-            let record3 = item3.new_record(vec![("test", &[1u8][..]), ("z\\a", &[2u8][..])].into_iter(), false).unwrap();
-            assert_eq!(record3.hash(), record2.hash());
-        }
+        let item3 = repo.new_item().unwrap();
+        let record3 = item3.new_record(vec![("test", &[1u8][..]), ("z\\a", &[2u8][..])].into_iter(), false).unwrap();
+        assert_eq!(record3.hash(), record2.hash());
     }
 
     #[test]
