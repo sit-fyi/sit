@@ -1,0 +1,15 @@
+If one was to pass a filename like "../filename" or "/tmp/something",
+sit-core would try to oblige.
+
+What's even worse, it hashes these relative paths as names
+so even if these relative paths resolve back into the record,
+the hash upon checking will not match.
+
+This is a pretty big deal. While I believe `sit` binary kind of
+prevents this scenario by having its own checks, this exposes
+sit-core as a library to this vulnerability.
+
+Solution: make `OrderedFiles` normalize filenames
+and `new_record_in` in Repository reject files that are not
+contained inside of the record.
+
