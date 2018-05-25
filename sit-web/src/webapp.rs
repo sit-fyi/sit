@@ -64,7 +64,7 @@ use std::path::PathBuf;
 use std::fs;
 use std::net::ToSocketAddrs;
 
-use sit_core::{Repository, record::OrderedFiles};
+use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles};
 use std::io::Cursor;
 
 use mime_guess::get_mime_type_str;
@@ -78,6 +78,10 @@ use digest::{Input, VariableOutput};
 use hex;
 
 use serde_json;
+
+use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use thread_local::ThreadLocal;
 
 fn path_to_response<P: Into<PathBuf>>(path: P, request: &Request) -> Response {
     let path: PathBuf = path.into();
@@ -139,9 +143,9 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
         (GET) (/api/items/{filter_expr: String}/{query_expr: String}) => {
             use jmespath;
             use sit_core::item::ItemReduction;
-            let items = repo.item_iter().expect("can't list items");
-            let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
-            let items_with_reducers: Vec<_> =  items.into_iter().map(|i| (i, reducer.clone())).collect();
+            let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
+            let mut reducer = Arc::new(Mutex::new(sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap()));
+            let tl_reducer: ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>> = ThreadLocal::new();
 
             let filter_defined = filter_expr != "";
             let filter = if filter_defined {
@@ -158,9 +162,11 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             };
 
             let result: Vec<_> =
-            items_with_reducers.into_par_iter()
-                  .map(|(item, mut reducer)| {
-                     item.reduce_with_reducer(&mut reducer).unwrap()
+            items.into_par_iter()
+                  .map(|item| {
+                     let mut reducer = tl_reducer.get_or(|| Box::new(RefCell::new(reducer.lock().unwrap().clone()))).borrow_mut();
+                     reducer.reset_state();
+                     item.reduce_with_reducer(&mut *reducer).unwrap()
                   }).map(|json| {
                      let data = jmespath::Variable::from(serde_json::Value::Object(json));
                      let result = if filter_defined {
