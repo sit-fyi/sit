@@ -91,14 +91,14 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Rep
                 // .authors
                 let authorship_files: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-author") {
                     let authors = format!("{}", config.author.clone().unwrap());
-                    Some(vec![(".authors".into(), Cursor::new(authors))].into())
+                    Some(vec![(String::from(".authors"), Cursor::new(authors))].into())
                 } else {
                     None
                 };
 
                 let timestamp: Option<OrderedFiles<(String, _)>>= if !matches.is_present("no-timestamp") {
                     let timestamp = format!("{:?}", utc);
-                    Some(vec![(".timestamp".into(), Cursor::new(timestamp))].into())
+                    Some(vec![(String::from(".timestamp"), Cursor::new(timestamp))].into())
                 } else {
                     None
                 };
@@ -154,7 +154,7 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Rep
                     return 1;
                 } else {
                     let files = record_files(matches, utc, &config).expect("failed collecting files");
-                    let signature_file: OrderedFiles<(String, _)> = vec![(".signature".into(), Cursor::new(output.stdout))].into();
+                    let signature_file: OrderedFiles<(String, _)> = vec![(String::from(".signature"), Cursor::new(output.stdout))].into();
                     files + signature_file
                 }
 
