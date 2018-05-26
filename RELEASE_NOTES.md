@@ -1,3 +1,9 @@
+# 0.4.0
+
+This is primarily a bug fix release. It fixes a couple of important problems
+in scanning record graphs and determinism of record hashes. It also
+includes a few changes to improve performance in some cases.
+
 # 0.3.0
 
 With this release, SIT transitions from Serverless Issue Tracking to

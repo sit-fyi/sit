@@ -1,3 +1,24 @@
+# 0.4.0
+
+## Breaking changes
+
+* New API for [re-]hashing records without filtering & dynamic updates (f8a87e97-9684-4d15-b546-5ffa9da1b658)
+
+## Improvements
+
+* Better (and faster) API to find an item (259c113e-89a9-4305-b276-aba1a4d76a70)
+* Faster parallel item reduction (d856be6f-c572-451f-8fa7-d7f3692f906e)
+
+## Bugfixes
+
+* Not being able to read some legitimate Git configs for deriving authorship (06a458fd-c143-4748-be1d-a4de7d28f8d5)
+* It was possible files outside of records and records with incorrect hashes (d01dab25-83b1-4a7d-80ce-f7a43a1abf9a)
+* Multi-level parents links were not resolved correctly (e7978296-ab8e-4a10-8b2b-bbe9dba645fe)
+
+## Updates
+
+* Duktape has been updated to 2.2.1 (4510c53a-1c7d-47ac-a549-893aaa4932af)
+
 # 0.3.0
 
 ## Breaking changes
