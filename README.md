@@ -162,7 +162,7 @@ See LICENSE-APACHE and LICENSE-MIT for details.
 
 ## Credits
 
-Shout-out to [Ura Design](https://ura.design/) for designing our logo. They help with [design magic](https://ura.design/request/) for open source projects.
+Shout-out to [Ura Design](https://ura.design/) for designing the previous version of our logo, hope we wore it well! They help with [design magic](https://ura.design/request/) for open source projects.
 
 ## Contributing
 
