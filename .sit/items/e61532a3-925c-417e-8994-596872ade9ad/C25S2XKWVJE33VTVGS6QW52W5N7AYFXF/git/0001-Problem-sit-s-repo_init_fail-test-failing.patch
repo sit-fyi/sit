@@ -1,0 +1,41 @@
+From 7e6a72fd3cf41d82af0606990ecd46c52191ad34 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Mon, 28 May 2018 21:29:08 -0700
+Subject: [PATCH] Problem: sit's repo_init_fail test failing
+
+In certain circumstances, repo_init_fail test itself would fail because
+the setup won't result in an error.
+
+Solution: make it fail by putting a file in place of expected directory
+
+This approach is more universal across platforms and environments.
+For example, previous UNIX setup wouldn't work well if the user had
+root privileges (for example, when running in a Docker container).
+---
+ sit/tests/command_init.rs | 9 +--------
+ 1 file changed, 1 insertion(+), 8 deletions(-)
+
+diff --git a/sit/tests/command_init.rs b/sit/tests/command_init.rs
+index 0d88ae7..a89fd8d 100644
+--- a/sit/tests/command_init.rs
++++ b/sit/tests/command_init.rs
+@@ -44,15 +44,8 @@ fn repo_init_emptydir_relative() {
+ #[test]
+ fn repo_init_fail() {
+     let dir = TestDir::new("sit", "repo_init_fail");
+-    #[cfg(unix)]
+     let path = "test";
+-    #[cfg(unix)] {
+-        let mut perms = fs::metadata(dir.path(".")).unwrap().permissions();
+-        perms.set_readonly(true);
+-        fs::set_permissions(dir.path("."), perms).unwrap();
+-    }
+-    #[cfg(windows)]
+-    let path = ":";
++    dir.create_file(path, "can't have a directory here");
+     dir.cmd()
+         .arg("-r")
+         .arg(path)
+-- 
+2.16.2
+
