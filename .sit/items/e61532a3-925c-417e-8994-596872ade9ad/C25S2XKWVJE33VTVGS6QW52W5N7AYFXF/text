@@ -1,0 +1,9 @@
+In certain circumstances, repo_init_fail test itself would fail because
+the setup won't result in an error.
+
+Solution: make it fail by putting a file in place of expected directory
+
+This approach is more universal across platforms and environments.
+For example, previous UNIX setup wouldn't work well if the user had
+root privileges (for example, when running in a Docker container).
+
