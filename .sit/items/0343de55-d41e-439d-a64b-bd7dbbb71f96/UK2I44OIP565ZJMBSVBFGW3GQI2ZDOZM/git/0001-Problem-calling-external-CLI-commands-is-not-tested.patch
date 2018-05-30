@@ -1,0 +1,360 @@
+From 1b2dfdab24cc41ceff8798b3e2d6b099aebd1aef Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 29 May 2018 21:06:36 -0700
+Subject: [PATCH] Problem: calling external CLI commands is not tested
+
+Solution: provide basic test coverage
+---
+ Cargo.lock                    |   1 +
+ sit/Cargo.toml                |   1 +
+ sit/src/command_external.rs   |  46 +++++++++++
+ sit/src/main.rs               |  43 ++--------
+ sit/tests/command_external.rs | 188 ++++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 244 insertions(+), 35 deletions(-)
+ create mode 100644 sit/src/command_external.rs
+ create mode 100644 sit/tests/command_external.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index ed44ee0..8aa4f9e 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1106,6 +1106,7 @@ dependencies = [
+  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
+  "cli_test_dir 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+  "config 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
++ "derive-error 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
+  "dunce 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+  "fs_extra 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "git2 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+diff --git a/sit/Cargo.toml b/sit/Cargo.toml
+index e458559..7b95218 100644
+--- a/sit/Cargo.toml
++++ b/sit/Cargo.toml
+@@ -25,6 +25,7 @@ dunce = "0.1"
+ which = "2.0"
+ atty = "0.2"
+ thread_local = "0.3"
++derive-error = "0.0"
+ sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
+ 
+ [dev-dependencies]
+diff --git a/sit/src/command_external.rs b/sit/src/command_external.rs
+new file mode 100644
+index 0000000..8dc72b8
+--- /dev/null
++++ b/sit/src/command_external.rs
+@@ -0,0 +1,46 @@
++use std::env;
++use std::path::Path;
++use clap::ArgMatches;
++use sit_core::Repository;
++use which;
++
++#[derive(Error, Debug)]
++pub enum Error {
++    WhichError,
++    IoError(::std::io::Error),
++}
++
++impl From<which::Error> for Error {
++    fn from(_err: which::Error) -> Self {
++        Error::WhichError
++    }
++}
++
++pub fn command(matches: &ArgMatches, repo: Repository, cwd: &Path) -> Result<i32, Error> {
++    let (subcommand, args) = matches.subcommand();
++
++    #[cfg(not(windows))]
++    let path_sep = ":";
++    #[cfg(windows)]
++    let path_sep = ";";
++
++    let mut path: String = repo.path().join("cli").to_str().unwrap().into();
++    for module_name in repo.module_iter().expect("can't iterate over modules") {
++        path += path_sep;
++        path += repo.modules_path().join(module_name).join("cli").to_str().unwrap().into();
++    }
++
++    path += path_sep;
++    path += &env::var("PATH").unwrap();
++
++    let path = which::which_in(format!("sit-{}", subcommand), Some(path), &cwd)?;
++    let mut command = ::std::process::Command::new(path);
++    command.env("SIT_DIR", repo.path().to_str().unwrap());
++    command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
++    if let Some(args) = args {
++        command.args(args.values_of_lossy("").unwrap_or(vec![]));
++    }
++    let mut process = command.spawn()?;
++    let result = process.wait().unwrap();
++    Ok(result.code().unwrap())
++}
+\ No newline at end of file
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 4d13bb9..a219625 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -27,6 +27,7 @@ mod command_record;
+ mod command_items;
+ mod command_reduce;
+ mod command_records;
++mod command_external;
+ 
+ #[cfg(unix)]
+ extern crate xdg;
+@@ -51,6 +52,8 @@ use which::which;
+ 
+ extern crate thread_local;
+ 
++#[macro_use] extern crate derive_error;
++
+ use std::collections::HashMap;
+ pub fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
+                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
+@@ -412,43 +415,13 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+             return 0;
+         }
+ 
+-        let (subcommand, args) = matches.subcommand();
+-
+-        #[cfg(not(windows))]
+-        let path_sep = ":";
+-        #[cfg(windows)]
+-        let path_sep = ";";
+-
+-        let mut path: String = repo.path().join("cli").to_str().unwrap().into();
+-        for module_name in repo.module_iter().expect("can't iterate over modules") {
+-            path += path_sep;
+-            path += repo.modules_path().join(module_name).join("cli").to_str().unwrap().into();
+-        }
+-
+-        path += path_sep;
+-        path += &env::var("PATH").unwrap();
+-
+-        match which::which_in(format!("sit-{}", subcommand), Some(path), &cwd) {
+-            Ok(path) => {
+-                let mut command = ::std::process::Command::new(path);
+-                command.env("SIT_DIR", repo.path().to_str().unwrap());
+-                command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
+-                if let Some(args) = args {
+-                    command.args(args.values_of_lossy("").unwrap_or(vec![]));
+-                }
+-                match command.spawn() {
+-                    Err(_) => {
+-                        return main_with_result(false);
+-                    },
+-                    Ok(mut process) => {
+-                        let result = process.wait().unwrap();
+-                        return result.code().unwrap();
+-                    },
+-                }
+-            },
++        match command_external::command(&matches, repo, &cwd) {
+             Err(_) => {
+-                return main_with_result(false);
++                return main_with_result(false)
+             },
++            Ok(code) => {
++                return code;
++            }
+         }
+ 
+     }
+diff --git a/sit/tests/command_external.rs b/sit/tests/command_external.rs
+new file mode 100644
+index 0000000..e66aee4
+--- /dev/null
++++ b/sit/tests/command_external.rs
+@@ -0,0 +1,188 @@
++extern crate cli_test_dir;
++
++use cli_test_dir::*;
++#[cfg(unix)]
++use std::fs;
++#[cfg(unix)]
++use std::os::unix::fs::PermissionsExt;
++
++#[allow(unused_variables)]
++fn create_script(dir: &TestDir, unix_path: &str, windows_path: &str, unix: &str, windows: &str) {
++    #[cfg(unix)] {
++        dir.create_file(unix_path, unix);
++        let mut perms = fs::metadata(dir.path(unix_path)).unwrap().permissions();
++        perms.set_mode(0o766);
++        fs::set_permissions(dir.path(unix_path), perms).unwrap();
++    }
++    #[cfg(windows)]
++    dir.create_file(windows_path, windows);
++}
++
++/// Should fail on an unavailable command
++#[test]
++fn ext_unavailable() {
++    let dir = TestDir::new("sit", "ext_unavailable");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    dir.cmd()
++        .arg("does-not-exist")
++        .expect_failure();
++}
++
++/// Should pass SIT variable pointing to SIT itself
++#[test]
++fn ext_sit_path() {
++    let dir = TestDir::new("sit", "ext_cli");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    create_script(&dir, ".sit/cli/sit-path", ".sit/cli/sit-path.bat", r#"#! /bin/bash
++        echo -n ${SIT}
++    "#, r#"
++    @echo off
++    echo %SIT%
++    "#);
++
++    let result = String::from_utf8(dir.cmd()
++        .arg("path")
++        .expect_success().stdout).unwrap();
++
++    dir.expect_path(result.trim());
++}
++
++/// Should execute an external command available in .sit/cli
++#[test]
++fn ext_cli() {
++    let dir = TestDir::new("sit", "ext_cli");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    create_script(&dir, ".sit/cli/sit-exists", ".sit/cli/sit-exists.bat", r#"#! /bin/bash
++        echo SIT_DIR=${SIT_DIR}
++    "#, r#"
++    @echo off
++    echo SIT_DIR=%SIT_DIR%
++    "#);
++
++    let result = String::from_utf8(dir.cmd()
++        .arg("exists")
++        .expect_success().stdout).unwrap().replace("\r","");
++
++    assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
++}
++
++/// Should execute an external command available in .sit/modules/*/cli
++#[test]
++fn ext_modules_cli() {
++    let dir = TestDir::new("sit", "ext_modules_cli");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    create_script(&dir, ".sit/modules/test/cli/sit-exists", ".sit/modules/test/cli/sit-exists.bat", r#"#! /bin/bash
++        echo SIT_DIR=${SIT_DIR}
++    "#, r#"
++    @echo off
++    echo SIT_DIR=%SIT_DIR%
++    "#);
++
++    let result = String::from_utf8(dir.cmd()
++        .arg("exists")
++        .expect_success().stdout).unwrap().replace("\r","");
++
++    assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
++}
++
++/// Should execute an external command available in PATH
++#[test]
++fn ext_modules_path() {
++    let dir = TestDir::new("sit", "ext_modules_path");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    create_script(&dir, "sit-exists", "sit-exists.bat", r#"#! /bin/bash
++        echo SIT_DIR=${SIT_DIR}
++    "#, r#"
++    @echo off
++    echo SIT_DIR=%SIT_DIR%
++    "#);
++
++    let result = String::from_utf8(dir.cmd()
++        .env("PATH", dir.path(".").to_str().unwrap())
++        .arg("exists")
++        .expect_success().stdout).unwrap().replace("\r","");
++
++    assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
++}
++
++/// Command in .sit/cli should take precedence over a command in .sit/modules/*/cli and PATH
++#[test]
++fn ext_cli_over_modules_cli_and_path() {
++    let dir = TestDir::new("sit", "ext_cli_over_modules_cli_and_path");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    create_script(&dir, "sit-exists", "sit-exists.bat", r#"#! /bin/bash
++    echo path
++    "#, r#"
++    @echo off
++    echo path
++    "#);
++
++    create_script(&dir, ".sit/cli/sit-exists", ".sit/cli/sit-exists.bat", r#"#! /bin/bash
++    echo cli
++    "#, r#"
++    @echo off
++    echo cli
++    "#);
++
++    create_script(&dir, ".sit/modules/test/cli/sit-exists", ".sit/modules/test/cli/sit-exists.bat", r#"#! /bin/bash
++    echo modules
++    "#, r#"
++    @echo off
++    echo modules
++    "#);
++
++
++    let result = String::from_utf8(dir.cmd()
++        .env("PATH", dir.path(".").to_str().unwrap())
++        .arg("exists")
++        .expect_success().stdout).unwrap().replace("\r","");
++
++    assert_eq!(result, "cli\n")
++}
++
++/// Command in .sit/modules/cli should take precedence over a command in PATH
++#[test]
++fn ext_modules_over_path() {
++    let dir = TestDir::new("sit", "ext_modules_over_path");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    create_script(&dir, "sit-exists", "sit-exists.bat", r#"#! /bin/bash
++    echo path
++    "#, r#"
++    @echo off
++    echo path
++    "#);
++
++    create_script(&dir, ".sit/modules/test/cli/sit-exists", ".sit/modules/test/cli/sit-exists.bat", r#"#! /bin/bash
++    echo modules
++    "#, r#"
++    @echo off
++    echo modules
++    "#);
++
++
++    let result = String::from_utf8(dir.cmd()
++        .env("PATH", dir.path(".").to_str().unwrap())
++        .arg("exists")
++        .expect_success().stdout).unwrap().replace("\r","");
++
++    assert_eq!(result, "modules\n")
++}
+-- 
+2.16.2
+
