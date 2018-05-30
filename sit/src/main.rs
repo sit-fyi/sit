@@ -27,6 +27,7 @@ mod command_record;
 mod command_items;
 mod command_reduce;
 mod command_records;
+mod command_external;
 
 #[cfg(unix)]
 extern crate xdg;
@@ -50,6 +51,8 @@ extern crate which;
 use which::which;
 
 extern crate thread_local;
+
+#[macro_use] extern crate derive_error;
 
 use std::collections::HashMap;
 pub fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
@@ -412,43 +415,13 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             return 0;
         }
 
-        let (subcommand, args) = matches.subcommand();
-
-        #[cfg(not(windows))]
-        let path_sep = ":";
-        #[cfg(windows)]
-        let path_sep = ";";
-
-        let mut path: String = repo.path().join("cli").to_str().unwrap().into();
-        for module_name in repo.module_iter().expect("can't iterate over modules") {
-            path += path_sep;
-            path += repo.modules_path().join(module_name).join("cli").to_str().unwrap().into();
-        }
-
-        path += path_sep;
-        path += &env::var("PATH").unwrap();
-
-        match which::which_in(format!("sit-{}", subcommand), Some(path), &cwd) {
-            Ok(path) => {
-                let mut command = ::std::process::Command::new(path);
-                command.env("SIT_DIR", repo.path().to_str().unwrap());
-                command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
-                if let Some(args) = args {
-                    command.args(args.values_of_lossy("").unwrap_or(vec![]));
-                }
-                match command.spawn() {
-                    Err(_) => {
-                        return main_with_result(false);
-                    },
-                    Ok(mut process) => {
-                        let result = process.wait().unwrap();
-                        return result.code().unwrap();
-                    },
-                }
-            },
+        match command_external::command(&matches, repo, &cwd) {
             Err(_) => {
-                return main_with_result(false);
+                return main_with_result(false)
             },
+            Ok(code) => {
+                return code;
+            }
         }
 
     }
