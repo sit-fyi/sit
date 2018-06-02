@@ -1,0 +1,662 @@
+From c4a3a05661c59cd7a4f1690b40bc6eb4eef221af Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 22 May 2018 23:27:46 -0700
+Subject: [PATCH] Problem: assumed location of config (and other) files
+
+Location of config (and other) files might not be following proper paths
+on different operating systems
+
+Solution: Use https://github.com/soc/directories-rs crate
+
+Note that this changes the location of config files on OS X and Windows.
+
+New locations:
+
+* OS X: ~/Library/Preferences/fyi.sit.sit/config.json
+* Windows: %HOME/AppData/Roaming/sit/sit/config/config.json
+---
+ Cargo.lock                   | 11 +++++++++-
+ sit/Cargo.toml               |  2 +-
+ sit/src/main.rs              | 14 ++++--------
+ sit/tests/command_items.rs   | 42 ++++++++++++++++++-----------------
+ sit/tests/command_record.rs  | 42 +++++++++++++++++++++++++++--------
+ sit/tests/command_records.rs | 52 +++++++++++++++++++++++++++-----------------
+ sit/tests/command_reduce.rs  | 22 ++++++++++---------
+ sit/tests/includes/config.rs | 20 +++++++++++++++++
+ 8 files changed, 134 insertions(+), 71 deletions(-)
+ create mode 100644 sit/tests/includes/config.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 8aa4f9e..d7c1f17 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -333,6 +333,14 @@ dependencies = [
+  "generic-array 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ ]
+ 
++[[package]]
++name = "directories"
++version = "0.10.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "winapi 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
++]
++
+ [[package]]
+ name = "dtoa"
+ version = "0.4.2"
+@@ -1107,6 +1115,7 @@ dependencies = [
+  "cli_test_dir 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+  "config 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "derive-error 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
++ "directories 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "dunce 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+  "fs_extra 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "git2 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+@@ -1123,7 +1132,6 @@ dependencies = [
+  "tempfile 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "thread_local 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
+  "which 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+- "xdg 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "yaml-rust 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ ]
+ 
+@@ -1580,6 +1588,7 @@ dependencies = [
+ "checksum deflate 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)" = "32c8120d981901a9970a3a1c97cf8b630e0fa8c3ca31e75b6fd6fd5f9f427b31"
+ "checksum derive-error 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "ec098440b29ea3b1ece3e641bac424c19cf996779b623c9e0f2171495425c2c8"
+ "checksum digest 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)" = "00a49051fef47a72c9623101b19bd71924a45cca838826caae3eaa4d00772603"
++"checksum directories 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fc2561db021b6f1321d0f16b67ed28ce843ef4610dfaa432e3ffa2e8a3050ebf"
+ "checksum dtoa 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "09c3753c3db574d215cba4ea76018483895d7bff25a31b49ba45db21c48e50ab"
+ "checksum dunce 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e86b07356baf1cc7058c95807ffba0bebe0c8cadd0df4c40b292c86194eabb37"
+ "checksum either 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3be565ca5c557d7f59e7cfcf1844f9e3033650c929c6566f511e8005f205c1d0"
+diff --git a/sit/Cargo.toml b/sit/Cargo.toml
+index 7b95218..98921b2 100644
+--- a/sit/Cargo.toml
++++ b/sit/Cargo.toml
+@@ -13,7 +13,6 @@ tempfile = "2.2"
+ config = { version = "0.8", features = ["json"] }
+ serde = "1.0"
+ serde_json = "1.0"
+-xdg = "2.1"
+ jmespath = { version = "0.2", features = ["sync"] }
+ fs_extra = "1.1"
+ pbr = "1.0"
+@@ -26,6 +25,7 @@ which = "2.0"
+ atty = "0.2"
+ thread_local = "0.3"
+ derive-error = "0.0"
++directories = "0.10"
+ sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
+ 
+ [dev-dependencies]
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index a219625..ab3a998 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -29,9 +29,6 @@ mod command_reduce;
+ mod command_records;
+ mod command_external;
+ 
+-#[cfg(unix)]
+-extern crate xdg;
+-
+ extern crate jmespath;
+ 
+ extern crate fs_extra;
+@@ -53,6 +50,7 @@ use which::which;
+ extern crate thread_local;
+ 
+ #[macro_use] extern crate derive_error;
++extern crate directories;
+ 
+ use std::collections::HashMap;
+ pub fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
+@@ -86,10 +84,8 @@ fn main() {
+ }
+ 
+ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+-    #[cfg(unix)]
+-    let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
+-
+     let cwd = env::current_dir().expect("can't get current working directory");
++
+     let mut app = App::new("SIT")
+         .version(crate_version!())
+         .about(crate_description!())
+@@ -313,10 +309,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         return command_args::command(&matches);
+    }
+ 
+-    #[cfg(unix)]
+-    let default_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
+-    #[cfg(windows)]
+-    let default_config = env::home_dir().expect("can't identify home directory").join("sit_config.json");
++    let project_dirs = directories::ProjectDirs::from("fyi", "sit", "sit");
++    let default_config = project_dirs.config_dir().join("config.json");
+ 
+     let config_path = matches.value_of("config").unwrap_or(default_config.to_str().unwrap());
+ 
+diff --git a/sit/tests/command_items.rs b/sit/tests/command_items.rs
+index 9c1cb26..0a614d3 100644
+--- a/sit/tests/command_items.rs
++++ b/sit/tests/command_items.rs
+@@ -5,6 +5,8 @@ use sit_core::{Repository, Item};
+ 
+ use cli_test_dir::*;
+ 
++include!("includes/config.rs");
++
+ /// Should list no items if there are none
+ #[test]
+ fn no_items() {
+@@ -68,11 +70,11 @@ fn item_named_user_filter() {
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+     // filter out item we just created
+     let cfg = &format!(r#"{{"items": {{"filters": {{"f1": "id != '{}'"}}}}}}"#, id.trim());
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
++    user_config(&dir, cfg);
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
+     assert_eq!(output, id_);
+ }
+ 
+@@ -86,13 +88,13 @@ fn item_repo_over_named_user_filter() {
+     let id_ = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
+     let cfg = &format!(r#"{{"items": {{"filters": {{"f1": "id == '{}'"}}}}}}"#, id.trim());
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
++    user_config(&dir, cfg);
+     // filter out item we just created
+     dir.create_file(".sit/.items/filters/f1", &format!("id != '{}'", id.trim()));
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
+     assert_eq!(output, id_);
+ }
+ 
+@@ -152,11 +154,11 @@ fn item_named_user_query() {
+     // create a record
+     Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
+     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id, value])"}}}"#;
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
++    user_config(&dir, cfg);
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
+ }
+ 
+@@ -176,12 +178,12 @@ fn item_repo_over_named_user_query() {
+     // create a record
+     Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
+     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id])"}}}"#;
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
++    user_config(&dir, cfg);
+     dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
+ }
+ 
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index fb0d4c0..4e09435 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -8,6 +8,8 @@ use cli_test_dir::*;
+ use sit_core::{Repository, Item, record::RecordExt};
+ use std::process;
+ 
++include!("includes/config.rs");
++
+ /// Should derive authorship from the config file
+ #[test]
+ fn record_authorship() {
+@@ -18,12 +20,10 @@ fn record_authorship() {
+     let id: String = String::from_utf8(dir.cmd()
+         .arg("item")
+         .expect_success().stdout).unwrap().trim().into();
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
++    user_config(&dir, r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "-t", "Sometype"])
+         .expect_success();
+     verify_authors(&dir, &id,"Test <test@test.com>");
+@@ -40,8 +40,10 @@ fn record_no_authorship_no_git() {
+     let id = dir.cmd()
+         .arg("item")
+         .expect_success().stdout;
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", ::std::str::from_utf8(&id).unwrap(), "-t","Sometype"])
+         .expect_failure();
+ }
+@@ -56,8 +58,10 @@ fn record_no_authorship_no_author() {
+     let id: String = String::from_utf8(dir.cmd()
+         .arg("item")
+         .expect_success().stdout).unwrap().trim().into();
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "-t", "Sometype"])
+         .expect_success();
+ }
+@@ -73,8 +77,10 @@ fn record_no_authorship_local_git() {
+         .arg("item")
+         .expect_success().stdout).unwrap().trim().into();
+     dir.create_file(".git/config", "[user]\nname=Test\nemail=test@test.com");
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "-t", "Sometype"])
+         .expect_success();
+     verify_authors(&dir, &id,"Test <test@test.com>");
+@@ -91,8 +97,10 @@ fn record_no_authorship_user_git() {
+         .arg("item")
+         .expect_success().stdout).unwrap().trim().into();
+     dir.create_file(".gitconfig","[user]\nname=Test\nemail=test@test.com");
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "-t","Sometype"])
+         .expect_success();
+     verify_authors(&dir, &id,"Test <test@test.com>");
+@@ -110,8 +118,10 @@ fn record_no_authorship_local_over_user_git() {
+         .expect_success().stdout).unwrap().trim().into();
+     dir.create_file(".gitconfig","[user]\nname=Test\nemail=test@test.com");
+     dir.create_file(".git/config","[user]\nname=User\nemail=user@test.com");
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "-t","Sometype"])
+         .expect_success();
+     verify_authors(&dir, &id,"User <user@test.com>");
+@@ -127,8 +137,10 @@ fn record_should_record_timestamp() {
+     let id: String = String::from_utf8(dir.cmd()
+         .arg("item")
+         .expect_success().stdout).unwrap().trim().into();
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "-t","Sometype"])
+         .expect_success();
+     let repo = Repository::open(dir.path(".sit")).unwrap();
+@@ -154,8 +166,10 @@ fn record_should_not_record_timestamp() {
+     let id: String = String::from_utf8(dir.cmd()
+         .arg("item")
+         .expect_success().stdout).unwrap().trim().into();
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "--no-timestamp", "-t","Sometype"])
+         .expect_success();
+     let repo = Repository::open(dir.path(".sit")).unwrap();
+@@ -176,8 +190,10 @@ fn record_should_not_record_if_files_are_missing() {
+         .arg("item")
+         .expect_success().stdout).unwrap().trim().into();
+     dir.create_file("exists","");
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "-t","Sometype", "exists", "missing"])
+         .expect_failure();
+ }
+@@ -193,8 +209,10 @@ fn record_should_fail_if_no_type() {
+         .arg("item")
+         .expect_success().stdout).unwrap().trim().into();
+     dir.create_file("file", "");
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "file"])
+         .expect_success();
+ }
+@@ -210,8 +228,10 @@ fn record_dot_type_sufficiency() {
+         .arg("item")
+         .expect_success().stdout).unwrap().trim().into();
+     dir.create_file(".type/MyType","");
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", ".type/MyType"])
+         .expect_success();
+     let repo = Repository::open(dir.path(".sit")).unwrap();
+@@ -234,8 +254,10 @@ fn record_should_merge_types() {
+         .expect_success().stdout).unwrap().trim().into();
+     dir.create_file(".type/MyType","");
+     dir.create_file(".type/OurType","");
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "-t","Sometype,SomeOtherType",".type/MyType", ".type/OurType"])
+         .expect_success();
+     let repo = Repository::open(dir.path(".sit")).unwrap();
+@@ -260,8 +282,10 @@ fn record_should_record_files() {
+         .expect_success().stdout).unwrap().trim().into();
+     dir.create_file("file1","file1");
+     dir.create_file("files/file2","file2");
++    no_user_config(&dir);
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "-t","Sometype","file1", "files/file2"])
+         .expect_success();
+     let repo = Repository::open(dir.path(".sit")).unwrap();
+@@ -281,6 +305,7 @@ fn record_should_record_files() {
+ #[test]
+ fn record_should_sign_if_configured() {
+     let dir = TestDir::new("sit", "rssic"); // workaround for "File name too long" error
++    no_user_config(&dir);
+ 
+     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
+ 
+@@ -308,11 +333,7 @@ fn record_should_sign_if_configured() {
+     }
+     genkey.expect_success();
+ 
+-    #[cfg(unix)]
+-    let cfg = ".config/sit/config.json";
+-    #[cfg(windows)]
+-    let cfg = "sit_config.json";
+-    dir.create_file(cfg, r#"{"author": {"name": "Test", "email": "test@test.com"}, "signing": {"enabled": true, "key": "test@test.com"}}"#);
++    user_config(&dir, r#"{"author": {"name": "Test", "email": "test@test.com"}, "signing": {"enabled": true, "key": "test@test.com"}}"#);
+ 
+     dir.cmd()
+         .arg("init")
+@@ -323,6 +344,7 @@ fn record_should_sign_if_configured() {
+ 
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "-t","Sometype"])
+         .expect_success();
+@@ -337,6 +359,7 @@ fn record_should_sign_if_configured() {
+ #[test]
+ fn record_should_sign_if_instructed_cmdline() {
+     let dir = TestDir::new("sit", "rssiic"); // workaround for "File name too long" error
++    no_user_config(&dir);
+ 
+     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
+ 
+@@ -373,6 +396,7 @@ fn record_should_sign_if_instructed_cmdline() {
+ 
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
+         .args(&["record", "--sign",  "--signing-key", "test@test.com", &id, "--no-author", "-t","Sometype"])
+         .expect_success();
+diff --git a/sit/tests/command_records.rs b/sit/tests/command_records.rs
+index ee72db4..ad922c3 100644
+--- a/sit/tests/command_records.rs
++++ b/sit/tests/command_records.rs
+@@ -10,6 +10,8 @@ use sit_core::{Repository, Item};
+ use cli_test_dir::*;
+ use remove_dir_all::*;
+ 
++include!("includes/config.rs");
++
+ /// Should list no records if there are none
+ #[test]
+ fn no_records() {
+@@ -81,11 +83,11 @@ fn named_user_filter() {
+     let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+     // filter out item we just created
+     let cfg = &format!(r#"{{"records": {{"filters": {{"f1": "hash != '{}'"}}}}}}"#, record.trim());
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
++    user_config(&dir, cfg);
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
+     assert_eq!(output, record1);
+ }
+ 
+@@ -101,12 +103,12 @@ fn repo_over_named_user_filter() {
+     let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
+     // filter out item we just created
+     let cfg = &format!(r#"{{"records": {{"filters": {{"f1": "hash != '{}'"}}}}}}"#, record1.trim());
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
++    user_config(&dir, cfg);
+     dir.create_file(".sit/.records/filters/f1", &format!("hash != '{}'", record1.trim()));
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
+     assert_eq!(output, record);
+ }
+ 
+@@ -158,11 +160,11 @@ fn named_user_query() {
+     // create a record
+     let _record = item.new_record(vec![("test", &b"passed"[..])].into_iter(), true).unwrap();
+     let cfg = r#"{"records": {"queries": {"q1": "files.test"}}}"#;
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["records", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
++    user_config(&dir, cfg);
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["records", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), "passed");
+ }
+ 
+@@ -181,11 +183,11 @@ fn repo_over_named_user_query() {
+     let _record = item.new_record(vec![("test", &b"passed"[..])].into_iter(), true).unwrap();
+     dir.create_file(".sit/.records/queries/q1", "files.test");
+     let cfg = r#"{"records": {"queries": {"q1": "null"}}}"#;
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["records", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
++    user_config(&dir, cfg);
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["records", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), "passed");
+ }
+ 
+@@ -193,6 +195,7 @@ fn repo_over_named_user_query() {
+ #[test]
+ fn pgp_signature() {
+     let dir = TestDir::new("sit", "pgp");
++    no_user_config(&dir);
+ 
+     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
+ 
+@@ -229,12 +232,14 @@ fn pgp_signature() {
+ 
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
+         .args(&["record", "--sign",  "--signing-key", "test@test.com", &id, "--no-author", "-t","Sometype"])
+         .expect_success();
+ 
+     let output = String::from_utf8(dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
+         .args(&["records", id.trim(), "-v", "-q", "verification.success"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), "true");
+@@ -244,6 +249,7 @@ fn pgp_signature() {
+ #[test]
+ fn pgp_signature_wrong_data() {
+     let dir = TestDir::new("sit", "pgps");
++    no_user_config(&dir);
+ 
+     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
+ 
+@@ -281,6 +287,7 @@ fn pgp_signature_wrong_data() {
+     // Snatch the signature
+     let oldrec = String::from_utf8(dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
+         .args(&["record", "--sign",  "--signing-key", "test@test.com", &id, "--no-author", "-t","Sometype"])
+         .expect_success().stdout).unwrap();
+@@ -298,6 +305,7 @@ fn pgp_signature_wrong_data() {
+ 
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "-t","Sometype1", ".signature"])
+         .expect_success();
+@@ -305,6 +313,7 @@ fn pgp_signature_wrong_data() {
+ 
+     let output = String::from_utf8(dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
+         .args(&["records", id.trim(), "-v", "-q", "verification.success"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), "false");
+@@ -315,6 +324,7 @@ fn pgp_signature_wrong_data() {
+ #[test]
+ fn pgp_no_signature() {
+     let dir = TestDir::new("sit", "pgpno");
++    no_user_config(&dir);
+ 
+     dir.cmd()
+         .arg("init")
+@@ -325,11 +335,13 @@ fn pgp_no_signature() {
+ 
+     dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "-t","Sometype"])
+         .expect_success();
+ 
+     let output = String::from_utf8(dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["records", id.trim(), "-v", "-q", "verification"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), "null");
+ }
+diff --git a/sit/tests/command_reduce.rs b/sit/tests/command_reduce.rs
+index 90b8136..a560c13 100644
+--- a/sit/tests/command_reduce.rs
++++ b/sit/tests/command_reduce.rs
+@@ -6,6 +6,8 @@ use sit_core::{Repository, Item};
+ 
+ use cli_test_dir::*;
+ 
++include!("includes/config.rs");
++
+ /// Should fail if there is no item to reduce
+ #[test]
+ fn no_item() {
+@@ -95,11 +97,11 @@ fn item_named_user_query() {
+     // create a record
+     Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
+     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id, value])"}}}"#;
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
++    user_config(&dir, cfg);
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
+ }
+ 
+@@ -119,11 +121,11 @@ fn item_repo_over_named_user_query() {
+     // create a record
+     Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
+     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id])"}}}"#;
+-    #[cfg(unix)]
+-    dir.create_file(".config/sit/config.json", cfg);
+-    #[cfg(windows)]
+-    dir.create_file("sit_config.json", cfg);
++    user_config(&dir, cfg);
+     dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
+-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
++    let output = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap())
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
+     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
+ }
+diff --git a/sit/tests/includes/config.rs b/sit/tests/includes/config.rs
+new file mode 100644
+index 0000000..3214bea
+--- /dev/null
++++ b/sit/tests/includes/config.rs
+@@ -0,0 +1,20 @@
++fn user_config(dir: &TestDir, cfg: &str) {
++    #[cfg(all(unix, not(target_os = "macos")))]
++    dir.create_file(".config/sit/config.json", cfg);
++    #[cfg(all(unix, target_os = "macos"))]
++    dir.create_file("Library/Preferences/fyi.sit.sit/config.json", cfg);
++    #[cfg(windows)] {
++      dir.create_file("AppData/Roaming/sit/sit/config/config.json", cfg);
++      // Make sure required directories exist
++      ::std::fs::create_dir_all(dir.path("AppData/Local")).unwrap();
++    }
++}
++
++#[allow(unused_variables, dead_code)]
++fn no_user_config(dir: &TestDir) {
++    #[cfg(windows)] {
++      // Make sure required directories exist
++      ::std::fs::create_dir_all(dir.path("AppData/Local")).unwrap();
++      ::std::fs::create_dir_all(dir.path("AppData/Roaming/sit/sit/config")).unwrap();
++    }
++}
+-- 
+2.16.2
+
