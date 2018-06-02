@@ -1,0 +1,8 @@
+Overall this patch works, *however*, it seems to trigger
+the intermittent problem of "can't connect to gpg-agent"
+in tests on OS X in almost 100% of runs (can't reproduce
+this on Linux or Windows)
+
+In the ideal world, this whole gpg-agent connection issue
+should be solved separately as it does occur on other platforms,
+just not as often -- in just about all tests that use `gpg`
