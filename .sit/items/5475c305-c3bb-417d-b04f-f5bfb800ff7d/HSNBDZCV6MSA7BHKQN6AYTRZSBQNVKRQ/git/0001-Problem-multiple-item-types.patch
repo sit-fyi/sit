@@ -1,0 +1,584 @@
+From 0a4d226e51c498db29780c1d9addc23c905c663e Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 8 May 2018 14:10:06 -0700
+Subject: [PATCH] Problem: multiple item "types"
+
+In some contexts, it might make sense to have multiple types of files in
+the same repository. Case in point: issue-tracking assumes all items are
+issues, however, it might make sense to define other entities like
+"kanban boards" to complement the functionality. Currently all issues in
+issue-tracking are effectively untyped so reducers don't have an idea
+that they might be something else.
+
+Solution: allow a repository to have multiple collections
+(in addition to the default one)
+---
+ sit-core/src/collection.rs       |  28 +++++++
+ sit-core/src/lib.rs              |   2 +
+ sit-core/src/reducers/duktape.rs |   1 +
+ sit-core/src/repository.rs       | 174 ++++++++++++++++++++++++++++++---------
+ sit-web/src/webapp.rs            |   2 +-
+ sit/src/command_item.rs          |  21 +++--
+ sit/src/command_items.rs         |   2 +-
+ sit/src/command_record.rs        |   2 +-
+ sit/src/command_records.rs       |   2 +-
+ sit/src/command_reduce.rs        |   2 +-
+ sit/src/main.rs                  |   5 ++
+ sit/src/rebuild.rs               |   2 +-
+ sit/tests/command_init.rs        |   2 +-
+ sit/tests/command_item.rs        |  36 +++++++-
+ sit/tests/command_items.rs       |   2 +-
+ sit/tests/command_record.rs      |   2 +-
+ sit/tests/command_records.rs     |   2 +-
+ sit/tests/command_reduce.rs      |   2 +-
+ 18 files changed, 231 insertions(+), 58 deletions(-)
+ create mode 100644 sit-core/src/collection.rs
+
+diff --git a/sit-core/src/collection.rs b/sit-core/src/collection.rs
+new file mode 100644
+index 0000000..d1eea27
+--- /dev/null
++++ b/sit-core/src/collection.rs
+@@ -0,0 +1,28 @@
++//! Items collection
++
++use std::error;
++use super::Item as ItemTrait;
++
++/// Items collection
++pub trait Collection {
++    /// Item
++    type Item: ItemTrait;
++    /// Error
++    type Error: error::Error;
++    /// Item iterator
++    type ItemIter: Iterator<Item = Self::Item>;
++
++    /// Returns an unordered (as in "order not defined") item iterator
++    fn item_iter(self) -> Result<Self::ItemIter, Self::Error>;
++
++    /// Creates and returns a new item with a unique ID
++    fn new_item(self) -> Result<Self::Item, Self::Error>;
++
++    /// Creates and returns a new item with a specific name. Will fail
++    /// if there's an item with the same name.
++    fn new_named_item<S: AsRef<str>>(self, name: S) -> Result<Self::Item, Self::Error>;
++
++    /// Finds an item by name (if there is one)
++    fn item<S: AsRef<str>>(self, name: S) -> Option<Self::Item>;
++
++}
+\ No newline at end of file
+diff --git a/sit-core/src/lib.rs b/sit-core/src/lib.rs
+index 6d0e51a..0043ef8 100644
+--- a/sit-core/src/lib.rs
++++ b/sit-core/src/lib.rs
+@@ -56,3 +56,5 @@ pub use reducers::Reducer;
+ #[cfg(feature = "duktape")]
+ pub mod duktape;
+ pub mod cfg;
++pub mod collection;
++pub use collection::Collection;
+\ No newline at end of file
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index acae402..14a31a2 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -511,6 +511,7 @@ mod tests {
+     use super::*;
+     use ::Repository;
+     use item::{Item, ItemReduction};
++    use Collection;
+ 
+     #[test]
+     fn undefined_result() {
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 185279d..3bcc053 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -34,6 +34,8 @@ const DEPRECATED_ISSUES_PATH: &str = "issues";
+ const ITEMS_PATH: &str = "items";
+ /// Repository's modules path
+ const MODULES_PATH: &str = "modules";
++/// Repository's collections path
++const COLLECTIONS_PATH: &str = "collections";
+ 
+ 
+ /// Repository is the container for all SIT artifacts
+@@ -52,6 +54,9 @@ pub struct Repository {
+     /// Path to items. Mainly to avoid creating this path
+     /// on demand for every operation that would require it
+     items_path: PathBuf,
++    /// Path to collections. Mainly to avoid creating this path
++    /// on demand for every operation that would require it
++    collections_path: PathBuf,
+     /// Configuration
+     config: Config,
+ }
+@@ -178,12 +183,14 @@ impl Repository {
+             items_path.push(ITEMS_PATH);
+             fs::create_dir_all(&items_path)?;
+             let modules_path = path.join(MODULES_PATH);
++            let collections_path = path.join(COLLECTIONS_PATH);
+             let repo = Repository {
+                 path,
+                 config_path,
+                 items_path,
+                 config,
+                 modules_path,
++                collections_path,
+             };
+             repo.save()?;
+             Ok(repo)
+@@ -235,12 +242,14 @@ impl Repository {
+         if config.version != VERSION {
+             return Err(Error::InvalidVersion { expected: String::from(VERSION), got: config.version });
+         }
++        let collections_path = path.join(COLLECTIONS_PATH);
+         let repository = Repository {
+             path,
+             config_path,
+             items_path,
+             config,
+             modules_path,
++            collections_path,
+         };
+         Ok(repository)
+     }
+@@ -304,47 +313,6 @@ impl Repository {
+         &self.config
+     }
+ 
+-    /// Returns an unordered (as in "order not defined") item iterator
+-    pub fn item_iter(&self) -> Result<ItemIter, Error> {
+-        Ok(ItemIter { repository: self, dir: fs::read_dir(&self.items_path)? })
+-    }
+-
+-    /// Creates and returns a new item with a unique ID
+-    pub fn new_item(&self) -> Result<Item, Error> {
+-        self.new_named_item(self.config.id_generator.generate())
+-    }
+-
+-    /// Creates and returns a new item with a specific name. Will fail
+-    /// if there's an item with the same name.
+-    pub fn new_named_item<S: Into<String>>(&self, name: S) -> Result<Item, Error> {
+-        let id: String = name.into();
+-        let mut path = self.items_path.clone();
+-        path.push(&id);
+-        fs::create_dir(path)?;
+-        let id = OsString::from(id);
+-        Ok(Item {
+-            repository: self,
+-            id,
+-        })
+-    }
+-
+-    /// Finds an item by name (if there is one)
+-    pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item> {
+-        let path = self.items_path().join(name.as_ref());
+-        if path.is_dir() && path.strip_prefix(self.items_path()).is_ok() {
+-            let mut test = path.clone();
+-            test.pop();
+-            if test != self.items_path() {
+-                return None;
+-            }
+-            let id = path.file_name().unwrap().to_os_string();
+-            let item = Item { repository: self, id };
+-            Some(item)
+-        } else {
+-            None
+-        }
+-    }
+-
+     /// Returns path to modules. The target directory may not exist.
+     pub fn modules_path(&self) -> &Path {
+         &self.modules_path
+@@ -377,14 +345,119 @@ impl Repository {
+                }
+             })))
+     }
++
++    /// Returns a named collection
++    ///
++    /// These collections exist in addition to the default collection represented
++    /// by the Repository itself.
++    ///
++    /// Will create one if it doesn't exist
++    pub fn collection<S: AsRef<str>>(&self, name: S) -> Result<Collection, Error> {
++        let path = self.collections_path.join(name.as_ref());
++        fs::create_dir_all(&path)?;
++        Ok(Collection {
++            repository: self,
++            path,
++        })
++    }
++
++    /// Returns path to collections
++    pub fn collections_path(&self) -> &Path {
++        self.collections_path.as_path()
++    }
++
+ }
+ 
++
+ impl PartialEq for Repository {
+     fn eq(&self, rhs: &Repository) -> bool {
+         (self as *const Repository) == (rhs as *const Repository)
+     }
+ }
+ 
++use super::Collection as CollectionTrait;
++
++#[derive(Debug)]
++pub struct Collection<'a> {
++    repository: &'a Repository,
++    path: PathBuf,
++}
++
++fn new_named_item<'a, S: AsRef<str>, P: AsRef<Path>>(repository: &'a Repository, path: P, name: S) -> Result<Item<'a>, Error> {
++    let path = path.as_ref().join(name.as_ref());
++    fs::create_dir(&path)?;
++    let id = OsString::from(path.file_name().unwrap().to_os_string());
++    Ok(Item {
++        repository,
++        id,
++    })
++}
++
++fn item<'a, S: AsRef<str>, P: AsRef<Path>>(repository: &'a Repository, path: P, name: S) -> Option<Item<'a>> {
++    let path_ = path.as_ref().join(name.as_ref());
++    if path_.is_dir() && path_.strip_prefix(path.as_ref()).is_ok() {
++        let mut test = path_.clone();
++        test.pop();
++        if test != path.as_ref() {
++            return None;
++        }
++        let id = path_.file_name().unwrap().to_os_string();
++        let item = Item { repository, id };
++        Some(item)
++    } else {
++        None
++    }
++}
++
++impl<'a> CollectionTrait for &'a Collection<'a> {
++
++    type Item = Item<'a>;
++    type Error = Error;
++    type ItemIter = ItemIter<'a>;
++
++    fn item_iter(self) -> Result<Self::ItemIter, Self::Error> {
++        Ok(ItemIter { repository: self.repository, dir: fs::read_dir(&self.path)? })
++    }
++
++    fn new_item(self) -> Result<Self::Item, Self::Error> {
++        self.new_named_item(self.repository.config.id_generator.generate())
++    }
++
++    fn new_named_item<S: AsRef<str>>(self, name: S) -> Result<Self::Item, Self::Error> {
++        new_named_item(self.repository, &self.path, name)
++    }
++
++    fn item<S: AsRef<str>>(self, name: S) -> Option<Self::Item> {
++        item(self.repository, &self.path, name)
++    }
++
++}
++
++impl<'a> CollectionTrait for &'a Repository {
++
++    type Item = Item<'a>;
++    type Error = Error;
++    type ItemIter = ItemIter<'a>;
++
++    fn item_iter(self) -> Result<Self::ItemIter, Self::Error> {
++        Ok(ItemIter { repository: self, dir: fs::read_dir(&self.items_path)? })
++    }
++
++    fn new_item(self) -> Result<Self::Item, Self::Error> {
++        self.new_named_item(self.config.id_generator.generate())
++    }
++
++    fn new_named_item<S: AsRef<str>>(self, name: S) -> Result<Self::Item, Self::Error> {
++        new_named_item(self, self.items_path(), name)
++    }
++
++    fn item<S: AsRef<str>>(self, name: S) -> Option<Self::Item> {
++        item(self, self.items_path(), name)
++    }
++
++}
++
++
+ use super::Item as ItemTrait;
+ 
+ use std::ffi::OsString;
+@@ -1132,6 +1205,25 @@ mod tests {
+         assert!(iter.next().is_none());
+     }
+ 
++    #[test]
++    fn collection() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++
++        let repo = Repository::new(&tmp).unwrap();
++        let coll = repo.collection("test").unwrap();
++
++        let item = coll.new_item().unwrap();
++        // load items
++        let mut items: Vec<Item> = coll.item_iter().unwrap().collect();
++        assert_eq!(items.len(), 1);
++        // check equality of the item's ID
++        assert_eq!(items.pop().unwrap().id(), item.id());
++
++        // the default collection should be empty
++        assert!(repo.item_iter().unwrap().next().is_none());
++    }
++
+ 
+ 
+ }
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 1650de4..f12d11c 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -64,7 +64,7 @@ use std::path::PathBuf;
+ use std::fs;
+ use std::net::ToSocketAddrs;
+ 
+-use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles};
++use sit_core::{Repository, Collection, reducers::duktape::DuktapeReducer, record::OrderedFiles};
+ use std::io::Cursor;
+ 
+ use mime_guess::get_mime_type_str;
+diff --git a/sit/src/command_item.rs b/sit/src/command_item.rs
+index c2f2976..fe3cc74 100644
+--- a/sit/src/command_item.rs
++++ b/sit/src/command_item.rs
+@@ -1,13 +1,12 @@
+ use clap::ArgMatches;
+-use sit_core::{Repository, Item, repository::{Error}};
++use sit_core::{Repository, Item, Collection, repository::Error};
+ use std::io::ErrorKind as IoErrorKind;
+ 
+-pub fn command(matches: &ArgMatches, repo: &Repository) -> i32 {
+-    let named = matches.value_of("id");
++fn item<'a, C: Collection<Error = Error>>(collection: C, named: Option<&str>) -> i32 {
+     let item = if named.is_none() {
+-        repo.new_item()
++        collection.new_item()
+     } else {
+-        repo.new_named_item(named.clone().unwrap())
++        collection.new_named_item(named.clone().unwrap())
+     };
+     match item {
+         Ok(item) => {
+@@ -27,3 +26,15 @@ pub fn command(matches: &ArgMatches, repo: &Repository) -> i32 {
+     }
+ }
+ 
++pub fn command(matches: &ArgMatches, repo: &Repository) -> i32 {
++    let named = matches.value_of("id");
++    match matches.value_of("collection") {
++        None => item(repo, named),
++        Some(name) => {
++            let coll = repo.collection(name).expect("can't access collection");
++            item(&coll, named)
++        },
++    }
++}
++
++
+diff --git a/sit/src/command_items.rs b/sit/src/command_items.rs
+index 7e343f6..9218e2d 100644
+--- a/sit/src/command_items.rs
++++ b/sit/src/command_items.rs
+@@ -1,5 +1,5 @@
+ use clap::ArgMatches;
+-use sit_core::{self, reducers::duktape::DuktapeReducer, Repository, item::ItemReduction, cfg::Configuration};
++use sit_core::{self, Collection, reducers::duktape::DuktapeReducer, Repository, item::ItemReduction, cfg::Configuration};
+ use serde_json;
+ use rayon::prelude::*;
+ use super::get_named_expression;
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+index bc79774..efe5dee 100644
+--- a/sit/src/command_record.rs
++++ b/sit/src/command_record.rs
+@@ -1,5 +1,5 @@
+ use clap::{self, ArgMatches};
+-use sit_core::{Repository, Record, Item, record::{OrderedFiles, BoxedOrderedFiles}};
++use sit_core::{Repository, Record, Item, Collection, record::{OrderedFiles, BoxedOrderedFiles}};
+ use sit_core::cfg::{self, Configuration};
+ use chrono::prelude::*;
+ use std::process::exit;
+diff --git a/sit/src/command_records.rs b/sit/src/command_records.rs
+index 1e9d5e8..1aa6dd7 100644
+--- a/sit/src/command_records.rs
++++ b/sit/src/command_records.rs
+@@ -1,5 +1,5 @@
+ use clap::ArgMatches;
+-use sit_core::{Repository, Record, Item, cfg::Configuration, record::OrderedFiles};
++use sit_core::{Repository, Record, Item, cfg::Configuration, record::OrderedFiles, Collection};
+ use serde_json;
+ use super::get_named_expression;
+ use jmespath;
+diff --git a/sit/src/command_reduce.rs b/sit/src/command_reduce.rs
+index 7ad844c..320f772 100644
+--- a/sit/src/command_reduce.rs
++++ b/sit/src/command_reduce.rs
+@@ -1,5 +1,5 @@
+ use clap::ArgMatches;
+-use sit_core::{self, Repository, item::ItemReduction, cfg::Configuration};
++use sit_core::{self, Repository, item::ItemReduction, cfg::Configuration, Collection};
+ use serde_json;
+ use super::get_named_expression;
+ use jmespath;
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index a219625..f4f97b9 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -149,6 +149,11 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         .subcommand(SubCommand::with_name("item")
+             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+             .about("Creates a new item")
++            .arg(Arg::with_name("collection")
++                .long("collection")
++                .short("c")
++                .takes_value(true)
++                .help("Specify a named collection"))
+             .arg(Arg::with_name("id")
+                      .long("id")
+                      .takes_value(true)
+diff --git a/sit/src/rebuild.rs b/sit/src/rebuild.rs
+index a47dc35..97c88c8 100644
+--- a/sit/src/rebuild.rs
++++ b/sit/src/rebuild.rs
+@@ -2,7 +2,7 @@ use std::path::PathBuf;
+ use std::fs;
+ use std::ffi::OsString;
+ use fs_extra;
+-use sit_core::{Repository, Item, Record};
++use sit_core::{Repository, Item, Record, Collection};
+ use pbr::ProgressBar;
+ use tempdir::TempDir;
+ use glob;
+diff --git a/sit/tests/command_init.rs b/sit/tests/command_init.rs
+index a89fd8d..370e8d8 100644
+--- a/sit/tests/command_init.rs
++++ b/sit/tests/command_init.rs
+@@ -2,7 +2,7 @@ extern crate cli_test_dir;
+ extern crate sit_core;
+ 
+ use cli_test_dir::*;
+-use sit_core::Repository;
++use sit_core::{Repository, Collection};
+ use std::fs;
+ 
+ /// Should initialize a repository
+diff --git a/sit/tests/command_item.rs b/sit/tests/command_item.rs
+index 03fb540..8e2194f 100644
+--- a/sit/tests/command_item.rs
++++ b/sit/tests/command_item.rs
+@@ -2,7 +2,7 @@ extern crate cli_test_dir;
+ extern crate sit_core;
+ 
+ use cli_test_dir::*;
+-use sit_core::{Repository, Item};
++use sit_core::{Repository, Item, Collection};
+ 
+ /// Should create an item
+ #[test]
+@@ -47,3 +47,37 @@ fn item_existing() {
+     let err = String::from_utf8(dir.cmd().args(&["item", "--id", "test"]).expect_failure().stderr).unwrap();
+     assert_eq!(err.trim(), "Item test already exists");
+ }
++
++/// Should create an item in a different collection
++#[test]
++fn collection_item() {
++    let dir = TestDir::new("sit", "collection_item");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id = String::from_utf8(dir.cmd().args(&["item", "-c", "test"]).expect_success().stdout).unwrap();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let coll = repo.collection("test").unwrap();
++    let mut items = coll.item_iter().unwrap();
++    let item = items.next().unwrap();
++    assert_eq!(item.id(), id.trim());
++    assert!(items.next().is_none());
++}
++
++/// Should create a named in a different collection
++#[test]
++fn collection_item_named() {
++    let dir = TestDir::new("sit", "collection_item_named");
++    dir.cmd()
++        .arg("init")
++       .expect_success();
++    let id = String::from_utf8(dir.cmd().args(&["item", "-c", "test", "--id", "test"]).expect_success().stdout).unwrap();
++    assert_eq!(id.trim(), "test");
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let coll = repo.collection("test").unwrap();
++    let mut items = coll.item_iter().unwrap();
++    let item = items.next().unwrap();
++    assert_eq!(item.id(), id.trim());
++    assert!(items.next().is_none());
++}
++
+diff --git a/sit/tests/command_items.rs b/sit/tests/command_items.rs
+index 9c1cb26..15dcacf 100644
+--- a/sit/tests/command_items.rs
++++ b/sit/tests/command_items.rs
+@@ -1,7 +1,7 @@
+ extern crate cli_test_dir;
+ extern crate sit_core;
+ 
+-use sit_core::{Repository, Item};
++use sit_core::{Repository, Item, Collection};
+ 
+ use cli_test_dir::*;
+ 
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index fb0d4c0..9d4d2e0 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -5,7 +5,7 @@ extern crate chrono;
+ extern crate which;
+ 
+ use cli_test_dir::*;
+-use sit_core::{Repository, Item, record::RecordExt};
++use sit_core::{Repository, Item, Collection, record::RecordExt};
+ use std::process;
+ 
+ /// Should derive authorship from the config file
+diff --git a/sit/tests/command_records.rs b/sit/tests/command_records.rs
+index ee72db4..41ad32c 100644
+--- a/sit/tests/command_records.rs
++++ b/sit/tests/command_records.rs
+@@ -5,7 +5,7 @@ extern crate remove_dir_all;
+ 
+ use std::process;
+ 
+-use sit_core::{Repository, Item};
++use sit_core::{Repository, Item, Collection};
+ 
+ use cli_test_dir::*;
+ use remove_dir_all::*;
+diff --git a/sit/tests/command_reduce.rs b/sit/tests/command_reduce.rs
+index 90b8136..6995fa4 100644
+--- a/sit/tests/command_reduce.rs
++++ b/sit/tests/command_reduce.rs
+@@ -2,7 +2,7 @@ extern crate cli_test_dir;
+ extern crate sit_core;
+ extern crate serde_json;
+ 
+-use sit_core::{Repository, Item};
++use sit_core::{Repository, Item, Collection};
+ 
+ use cli_test_dir::*;
+ 
+-- 
+2.16.4
+
