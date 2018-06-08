@@ -1,0 +1,7 @@
+It's not always possible to have an extra computer
+handy.
+
+Solution: provide a docker container to cross-compile
+and make it easy to use through `make osx` which will
+build a release for OS X.
+
