@@ -1,6 +1,6 @@
 [package]
 name = "sit-web"
-version = "0.4.0"
+version = "0.5.0-pre"
 description = "Serverless Information Tracker Web Interface"
 authors = ["Yurii Rashkovskii <me@yrashk.com>"]
 license = "MIT/Apache-2.0"
@@ -26,7 +26,7 @@ blake2 = "0.7"
 hex = "0.3"
 which = "2.0"
 thread_local = "0.3"
-sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
+sit-core = { path = "../sit-core", version = "0.5.0-pre", features = ["git"] }
 
 [build-dependencies]
 include_dir = "0.1"
