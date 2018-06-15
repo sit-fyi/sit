@@ -245,12 +245,17 @@ impl Repository {
         Ok(repository)
     }
 
-    /// Given relative path of `path` (such as ".sit"), finds a repository in a directory or above
+    /// Finds SIT repository in `path` or any of its parent directories, or within the same
+    /// hierarchy under a sub-directory `dir` (often `".sit"` by convention)
     pub fn find_in_or_above<P: Into<PathBuf>, S: AsRef<str>>(dir: S, path: P) -> Option<PathBuf> {
         let mut path: PathBuf = path.into();
         let dir = dir.as_ref();
         path.push(dir);
         loop {
+            match path.parent() {
+                Some(parent) if Repository::open(&parent).is_ok() => return Some(parent.into()),
+                _ => (),
+            }
             if !path.is_dir() {
                 // get out of `dir`
                 path.pop();
@@ -261,7 +266,11 @@ impl Repository {
                 // try assuming current path + `dir`
                 path.push(dir);
             } else {
-                break;
+               if Repository::open(&path).is_ok() {
+                   break;
+               } else {
+                   return None;
+               }
             }
         }
         Some(path)
@@ -719,7 +728,29 @@ mod tests {
         assert_eq!(repo.path(), sit);
         // negative test
         assert!(Repository::find_in_or_above(".sit-dir", &deep_subdir).is_none());
+        // non-repo shouldn't be found
+        let tmp1 = TempDir::new("sit").unwrap().into_path() ;
+        let non_sit = tmp1.join(".sit");
+        fs::create_dir_all(non_sit).unwrap();
+        let deep_subdir = tmp1.join("a/b/c/d");
+        assert!(Repository::find_in_or_above(".sit", &deep_subdir).is_none());
     }
+
+
+    #[test]
+    fn find_repo_in_itself() {
+        // unlike `find_repo`, this tests whether we can find a repository
+        // that is not contained in a `.sit` folder
+        let sit = TempDir::new("sit").unwrap().into_path();
+        // create repo
+        Repository::new(&sit).unwrap();
+        let subdir = sit.join("items");
+        let repo = Repository::find_in_or_above(".sit", &subdir);
+        assert!(repo.is_some());
+        let repo = Repository::open(repo.unwrap()).unwrap();
+        assert_eq!(repo.path(), sit);
+    }
+
 
     #[test]
     fn new_item() {
