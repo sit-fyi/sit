@@ -1,0 +1,25 @@
+In some cases, SIT repository isn't expected to live
+alongside some other information. Unlike in the original
+case for SIT, where .sit is expected to sit in the root
+(and maybe others) directories of a project, there are
+cases where SIT repository is *the thing*. For example,
+a repository containing accounting information or paper
+review system, or anything else.
+
+However, SIT is somewhat adamant about enforcing the .sit
+directory convention.
+
+Solution: enhance SIT to recognize current and parent directories
+as potential SIT repositories, giving them precendence over
+.sit directories.
+
+So, for example, if we're at /path/to/sit/repo/items/xyz/ then
+SIT will find /path/to/sit/repo (provided it is a valid repository).
+
+Unlike before, `Repository#find_in_or_above` will now attempt
+to open a repository before reporting it found (if it can't open
+it, it won't return the path to it)
+
+`sit init` command now takes `--no-dot-sit/-u` argument that would
+initialize the repository in the working directory.
+

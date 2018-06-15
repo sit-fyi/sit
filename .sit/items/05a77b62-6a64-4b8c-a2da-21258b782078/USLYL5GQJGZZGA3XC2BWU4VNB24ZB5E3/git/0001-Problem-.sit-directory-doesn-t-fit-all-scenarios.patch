@@ -1,0 +1,187 @@
+From 9662e19486f91886f3b4c2e3002396db98099dc9 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 15 Jun 2018 02:48:43 -0700
+Subject: [PATCH] Problem: .sit directory doesn't fit all scenarios
+
+In some cases, SIT repository isn't expected to live
+alongside some other information. Unlike in the original
+case for SIT, where .sit is expected to sit in the root
+(and maybe others) directories of a project, there are
+cases where SIT repository is *the thing*. For example,
+a repository containing accounting information or paper
+review system, or anything else.
+
+However, SIT is somewhat adamant about enforcing the .sit
+directory convention.
+
+Solution: enhance SIT to recognize current and parent directories
+as potential SIT repositories, giving them precendence over
+.sit directories.
+
+So, for example, if we're at /path/to/sit/repo/items/xyz/ then
+SIT will find /path/to/sit/repo (provided it is a valid repository).
+
+Unlike before, `Repository#find_in_or_above` will now attempt
+to open a repository before reporting it found (if it can't open
+it, it won't return the path to it)
+
+`sit init` command now takes `--no-dot-sit/-u` argument that would
+initialize the repository in the working directory.
+---
+ sit-core/src/repository.rs | 35 +++++++++++++++++++++++++++++++++--
+ sit/src/command_init.rs    |  5 ++++-
+ sit/src/main.rs            |  4 ++++
+ sit/tests/command_init.rs  | 39 +++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 80 insertions(+), 3 deletions(-)
+
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 185279d..f00acdb 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -245,12 +245,17 @@ impl Repository {
+         Ok(repository)
+     }
+ 
+-    /// Given relative path of `path` (such as ".sit"), finds a repository in a directory or above
++    /// Finds SIT repository in `path` or any of its parent directories, or within the same
++    /// hierarchy under a sub-directory `dir` (often `".sit"` by convention)
+     pub fn find_in_or_above<P: Into<PathBuf>, S: AsRef<str>>(dir: S, path: P) -> Option<PathBuf> {
+         let mut path: PathBuf = path.into();
+         let dir = dir.as_ref();
+         path.push(dir);
+         loop {
++            match path.parent() {
++                Some(parent) if Repository::open(&parent).is_ok() => return Some(parent.into()),
++                _ => (),
++            }
+             if !path.is_dir() {
+                 // get out of `dir`
+                 path.pop();
+@@ -261,7 +266,11 @@ impl Repository {
+                 // try assuming current path + `dir`
+                 path.push(dir);
+             } else {
+-                break;
++               if Repository::open(&path).is_ok() {
++                   break;
++               } else {
++                   return None;
++               }
+             }
+         }
+         Some(path)
+@@ -719,8 +728,30 @@ mod tests {
+         assert_eq!(repo.path(), sit);
+         // negative test
+         assert!(Repository::find_in_or_above(".sit-dir", &deep_subdir).is_none());
++        // non-repo shouldn't be found
++        let tmp1 = TempDir::new("sit").unwrap().into_path() ;
++        let non_sit = tmp1.join(".sit");
++        fs::create_dir_all(non_sit).unwrap();
++        let deep_subdir = tmp1.join("a/b/c/d");
++        assert!(Repository::find_in_or_above(".sit", &deep_subdir).is_none());
++    }
++
++
++    #[test]
++    fn find_repo_in_itself() {
++        // unlike `find_repo`, this tests whether we can find a repository
++        // that is not contained in a `.sit` folder
++        let sit = TempDir::new("sit").unwrap().into_path();
++        // create repo
++        Repository::new(&sit).unwrap();
++        let subdir = sit.join("items");
++        let repo = Repository::find_in_or_above(".sit", &subdir);
++        assert!(repo.is_some());
++        let repo = Repository::open(repo.unwrap()).unwrap();
++        assert_eq!(repo.path(), sit);
+     }
+ 
++
+     #[test]
+     fn new_item() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+diff --git a/sit/src/command_init.rs b/sit/src/command_init.rs
+index eb98014..59a88c5 100644
+--- a/sit/src/command_init.rs
++++ b/sit/src/command_init.rs
+@@ -3,7 +3,10 @@ use clap::ArgMatches;
+ use sit_core;
+ 
+ pub fn command<P1: AsRef<Path>, P2: AsRef<Path>>(init_matches: &ArgMatches, matches: &ArgMatches, working_dir: P1, default_repo: P2) -> i32 {
+-    let path = matches.value_of("repository").map(|r| working_dir.as_ref().join(r)).unwrap_or(default_repo.as_ref().into());
++    let mut path = matches.value_of("repository").map(|r| working_dir.as_ref().join(r)).unwrap_or(default_repo.as_ref().into());
++    if init_matches.is_present("no-dot-sit") && !matches.is_present("repository") {
++        path.pop();
++    }
+     let path_str = path.to_str().unwrap();
+     match sit_core::Repository::new(&path) {
+         Ok(repo) => {
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index a219625..44c1659 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -118,6 +118,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         .subcommand(SubCommand::with_name("init")
+             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+             .about("Initializes a new SIT repository in .sit")
++            .arg(Arg::with_name("no-dot-sit")
++                .long("no-dot-sit")
++                .short("u")
++                .help("Initialize the repo in working directory or <repository> if overriden with -r"))
+             .arg(Arg::with_name("dont-populate")
+                      .long("no-default-files")
+                      .short("n")
+diff --git a/sit/tests/command_init.rs b/sit/tests/command_init.rs
+index a89fd8d..f1903e8 100644
+--- a/sit/tests/command_init.rs
++++ b/sit/tests/command_init.rs
+@@ -16,6 +16,45 @@ fn repo_init() {
+     assert!(Repository::open(dir.path(".sit")).is_ok());
+ }
+ 
++/// Should initialize a repository in a working directory
++#[test]
++fn repo_init_working_directory() {
++    let dir = TestDir::new("sit", "repo_init_working_directory");
++    dir.cmd()
++        .arg("init").arg("--no-dot-sit")
++        .expect_success();
++    assert!(dir.path("config.json").is_file());
++    assert!(Repository::open(dir.path(".")).is_ok());
++}
++
++/// Should initialize a repository in a custom working directory
++#[test]
++fn repo_init_custom_working_directory() {
++    let dir = TestDir::new("sit", "repo_init_custom_working_directory");
++    fs::create_dir_all(dir.path("repo")).unwrap();
++    dir.cmd()
++        .arg("-d").arg(dir.path("repo"))
++        .arg("init").arg("--no-dot-sit")
++        .expect_success();
++    assert!(dir.path("repo/config.json").is_file());
++    assert!(Repository::open(dir.path("repo")).is_ok());
++}
++
++/// Should initialize a repository in the repo directory
++#[test]
++fn repo_init_repo_directory() {
++    let dir = TestDir::new("sit", "repo_init_repo_directory");
++    fs::create_dir_all(dir.path("repo")).unwrap();
++    dir.cmd()
++        .arg("-r").arg(dir.path("repo"))
++        .arg("init").arg("--no-dot-sit")
++        .expect_success();
++    assert!(dir.path("repo/config.json").is_file());
++    assert!(Repository::open(dir.path("repo")).is_ok());
++}
++
++
++
+ /// Should initialize a repository in an empty directory (absolute)
+ #[test]
+ fn repo_init_emptydir_absolute() {
+-- 
+2.16.4
+
