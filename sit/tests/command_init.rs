@@ -16,6 +16,45 @@ fn repo_init() {
     assert!(Repository::open(dir.path(".sit")).is_ok());
 }
 
+/// Should initialize a repository in a working directory
+#[test]
+fn repo_init_working_directory() {
+    let dir = TestDir::new("sit", "repo_init_working_directory");
+    dir.cmd()
+        .arg("init").arg("--no-dot-sit")
+        .expect_success();
+    assert!(dir.path("config.json").is_file());
+    assert!(Repository::open(dir.path(".")).is_ok());
+}
+
+/// Should initialize a repository in a custom working directory
+#[test]
+fn repo_init_custom_working_directory() {
+    let dir = TestDir::new("sit", "repo_init_custom_working_directory");
+    fs::create_dir_all(dir.path("repo")).unwrap();
+    dir.cmd()
+        .arg("-d").arg(dir.path("repo"))
+        .arg("init").arg("--no-dot-sit")
+        .expect_success();
+    assert!(dir.path("repo/config.json").is_file());
+    assert!(Repository::open(dir.path("repo")).is_ok());
+}
+
+/// Should initialize a repository in the repo directory
+#[test]
+fn repo_init_repo_directory() {
+    let dir = TestDir::new("sit", "repo_init_repo_directory");
+    fs::create_dir_all(dir.path("repo")).unwrap();
+    dir.cmd()
+        .arg("-r").arg(dir.path("repo"))
+        .arg("init").arg("--no-dot-sit")
+        .expect_success();
+    assert!(dir.path("repo/config.json").is_file());
+    assert!(Repository::open(dir.path("repo")).is_ok());
+}
+
+
+
 /// Should initialize a repository in an empty directory (absolute)
 #[test]
 fn repo_init_emptydir_absolute() {
