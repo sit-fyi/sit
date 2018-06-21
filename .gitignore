@@ -1,3 +1,4 @@
 target
 .idea
 .sit/items/*/.lock
+._docker_osx
