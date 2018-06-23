@@ -1,0 +1,9 @@
+Currently, running some of the tests can be problematic
+if SIT is also being used on that same machine by the same
+user as SIT will try to pick up the existing user config.
+
+Also, building releases requires the additional setup of
+musl target.
+
+Solution: provide a Docker container with the musl build environment
+

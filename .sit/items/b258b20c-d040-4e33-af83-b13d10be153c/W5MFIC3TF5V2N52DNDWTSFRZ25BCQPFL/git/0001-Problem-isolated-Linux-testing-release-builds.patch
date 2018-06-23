@@ -1,0 +1,80 @@
+From be642933826824feb43231805eac01cd5b7ae73d Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 23 Jun 2018 11:23:27 -0700
+Subject: [PATCH] Problem: isolated Linux testing, release builds
+
+Currently, running some of the tests can be problematic
+if SIT is also being used on that same machine by the same
+user as SIT will try to pick up the existing user config.
+
+Also, building releases requires the additional setup of
+musl target.
+
+Solution: provide a Docker container with the musl build environment
+---
+ .gitignore                                   |  1 +
+ Makefile                                     |  7 +++++++
+ build-tools/linux-build-container/Dockerfile |  3 +++
+ build-tools/linux-build-container/README.md  | 12 ++++++++++++
+ 4 files changed, 23 insertions(+)
+ create mode 100644 build-tools/linux-build-container/Dockerfile
+ create mode 100644 build-tools/linux-build-container/README.md
+
+diff --git a/.gitignore b/.gitignore
+index 561a1c4..11938d5 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,3 +2,4 @@ target
+ .idea
+ .sit/items/*/.lock
+ ._docker_osx
++._docker_linux
+diff --git a/Makefile b/Makefile
+index 0aefe4b..4fa43ef 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,7 +1,14 @@
+ osx: target/x86_64-apple-darwin/release/sit target/x86_64-apple-darwin/release/sit-web
++linux: target/x86_64-unknown-linux-musl/release/sit target/x86_64-unknown-linux-musl/release/sit-web
+ 
+ target/x86_64-apple-darwin/release/sit target/x86_64-apple-darwin/release/sit-web: build-tools/cross-compile-osx/Dockerfile sit-core sit-web sit
+ 	docker build --iidfile ._docker_osx build-tools/cross-compile-osx
+ 	sed -i s/sha256://g ._docker_osx
+ 	docker run -u `id -u`:`id -g` -v `pwd`:/sit -w /sit -t `cat ._docker_osx` sh -c "cargo build --release --target=x86_64-apple-darwin"
+ 	rm -f ._docker_osx
++
++target/x86_64-unknown-linux-musl/release/sit target/x86_64-unknown-linux-musl/release/sit-web: build-tools/linux-build-container/Dockerfile sit-core sit-web sit
++	docker build --iidfile ._docker_linux build-tools/linux-build-container
++	sed -i s/sha256://g ._docker_linux
++	docker run -u `id -u`:`id -g` -v `pwd`:/sit -w /sit -t `cat ._docker_linux` sh -c "cargo build --release --target=x86_64-unknown-linux-musl && strip target/x86_64-unknown-linux-musl/release/sit target/x86_64-unknown-linux-musl/release/sit-web"
++	rm -f ._docker_linux
+diff --git a/build-tools/linux-build-container/Dockerfile b/build-tools/linux-build-container/Dockerfile
+new file mode 100644
+index 0000000..285b39d
+--- /dev/null
++++ b/build-tools/linux-build-container/Dockerfile
+@@ -0,0 +1,3 @@
++FROM rust:1.26.2
++RUN apt-get update && apt-get install -y cmake libgit2-dev musl-tools
++RUN rustup target add x86_64-unknown-linux-musl
+diff --git a/build-tools/linux-build-container/README.md b/build-tools/linux-build-container/README.md
+new file mode 100644
+index 0000000..d11eacf
+--- /dev/null
++++ b/build-tools/linux-build-container/README.md
+@@ -0,0 +1,12 @@
++This container provides a convenient way to build and test sit in isolation
++from the local environment (Linux-specific). This is particularly useful for
++running integration tests that might inadvertently read user configuration and
++fail because of that (or introduce undesired behaviour such as requiring gnupg
++signatures and triggering gpg-agent popups) ir building releases.
++
++A suggested way to run such isolated environment would be:
++
++```
++docker run -v /host/path/to/sit/repo:/sit -e CARGO_TARGET_DIR=/sit/test_target -ti <image tag>
++```
++
+-- 
+2.16.4
+
