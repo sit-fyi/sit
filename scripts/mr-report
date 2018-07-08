@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+root=$(git rev-parse --show-toplevel)
+currev=$(git rev-parse HEAD)
+sit=$(which sit)
+
+if [ -z "${sit}" ]; then
+        echo "sit not found"
+        exit 1
+fi
+
+sit_path=$(${sit} path)
+tmpdir=$(mktemp -d)
+tmpdir_out=$(mktemp -d)
+
+items=$(${sit} -r ${sit_path} items -f "merge_requests != null && state == 'open'")
+
+for id in ${items}; do
+        mrs=$(${sit} -r "${sit_path}" reduce ${id} -q "join(' ', merge_requests)")
+        git -C ${root} clone "${root}" "${tmpdir}/${id}" >/dev/null 2>/dev/null
+        ln -s "${root}/.sit/modules/issue-tracking" "${tmpdir}/${id}/.sit/modules/issue-tracking-master"
+        for mr in ${mrs}; do
+                fails="conflicts:"
+                git -C "${tmpdir}/${id}" checkout -b master-merge >/dev/null 2>/dev/null
+                git -C "${tmpdir}/${id}" am -3 $(ls ${root}/.sit/items/${id}/${mr}/git/*.patch) >/dev/null 2>/dev/null
+                success=$?
+                if [ ${success} != 0 ]; then
+                        fails="${fails} current(\e[31m${tmpdir_out}/${id}_${mr}.diff\e[39m)"
+                        git -C "${tmpdir}/${id}" diff --diff-filter=U >"${tmpdir_out}/${id}_${mr}.diff"
+                        git -C "${tmpdir}/${id}" am --abort
+                fi
+                git -C "${tmpdir}/${id}" checkout ${currev} >/dev/null 2>/dev/null
+                git -C "${tmpdir}/${id}" branch -D master-merge >/dev/null 2>/dev/null
+ 
+                echo -e $(sit -r "${sit_path}" reduce ${id} -q "join(' | ', [join('/', [id, '${mr}']), summary, '${fails}'])")
+        done
+       rm -rf "${tmpdir}/${id}"
+done
+
+rm -rf "${tmpdir}"
