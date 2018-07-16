@@ -16,8 +16,12 @@
  <a href="https://ci.appveyor.com/project/yrashk/sit"><img alt="Windows Build status" src="https://ci.appveyor.com/api/projects/status/0iv6ltgk3pa122hx?svg=true"></a>
  <img alt="issues open/total" src="https://s3-us-west-1.amazonaws.com/sit-badges/issues.svg?refresh">
  <img alt="merge requests open/total" src="https://s3-us-west-1.amazonaws.com/sit-badges/merge_requests.svg?refresh">
+ <img alt=Backers on Open Collective" src="https://opencollective.com/sit/backers/badge.svg">
+ <img alt="Sponsors on Open Collective" src="https://opencollective.com/sit/sponsors/badge.svg">
 </p>
 
+
+ 
 <p align="center">
   [
     <a href="https://github.com/sit-fyi/sit/releases"><b>Download</b></a> |
@@ -154,6 +158,9 @@ This way, pushing out, will be as nice as `git push issues <branch>`
 
 Please refer to [CONTRIBUTING](https://github.com/sit-fyi/sit/blob/master/CONTRIBUTING.md#preparing-a-merge-request) for the instruction.
 
+
+
+
 ## License
 
 SIT is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
@@ -181,3 +188,32 @@ In a nutshell, this means:
 * We prefer code now over consensus later
 
 To learn more, read our [contribution guidelines](CONTRIBUTING.md)
+
+### Contributors
+
+This project exists thanks to all the people who contribute. [[Contribute](CONTRIBUTING.md)].
+<a href="graphs/contributors"><img src="https://opencollective.com/sit/contributors.svg?width=890&button=false" /></a>
+
+
+### Backers
+
+Thank you to all our backers! 🙏 [[Become a backer](https://opencollective.com/sit#backer)]
+
+<a href="https://opencollective.com/sit#backers" target="_blank"><img src="https://opencollective.com/sit/backers.svg?width=890"></a>
+
+
+### Sponsors
+
+Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [[Become a sponsor](https://opencollective.com/sit#sponsor)]
+
+<a href="https://opencollective.com/sit/sponsor/0/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/0/avatar.svg"></a>
+<a href="https://opencollective.com/sit/sponsor/1/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/1/avatar.svg"></a>
+<a href="https://opencollective.com/sit/sponsor/2/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/2/avatar.svg"></a>
+<a href="https://opencollective.com/sit/sponsor/3/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/3/avatar.svg"></a>
+<a href="https://opencollective.com/sit/sponsor/4/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/4/avatar.svg"></a>
+<a href="https://opencollective.com/sit/sponsor/5/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/5/avatar.svg"></a>
+<a href="https://opencollective.com/sit/sponsor/6/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/6/avatar.svg"></a>
+<a href="https://opencollective.com/sit/sponsor/7/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/7/avatar.svg"></a>
+<a href="https://opencollective.com/sit/sponsor/8/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/8/avatar.svg"></a>
+<a href="https://opencollective.com/sit/sponsor/9/website" target="_blank"><img src="https://opencollective.com/sit/sponsor/9/avatar.svg"></a>
+
