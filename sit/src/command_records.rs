@@ -5,7 +5,7 @@ use super::get_named_expression;
 use jmespath;
 use super::gnupg;
 
-pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
+pub fn command<MI>(matches: &ArgMatches, repo: &Repository<MI>, config: Configuration) -> i32 {
     let id = matches.value_of("id").unwrap();
     match repo.item(id) {
         None => {

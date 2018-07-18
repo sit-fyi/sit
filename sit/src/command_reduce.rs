@@ -3,8 +3,10 @@ use sit_core::{self, Repository, item::ItemReduction, cfg::Configuration};
 use serde_json;
 use super::get_named_expression;
 use jmespath;
+use std::path::PathBuf;
 
-pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
+pub fn command<MI>(matches: &ArgMatches, repo: &Repository<MI>, config: Configuration) -> i32
+    where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
     let id = matches.value_of("id").unwrap();
     match repo.item(id) {
         None => {

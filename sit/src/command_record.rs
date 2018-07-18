@@ -10,7 +10,7 @@ use std::env;
 use atty;
 use serde_json;
 
-pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Repository, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
+pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: &Repository<MI>, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
     if !matches.is_present("no-author") && config.author.is_none() {
         if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
             config.author = Some(author);

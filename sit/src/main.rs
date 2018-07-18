@@ -30,6 +30,8 @@ mod command_records;
 mod command_external;
 mod command_jmespath;
 
+mod cli;
+
 #[cfg(unix)]
 extern crate xdg;
 
@@ -56,7 +58,7 @@ extern crate thread_local;
 #[macro_use] extern crate derive_error;
 
 use std::collections::HashMap;
-pub fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
+pub fn get_named_expression<S: AsRef<str>, MI>(name: S, repo: &sit_core::Repository<MI>,
                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
     let path = repo.path().join(repo_path.as_ref()).join(name.as_ref());
     if path.is_file() {
@@ -80,6 +82,9 @@ pub fn gnupg(matches: &ArgMatches, config: &cfg::Configuration) -> Result<OsStri
         }));
     Ok(program)
 }
+
+mod module_iter;
+use module_iter::ScriptModule;
 
 
 fn main() {
@@ -348,7 +353,6 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
     }
 
     let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
-    let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
     let dot_sit = working_dir.join(".sit");
 
     if let Some(matches) = matches.subcommand_matches("config") {
@@ -394,56 +398,80 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                        .expect("Can't find a repository");
         let repo = sit_core::Repository::open(&repo_path)
             .expect("can't open repository");
-
-        if let Some(_) = matches.subcommand_matches("modules") {
-            for module_path in repo.module_iter().expect("can't iterate over modules") {
-                println!("{}", ::dunce::canonicalize(&module_path).unwrap_or(module_path).to_str().unwrap());
+        return match repo.config().clone().extra().get("external_module_manager") {
+            Some(serde_json::Value::String(name)) => {
+                let original_repo = repo.clone();
+                do_matches(matches.clone(), repo.with_module_iterator(ScriptModule(original_repo, &cwd, name.to_string())), cwd.clone(), config, config_path)
             }
-            return 0;
-        }
+            _ => do_matches(matches.clone(), repo, cwd.clone(), config, config_path),
+        };
 
-        if let Some(_) = matches.subcommand_matches("populate-files") {
-            repo.populate_default_files().expect("can't populate default files");
-            return 0;
-        } else if let Some(_) = matches.subcommand_matches("path") {
-            println!("{}", repo.path().to_str().unwrap());
-            return 0;
-        } else if let Some(matches) = matches.subcommand_matches("item") {
-            return command_item::command(matches, &repo);
-        }
-
-        if let Some(matches) = matches.subcommand_matches("items") {
-            return command_items::command(matches, &repo, config);
-        }
-
-        if let Some(matches) = matches.subcommand_matches("record") {
-            return command_record::command(matches, &repo, config.clone(), canonical_working_dir, config_path);
-        }
-
-        if let Some(matches) = matches.subcommand_matches("records") {
-            return command_records::command(matches, &repo, config);
-        }
-
-        if let Some(matches) = matches.subcommand_matches("reduce") {
-            return command_reduce::command(matches, &repo, config);
-        }
-
-        if let Some(matches) = matches.subcommand_matches("config") {
-            if matches.value_of("kind").unwrap() == "repository" {
-                command_config::command(repo.config(), matches.value_of("query"));
+        fn do_matches<MI: Send + Sync>(matches: ArgMatches, repo: sit_core::Repository<MI>, cwd: PathBuf, config: cfg::Configuration, config_path: &str) -> i32
+            where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
+            let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
+            let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
+            if let Some(_) = matches.subcommand_matches("modules") {
+                match repo.module_iter() {
+                    Ok(iter) => {
+                        for module_path in iter {
+                            let module_path = module_path.expect("can't get module_path");
+                            println!("{}", ::dunce::canonicalize(&module_path).unwrap_or(module_path).to_str().unwrap());
+                        }
+                        return 0;
+                    },
+                    Err(sit_core::RepositoryError::OtherError(str)) => {
+                        eprintln!("{}", str);
+                        return 1;
+                    },
+                    Err(e) => {
+                        eprintln!("Error: {:?}", e);
+                        return 1;
+                    },
+                }
             }
-            return 0;
-        }
 
-        match command_external::command(&matches, repo, &cwd) {
-            Err(_) => {
-                return main_with_result(false)
-            },
-            Ok(code) => {
-                return code;
+            if let Some(_) = matches.subcommand_matches("populate-files") {
+                repo.populate_default_files().expect("can't populate default files");
+                return 0;
+            } else if let Some(_) = matches.subcommand_matches("path") {
+                println!("{}", repo.path().to_str().unwrap());
+                return 0;
+            } else if let Some(matches) = matches.subcommand_matches("item") {
+                return command_item::command(matches, &repo);
+            }
+
+            if let Some(matches) = matches.subcommand_matches("items") {
+                return command_items::command(matches, &repo, config);
+            }
+
+            if let Some(matches) = matches.subcommand_matches("record") {
+                return command_record::command(matches, &repo, config.clone(), canonical_working_dir, config_path);
+            }
+
+            if let Some(matches) = matches.subcommand_matches("records") {
+                return command_records::command(matches, &repo, config);
+            }
+
+            if let Some(matches) = matches.subcommand_matches("reduce") {
+                return command_reduce::command(matches, &repo, config);
+            }
+
+            if let Some(matches) = matches.subcommand_matches("config") {
+                if matches.value_of("kind").unwrap() == "repository" {
+                    command_config::command(repo.config(), matches.value_of("query"));
+                }
+                return 0;
+            }
+
+            match command_external::command(&matches, repo, &cwd) {
+                Err(_) => {
+                    return main_with_result(false)
+                },
+                Ok(code) => {
+                    return code
+                }
             }
         }
-
     }
 
 }

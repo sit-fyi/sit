@@ -17,8 +17,8 @@ use memmap;
 use cesu8;
 
 #[derive(Debug)]
-pub struct DuktapeReducer<'a, R: Record> {
-    repository: &'a ::Repository,
+pub struct DuktapeReducer<'a, R: Record, MI: 'a> {
+    repository: &'a ::Repository<MI>,
     context: *mut duktape::duk_context,
     reducers: i32,
     filenames: Vec<PathBuf>,
@@ -26,7 +26,7 @@ pub struct DuktapeReducer<'a, R: Record> {
     functions: Vec<Vec<u8>>,
 }
 
-unsafe impl<'a, R: Record> Send for DuktapeReducer<'a, R> {}
+unsafe impl<'a, R: Record, MI: 'a> Send for DuktapeReducer<'a, R, MI> {}
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -43,7 +43,7 @@ pub enum Error {
     },
 }
 
-impl<'a, R: Record> Drop for DuktapeReducer<'a, R> {
+impl<'a, R: Record, MI: 'a> Drop for DuktapeReducer<'a, R, MI> {
     fn drop(&mut self) {
         unsafe {
             duktape::duk_destroy_heap(self.context);
@@ -55,7 +55,7 @@ unsafe extern "C" fn fatal_handler(_udata: *mut ::std::os::raw::c_void, msg: *co
     ::std::process::exit(1);
 }
 
-impl<'a, R: Record> DuktapeReducer<'a, R> {
+impl<'a, R: Record, MI: 'a> DuktapeReducer<'a, R, MI> {
 
     unsafe fn load_module(context: *mut duktape::duk_hthread) -> Result<(), Error> {
         // Now, execute the function with a defined module
@@ -159,8 +159,11 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
             return duktape::DUK_RET_ERROR;
         }
     }
+}
 
-    pub fn new(repository: &'a ::Repository) -> Result<Self, Error> {
+impl<'a, R: Record, MI: 'a> DuktapeReducer<'a, R, MI>
+    where MI: ::repository::ModuleIterator<PathBuf, ::repository::Error> {
+    pub fn new(repository: &'a ::Repository<MI>) -> Result<Self, Error> {
         let context = unsafe {
             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
         };
@@ -173,7 +176,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
             duktape::duk_module_duktape_init(context);
             duktape::duk_get_global_string(context, str_duktape.as_ptr());
             // function
-            duktape::duk_push_c_function(context, Some(DuktapeReducer::<'a, R>::mod_search), 4);
+            duktape::duk_push_c_function(context, Some(DuktapeReducer::<'a, R, MI>::mod_search), 4);
             duktape::duk_put_prop_string(context, -2, str_mod_search.as_ptr());
             duktape::duk_pop(context);
         }
@@ -200,16 +203,19 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
             }
         }
         for module_name in repository.module_iter()? {
+            let module_name = module_name?;
             let path = repository.modules_path().join(module_name).join("reducers");
-            #[cfg(feature = "duktape-require")] {
-                let str_path = CString::new(path.to_str().unwrap()).unwrap();
-                unsafe {
-                    duktape::duk_push_string(context, str_path.as_ptr());
-                    duktape::duk_put_prop_index(context, -2, paths_counter);
+            if path.is_dir() {
+                #[cfg(feature = "duktape-require")] {
+                    let str_path = CString::new(path.to_str().unwrap()).unwrap();
+                    unsafe {
+                        duktape::duk_push_string(context, str_path.as_ptr());
+                        duktape::duk_put_prop_index(context, -2, paths_counter);
+                    }
+                    paths_counter += 1;
                 }
-                paths_counter += 1;
+                files = Box::new(files.chain(fs::read_dir(path)?));
             }
-            files = Box::new(files.chain(fs::read_dir(path)?));
         }
         #[cfg(feature = "duktape-require")] unsafe {
             duktape::duk_def_prop(context, -3, duktape::DUK_DEFPROP_HAVE_VALUE);
@@ -271,7 +277,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
                     functions.push(func);
                     duktape::duk_pop(context);
                     // load module
-                    DuktapeReducer::<'a, R>::load_module(context)?;
+                    DuktapeReducer::<'a, R, MI>::load_module(context)?;
                     // If module.export is not function, bail
                     if duktape::duk_is_function(context, -1) != 1 {
                         return Err(Error::CompileError {
@@ -315,7 +321,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
 
 }
 
-impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
+impl<'a, R: Record, MI: 'a> Clone for DuktapeReducer<'a, R, MI> {
     fn clone(&self) -> Self {
         let context = unsafe {
             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
@@ -328,7 +334,7 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
                 duktape::duk_config_buffer(context, -1, func.as_ptr() as *mut _, func.len());
                 duktape::duk_load_function(context);
                 // obtain the module
-                DuktapeReducer::<'a, R>::load_module(context).unwrap(); // since it's a clone we assume the first load went fine
+                DuktapeReducer::<'a, R, MI>::load_module(context).unwrap(); // since it's a clone we assume the first load went fine
                 // transfer state
                 duktape::duk_push_null(self.context);
                 duktape::duk_copy(self.context, (i * 2 + 1) as i32, -1);
@@ -351,7 +357,7 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
 }
 
 
-impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+impl<'a, R: Record, MI: 'a> Reducer for DuktapeReducer<'a, R, MI> {
     type State = Map<String, JsonValue>;
     type Item = R;
 
@@ -678,7 +684,7 @@ mod tests {
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"module.exports = 'hello'").unwrap();
-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
+        let res = DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo);
         assert!(res.is_err());
         let reducer_file = repo.path().join("reducers/reducer.js");
         let err = res.unwrap_err();
@@ -742,7 +748,7 @@ mod tests {
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"function(state) { return state }").unwrap();
-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
+        let res = DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo);
         assert!(res.is_err());
         let reducer_file = repo.path().join("reducers/reducer.js");
         let err = res.unwrap_err();
@@ -767,7 +773,7 @@ mod tests {
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"module.exports = function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
+        let res = DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo);
         assert!(res.is_err());
         let reducer_file = repo.path().join("reducers/reducer.js");
         let err = res.unwrap_err();
@@ -995,7 +1001,8 @@ mod tests {
         f.write(b"module.exports = function(state, record) { return {\"hello\": record.hash}; }").unwrap();
 
         let err_str = "Error: module not found: \"index.js\"";
-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+
+        assert_matches!(DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo),
         Err(Error::ExecutionError { ref error }) if error == err_str);
     }
 
@@ -1013,7 +1020,7 @@ mod tests {
         f.write(b"module.exports = require(\"reducer/index.js\");").unwrap();
 
         let err_str = "Error: module not found: \"reducer/index.js\"";
-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        assert_matches!(DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo),
         Err(Error::ExecutionError { ref error }) if error == err_str);
     }
 
@@ -1034,7 +1041,8 @@ mod tests {
         f.write(b"module.exports = function() {};").unwrap();
 
         let err_str = "TypeError: cannot resolve module id: ../reducer.js";
-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+
+        assert_matches!(DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo),
         Err(Error::ExecutionError { ref error }) if error == err_str);
     }
 
@@ -1051,7 +1059,7 @@ mod tests {
         f.write(b"module.exports = require(\"/reducer.js\");").unwrap();
 
         let err_str = "TypeError: cannot resolve module id: /reducer.js";
-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        assert_matches!(DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo),
         Err(Error::ExecutionError { ref error }) if error == err_str);
     }
 

@@ -1,4 +1,5 @@
 extern crate sit_core;
+extern crate sit;
 
 extern crate chrono;
 extern crate dirs;
@@ -43,6 +44,8 @@ extern crate which;
 
 use std::ffi::OsString;
 use which::which;
+
+use sit::ScriptModule;
 
 extern crate thread_local;
 
@@ -134,5 +137,13 @@ fn main() {
     let readonly = matches.is_present("readonly");
     let overlays: Vec<_> = matches.values_of("overlay").unwrap_or(clap::Values::default()).collect();
     println!("Serving on {}", listen);
-    webapp::start(listen, config, repo, readonly, overlays);
+    match repo.config().clone().extra().get("module_manager") {
+            Some(serde_json::Value::String(name)) => {
+                let original_repo = repo.clone();
+                let repo = repo.with_module_iterator(ScriptModule(original_repo, cwd.clone(), name.clone()));
+                webapp::start(listen, config, repo, readonly, overlays);
+            },
+            _ => webapp::start(listen, config, repo, readonly, overlays),
+    };
+
 }
