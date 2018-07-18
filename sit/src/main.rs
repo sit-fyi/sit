@@ -28,6 +28,7 @@ mod command_items;
 mod command_reduce;
 mod command_records;
 mod command_external;
+mod command_jmespath;
 
 #[cfg(unix)]
 extern crate xdg;
@@ -294,6 +295,17 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         .subcommand(SubCommand::with_name("modules")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Prints out resolved modules"))
+        .subcommand(SubCommand::with_name("jmespath")
+            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+            .arg(Arg::with_name("expr")
+                .required(true)
+                .takes_value(true)
+                .help("JMESPath expression"))
+            .arg(Arg::with_name("pretty")
+                .short("p")
+                .long("pretty")
+                .help("Prettify JSON output"))
+            .about("Evaluates a JMESPath expression over a JSON read from stdin"))
         .subcommand(SubCommand::with_name("args")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .arg(Arg::with_name("help")
@@ -344,6 +356,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             command_config::command(&config, matches.value_of("query"));
             return 0;
         }
+    }
+
+    if let Some(matches) = matches.subcommand_matches("jmespath") {
+        return command_jmespath::command(matches);
     }
 
     if let Some(init_matches) = matches.subcommand_matches("init") {
