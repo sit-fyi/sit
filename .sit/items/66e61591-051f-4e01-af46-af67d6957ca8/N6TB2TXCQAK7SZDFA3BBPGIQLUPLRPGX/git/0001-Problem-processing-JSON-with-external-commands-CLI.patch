@@ -1,0 +1,148 @@
+From 40a0da2dfa1b81313e8a62bb13a1c999a497eb7b Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 18 Jul 2018 14:00:07 +0700
+Subject: [PATCH] Problem: processing JSON with external commands (CLI)
+
+Currently, if the commands do anything complicated with
+JSON (processing reducers' output, managing sit config file),
+they'd most likely require external tooling like jq.
+
+Not only this is introducing a dependency, it's also inconsistent
+with SIT's use of JMESPath.
+
+Solution: introduce a `jmespath` subcommand
+
+This command provides access to the JMESPath functionality
+from external tools.
+---
+ sit/src/command_jmespath.rs   | 15 +++++++++++++
+ sit/src/main.rs               | 16 +++++++++++++
+ sit/tests/command_jmespath.rs | 52 +++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 83 insertions(+)
+ create mode 100644 sit/src/command_jmespath.rs
+ create mode 100644 sit/tests/command_jmespath.rs
+
+diff --git a/sit/src/command_jmespath.rs b/sit/src/command_jmespath.rs
+new file mode 100644
+index 0000000..598a550
+--- /dev/null
++++ b/sit/src/command_jmespath.rs
+@@ -0,0 +1,15 @@
++use clap::ArgMatches;
++use jmespath;
++use serde_json;
++
++pub fn command(matches: &ArgMatches) -> i32 {
++    let query = jmespath::compile(matches.value_of("expr").unwrap_or("@")).expect("can't compile expression");
++    let data = jmespath::Variable::from(serde_json::from_reader::<_, serde_json::Value>(::std::io::stdin()).expect("can't parse JSON"));
++    let result = query.search(&data).unwrap();
++    if matches.is_present("pretty") {
++        println!("{}", serde_json::to_string_pretty(&result).unwrap());
++    } else {
++        println!("{}", serde_json::to_string(&result).unwrap());
++    }
++    return 0;
++}
+\ No newline at end of file
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 44c1659..f484d9a 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -28,6 +28,7 @@ mod command_items;
+ mod command_reduce;
+ mod command_records;
+ mod command_external;
++mod command_jmespath;
+ 
+ #[cfg(unix)]
+ extern crate xdg;
+@@ -294,6 +295,17 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         .subcommand(SubCommand::with_name("modules")
+             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+             .about("Prints out resolved modules"))
++        .subcommand(SubCommand::with_name("jmespath")
++            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
++            .arg(Arg::with_name("expr")
++                .required(true)
++                .takes_value(true)
++                .help("JMESPath expression"))
++            .arg(Arg::with_name("pretty")
++                .short("p")
++                .long("pretty")
++                .help("Prettify JSON output"))
++            .about("Evaluates a JMESPath expression over a JSON read from stdin"))
+         .subcommand(SubCommand::with_name("args")
+             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+             .arg(Arg::with_name("help")
+@@ -346,6 +358,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         }
+     }
+ 
++    if let Some(matches) = matches.subcommand_matches("jmespath") {
++        return command_jmespath::command(matches);
++    }
++
+     if let Some(init_matches) = matches.subcommand_matches("init") {
+         return command_init::command(&init_matches, &matches, &working_dir, &dot_sit);
+     } else if let Some(matches) = matches.subcommand_matches("rebuild") {
+diff --git a/sit/tests/command_jmespath.rs b/sit/tests/command_jmespath.rs
+new file mode 100644
+index 0000000..ddd9ae3
+--- /dev/null
++++ b/sit/tests/command_jmespath.rs
+@@ -0,0 +1,52 @@
++extern crate cli_test_dir;
++extern crate serde_json;
++
++use cli_test_dir::*;
++use std::process::Stdio;
++use std::io::Write;
++
++#[test]
++fn jmespath() {
++    let dir = TestDir::new("sit", "jmespath");
++    let mut child = dir.cmd()
++        .args(&["jmespath", "merge(@, {\"processed\": `true`})"])
++        .stdin(Stdio::piped())
++        .stdout(Stdio::piped())
++        .spawn().unwrap();
++
++    {
++        let stdin = child.stdin.as_mut().expect("Failed to open stdin");
++        stdin.write_all("{\"test\": 1}".as_bytes()).expect("Failed to write to stdin");
++    }
++
++    let output = child.wait_with_output().expect("failed to read stdout");
++    assert!(output.status.success());
++
++    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
++    let obj = json.as_object().unwrap();
++    assert_eq!(obj.get("test").unwrap().as_i64().unwrap(), 1);
++    assert_eq!(obj.get("processed").unwrap().as_bool().unwrap(), true);
++}
++
++#[test]
++fn jmespath_pretty() {
++    let dir = TestDir::new("sit", "jmespath_pretty");
++    let mut child = dir.cmd()
++        .args(&["jmespath", "merge(@, {\"processed\": `true`})", "--pretty"])
++        .stdin(Stdio::piped())
++        .stdout(Stdio::piped())
++        .spawn().unwrap();
++
++    {
++        let stdin = child.stdin.as_mut().expect("Failed to open stdin");
++        stdin.write_all("{\"test\": 1}".as_bytes()).expect("Failed to write to stdin");
++    }
++
++    let output = child.wait_with_output().expect("failed to read stdout");
++    assert!(output.status.success());
++
++    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
++    let obj = json.as_object().unwrap();
++    assert_eq!(obj.get("test").unwrap().as_i64().unwrap(), 1);
++    assert_eq!(obj.get("processed").unwrap().as_bool().unwrap(), true);
++}
+-- 
+2.16.4
+

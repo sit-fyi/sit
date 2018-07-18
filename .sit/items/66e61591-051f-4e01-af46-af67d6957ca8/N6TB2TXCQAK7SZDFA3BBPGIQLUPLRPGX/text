@@ -1,0 +1,12 @@
+Currently, if the commands do anything complicated with
+JSON (processing reducers' output, managing sit config file),
+they'd most likely require external tooling like jq.
+
+Not only this is introducing a dependency, it's also inconsistent
+with SIT's use of JMESPath.
+
+Solution: introduce a `jmespath` subcommand
+
+This command provides access to the JMESPath functionality
+from external tools.
+
