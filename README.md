@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="http://sit.fyi"><img src="logo.png" alt="SIT" width="150"></a>
+  <img src="splash.jpg" alt="SIT">
   <br>
   <br>
   SIT
