@@ -1,0 +1,30 @@
+Currently, installing and maintaining module versions
+is rather involved. One needs to either maintain them in
+fixed locations and refer to them via a "symlink" file in
+`modules/` or (most commonly used practice so far) carry
+the entire module inside of the SIT repository.
+
+Neither of these practices is really satisfactory. The former
+is fragile, the latter results in larger repositories or
+extra hoops like having to initialize/update git modules.
+
+Solution: introduce the concept of external module managers
+
+With this change, if `sit` will find `external_module_manager`
+key defined in repository's config, it'll try to invoke this
+name as an external command. So, for example, if it is set to
+`"module"`, `sit-module` will be invoked using standard external
+command search path convention (cli/, module/*/cli, $PATH).
+
+This external command can expect environment variable
+`SIT_MODULE_MANAGER` to be set to `list-modules`. It should
+print modules to be included in this repo to stdout.
+
+The intention for this is to allow external systems to manage
+provisioning of modules elsewhere on the file system and provide
+SIT with the information about their location during runtime.
+
+At the lower level (sit-core), this concept is further abstracted
+to "module iterators", something that can iterate over a list of
+paths pointing to modules.
+
