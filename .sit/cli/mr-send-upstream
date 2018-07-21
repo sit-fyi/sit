@@ -1,5 +1,6 @@
+branch=$(git rev-parse --abbrev-ref HEAD)
 echo
-echo You can now push this MR upstream:
+echo You can now send this MR to the inbox:
 echo
-echo GIT_SSH_COMMAND=\"ssh -i sit-inbox\" git push git@git.sit.fyi:sit-fyi/sit-inbox.git $1
+echo git send-email --to=sit@inbox.sit.fyi ${branch}..$1
 
