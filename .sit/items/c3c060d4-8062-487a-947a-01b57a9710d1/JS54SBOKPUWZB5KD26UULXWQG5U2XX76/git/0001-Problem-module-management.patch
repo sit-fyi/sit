@@ -1,0 +1,1423 @@
+From b5a373710c617f76c0c3f2d6193c32acb1a3700f Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 18 Jul 2018 19:37:12 +0700
+Subject: [PATCH] Problem: module management
+
+Currently, installing and maintaining module versions
+is rather involved. One needs to either maintain them in
+fixed locations and refer to them via a "symlink" file in
+`modules/` or (most commonly used practice so far) carry
+the entire module inside of the SIT repository.
+
+Neither of these practices is really satisfactory. The former
+is fragile, the latter results in larger repositories or
+extra hoops like having to initialize/update git modules.
+
+Solution: introduce the concept of external module managers
+
+With this change, if `sit` will find `external_module_manager`
+key defined in repository's config, it'll try to invoke this
+name as an external command. So, for example, if it is set to
+`"module"`, `sit-module` will be invoked using standard external
+command search path convention (cli/, module/*/cli, $PATH).
+
+This external command can expect environment variable
+`SIT_MODULE_MANAGER` to be set to `list-modules`. It should
+print modules to be included in this repo to stdout.
+
+The intention for this is to allow external systems to manage
+provisioning of modules elsewhere on the file system and provide
+SIT with the information about their location during runtime.
+
+At the lower level (sit-core), this concept is further abstracted
+to "module iterators", something that can iterate over a list of
+paths pointing to modules.
+---
+ Cargo.lock                       |   1 +
+ sit-core/src/reducers/duktape.rs |  58 +++++----
+ sit-core/src/repository.rs       | 267 ++++++++++++++++++++++++++++-----------
+ sit-web/Cargo.toml               |   1 +
+ sit-web/src/main.rs              |  13 +-
+ sit-web/src/webapp.rs            |  22 +++-
+ sit/src/cli.rs                   |  50 ++++++++
+ sit/src/command_external.rs      |  48 +------
+ sit/src/command_item.rs          |   2 +-
+ sit/src/command_items.rs         |   7 +-
+ sit/src/command_record.rs        |   2 +-
+ sit/src/command_records.rs       |   2 +-
+ sit/src/command_reduce.rs        |   4 +-
+ sit/src/lib.rs                   |   7 +
+ sit/src/main.rs                  | 110 ++++++++++------
+ sit/src/module_iter.rs           |  33 +++++
+ sit/tests/command_external.rs    |  19 +--
+ sit/tests/command_modules.rs     |  79 ++++++++++++
+ sit/tests/helpers.rs             |  22 ++++
+ 19 files changed, 539 insertions(+), 208 deletions(-)
+ create mode 100644 sit/src/cli.rs
+ create mode 100644 sit/src/lib.rs
+ create mode 100644 sit/src/module_iter.rs
+ create mode 100644 sit/tests/command_modules.rs
+ create mode 100644 sit/tests/helpers.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index c236a21..8a687fc 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1176,6 +1176,7 @@ dependencies = [
+  "serde 1.0.43 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde_derive 1.0.43 (registry+https://github.com/rust-lang/crates.io-index)",
+  "serde_json 1.0.16 (registry+https://github.com/rust-lang/crates.io-index)",
++ "sit 0.5.0-pre",
+  "sit-core 0.5.0-pre",
+  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+  "tempfile 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index acae402..b725d03 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -17,8 +17,8 @@ use memmap;
+ use cesu8;
+ 
+ #[derive(Debug)]
+-pub struct DuktapeReducer<'a, R: Record> {
+-    repository: &'a ::Repository,
++pub struct DuktapeReducer<'a, R: Record, MI: 'a> {
++    repository: &'a ::Repository<MI>,
+     context: *mut duktape::duk_context,
+     reducers: i32,
+     filenames: Vec<PathBuf>,
+@@ -26,7 +26,7 @@ pub struct DuktapeReducer<'a, R: Record> {
+     functions: Vec<Vec<u8>>,
+ }
+ 
+-unsafe impl<'a, R: Record> Send for DuktapeReducer<'a, R> {}
++unsafe impl<'a, R: Record, MI: 'a> Send for DuktapeReducer<'a, R, MI> {}
+ 
+ #[derive(Debug, Error)]
+ pub enum Error {
+@@ -43,7 +43,7 @@ pub enum Error {
+     },
+ }
+ 
+-impl<'a, R: Record> Drop for DuktapeReducer<'a, R> {
++impl<'a, R: Record, MI: 'a> Drop for DuktapeReducer<'a, R, MI> {
+     fn drop(&mut self) {
+         unsafe {
+             duktape::duk_destroy_heap(self.context);
+@@ -55,7 +55,7 @@ unsafe extern "C" fn fatal_handler(_udata: *mut ::std::os::raw::c_void, msg: *co
+     ::std::process::exit(1);
+ }
+ 
+-impl<'a, R: Record> DuktapeReducer<'a, R> {
++impl<'a, R: Record, MI: 'a> DuktapeReducer<'a, R, MI> {
+ 
+     unsafe fn load_module(context: *mut duktape::duk_hthread) -> Result<(), Error> {
+         // Now, execute the function with a defined module
+@@ -159,8 +159,11 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+             return duktape::DUK_RET_ERROR;
+         }
+     }
++}
+ 
+-    pub fn new(repository: &'a ::Repository) -> Result<Self, Error> {
++impl<'a, R: Record, MI: 'a> DuktapeReducer<'a, R, MI>
++    where MI: ::repository::ModuleIterator<PathBuf, ::repository::Error> {
++    pub fn new(repository: &'a ::Repository<MI>) -> Result<Self, Error> {
+         let context = unsafe {
+             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
+         };
+@@ -173,7 +176,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+             duktape::duk_module_duktape_init(context);
+             duktape::duk_get_global_string(context, str_duktape.as_ptr());
+             // function
+-            duktape::duk_push_c_function(context, Some(DuktapeReducer::<'a, R>::mod_search), 4);
++            duktape::duk_push_c_function(context, Some(DuktapeReducer::<'a, R, MI>::mod_search), 4);
+             duktape::duk_put_prop_string(context, -2, str_mod_search.as_ptr());
+             duktape::duk_pop(context);
+         }
+@@ -200,16 +203,19 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+             }
+         }
+         for module_name in repository.module_iter()? {
++            let module_name = module_name?;
+             let path = repository.modules_path().join(module_name).join("reducers");
+-            #[cfg(feature = "duktape-require")] {
+-                let str_path = CString::new(path.to_str().unwrap()).unwrap();
+-                unsafe {
+-                    duktape::duk_push_string(context, str_path.as_ptr());
+-                    duktape::duk_put_prop_index(context, -2, paths_counter);
++            if path.is_dir() {
++                #[cfg(feature = "duktape-require")] {
++                    let str_path = CString::new(path.to_str().unwrap()).unwrap();
++                    unsafe {
++                        duktape::duk_push_string(context, str_path.as_ptr());
++                        duktape::duk_put_prop_index(context, -2, paths_counter);
++                    }
++                    paths_counter += 1;
+                 }
+-                paths_counter += 1;
++                files = Box::new(files.chain(fs::read_dir(path)?));
+             }
+-            files = Box::new(files.chain(fs::read_dir(path)?));
+         }
+         #[cfg(feature = "duktape-require")] unsafe {
+             duktape::duk_def_prop(context, -3, duktape::DUK_DEFPROP_HAVE_VALUE);
+@@ -271,7 +277,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+                     functions.push(func);
+                     duktape::duk_pop(context);
+                     // load module
+-                    DuktapeReducer::<'a, R>::load_module(context)?;
++                    DuktapeReducer::<'a, R, MI>::load_module(context)?;
+                     // If module.export is not function, bail
+                     if duktape::duk_is_function(context, -1) != 1 {
+                         return Err(Error::CompileError {
+@@ -315,7 +321,7 @@ impl<'a, R: Record> DuktapeReducer<'a, R> {
+ 
+ }
+ 
+-impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
++impl<'a, R: Record, MI: 'a> Clone for DuktapeReducer<'a, R, MI> {
+     fn clone(&self) -> Self {
+         let context = unsafe {
+             duktape::duk_create_heap(None, None, None,ptr::null_mut(), Some(fatal_handler))
+@@ -328,7 +334,7 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
+                 duktape::duk_config_buffer(context, -1, func.as_ptr() as *mut _, func.len());
+                 duktape::duk_load_function(context);
+                 // obtain the module
+-                DuktapeReducer::<'a, R>::load_module(context).unwrap(); // since it's a clone we assume the first load went fine
++                DuktapeReducer::<'a, R, MI>::load_module(context).unwrap(); // since it's a clone we assume the first load went fine
+                 // transfer state
+                 duktape::duk_push_null(self.context);
+                 duktape::duk_copy(self.context, (i * 2 + 1) as i32, -1);
+@@ -351,7 +357,7 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
+ }
+ 
+ 
+-impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
++impl<'a, R: Record, MI: 'a> Reducer for DuktapeReducer<'a, R, MI> {
+     type State = Map<String, JsonValue>;
+     type Item = R;
+ 
+@@ -678,7 +684,7 @@ mod tests {
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"module.exports = 'hello'").unwrap();
+-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
++        let res = DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo);
+         assert!(res.is_err());
+         let reducer_file = repo.path().join("reducers/reducer.js");
+         let err = res.unwrap_err();
+@@ -742,7 +748,7 @@ mod tests {
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"function(state) { return state }").unwrap();
+-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
++        let res = DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo);
+         assert!(res.is_err());
+         let reducer_file = repo.path().join("reducers/reducer.js");
+         let err = res.unwrap_err();
+@@ -767,7 +773,7 @@ mod tests {
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"module.exports = function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
+-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
++        let res = DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo);
+         assert!(res.is_err());
+         let reducer_file = repo.path().join("reducers/reducer.js");
+         let err = res.unwrap_err();
+@@ -995,7 +1001,8 @@ mod tests {
+         f.write(b"module.exports = function(state, record) { return {\"hello\": record.hash}; }").unwrap();
+ 
+         let err_str = "Error: module not found: \"index.js\"";
+-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++
++        assert_matches!(DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo),
+         Err(Error::ExecutionError { ref error }) if error == err_str);
+     }
+ 
+@@ -1013,7 +1020,7 @@ mod tests {
+         f.write(b"module.exports = require(\"reducer/index.js\");").unwrap();
+ 
+         let err_str = "Error: module not found: \"reducer/index.js\"";
+-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++        assert_matches!(DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo),
+         Err(Error::ExecutionError { ref error }) if error == err_str);
+     }
+ 
+@@ -1034,7 +1041,8 @@ mod tests {
+         f.write(b"module.exports = function() {};").unwrap();
+ 
+         let err_str = "TypeError: cannot resolve module id: ../reducer.js";
+-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++
++        assert_matches!(DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo),
+         Err(Error::ExecutionError { ref error }) if error == err_str);
+     }
+ 
+@@ -1051,7 +1059,7 @@ mod tests {
+         f.write(b"module.exports = require(\"/reducer.js\");").unwrap();
+ 
+         let err_str = "TypeError: cannot resolve module id: /reducer.js";
+-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++        assert_matches!(DuktapeReducer::<::repository::Record<::repository::ModuleDirectory<PathBuf>>, ::repository::ModuleDirectory<PathBuf>>::new(&repo),
+         Err(Error::ExecutionError { ref error }) if error == err_str);
+     }
+ 
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index f00acdb..28b8ddb 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -37,8 +37,8 @@ const MODULES_PATH: &str = "modules";
+ 
+ 
+ /// Repository is the container for all SIT artifacts
+-#[derive(Debug)]
+-pub struct Repository {
++#[derive(Debug, Clone)]
++pub struct Repository<MI> {
+     /// Path to the container
+     path: PathBuf,
+     /// Path to the config file. Mainly to avoid creating
+@@ -54,6 +54,80 @@ pub struct Repository {
+     items_path: PathBuf,
+     /// Configuration
+     config: Config,
++    /// Module iterator
++    module_iterator: MI,
++}
++
++#[derive(Clone, Debug, PartialEq)]
++pub struct ModuleDirectory<P: AsRef<Path>>(P);
++
++pub trait ModuleIterator<P, E> {
++    type Iter : Iterator<Item = Result<P, E>>;
++    fn iter(&self) -> Result<Self::Iter, E>;
++}
++
++impl<P: AsRef<Path>> ModuleIterator<PathBuf, Error> for ModuleDirectory<P> {
++    type Iter = ModuleDirectoryIterator;
++
++    fn iter(&self) -> Result<Self::Iter, Error> {
++        let path = self.0.as_ref();
++        if !path.is_dir() {
++            Ok(ModuleDirectoryIterator(None))
++        } else {
++            Ok(ModuleDirectoryIterator(Some(fs::read_dir(path)?)))
++        }
++    }
++}
++
++impl<T1, T2, P, E> ModuleIterator<P, E> for (T1, T2)
++    where T1: ModuleIterator<P, E>, T2: ModuleIterator<P, E> {
++    type Iter = ::std::iter::Chain<T1::Iter, T2::Iter>;
++
++    fn iter(&self) -> Result<Self::Iter, E> {
++        let t1 = self.0.iter()?;
++        let t2 = self.1.iter()?;
++        Ok(t1.chain(t2))
++    }
++}
++
++pub struct ModuleDirectoryIterator(Option<fs::ReadDir>);
++
++impl Iterator for ModuleDirectoryIterator {
++    type Item = Result<PathBuf, Error>;
++
++    fn next(&mut self) -> Option<Self::Item> {
++        match self.0 {
++            None => None,
++            Some(ref mut modules) => {
++                match modules.next() {
++                    None => None,
++                    Some(Ok(f)) => {
++                        let mut path = f.path();
++                        if path.is_dir() {
++                            Some(Ok(path))
++                        } else {
++                            Some(fs::File::open(&path)
++                                .and_then(|mut f| {
++                                    use std::io::Read;
++                                    let mut s = String::new();
++                                    f.read_to_string(&mut s).map(|_| s)
++                                })
++                                .and_then(|s| {
++                                    #[cfg(windows)] {
++                                        s = s.replace("/", "\\");
++                                    }
++                                    let trimmed_path = s.trim();
++                                    path.pop(); // remove the file name
++                                    Ok(path.join(PathBuf::from(trimmed_path)))
++                                })
++                                .map_err(|e| e.into()))
++                        }
++                    },
++                    Some(Err(e)) => Some(Err(e.into())),
++                }
++            }
++        }
++    }
+ }
+ 
+ /// Repository configuration
+@@ -81,6 +155,18 @@ impl Config {
+     pub fn encoding(&self) -> &Encoding {
+         &self.encoding
+     }
++    /// Returns extra configuration
++    pub fn extra(&self) -> &HashMap<String, serde_json::Value> {
++        &self.extra
++    }
++    /// Sets extra free-form properties in the configuration file
++    /// (overrides existing ones)
++    pub fn set_extra_properties<E, K, V>(&mut self, extra: E)
++        where E: IntoIterator<Item = (K, V)>, K: AsRef<str>, V: Into<serde_json::Value> {
++        for (k, v) in extra.into_iter() {
++            self.extra.insert(k.as_ref().into(), v.into());
++        }
++    }
+ }
+ 
+ #[derive(PartialEq, Debug)]
+@@ -123,6 +209,9 @@ pub enum Error {
+     SerializationError(serde_json::Error),
+     /// Base decoding error
+     BaseDecodeError(::data_encoding::DecodeError),
++    /// Other errors
++    #[error(no_from, non_std)]
++    OtherError(String),
+ }
+ 
+ #[allow(unused_variables,dead_code)]
+@@ -151,8 +240,7 @@ mod default_files {
+ 
+ }
+ 
+-impl Repository {
+-
++impl Repository<ModuleDirectory<PathBuf>> {
+     /// Attempts creating a new repository. Fails with `Error::AlreadyExists`
+     /// if a repository already exists.
+     pub fn new<P: Into<PathBuf>>(path: P) -> Result<Self, Error> {
+@@ -178,17 +266,18 @@ impl Repository {
+             items_path.push(ITEMS_PATH);
+             fs::create_dir_all(&items_path)?;
+             let modules_path = path.join(MODULES_PATH);
++            let module_iterator = ModuleDirectory(modules_path.clone());
+             let repo = Repository {
+                 path,
+                 config_path,
+                 items_path,
+                 config,
+                 modules_path,
++                module_iterator,
+             };
+             repo.save()?;
+             Ok(repo)
+         }
+-
+     }
+ 
+     /// Opens an existing repository. Fails if there's no valid repository at the
+@@ -235,12 +324,14 @@ impl Repository {
+         if config.version != VERSION {
+             return Err(Error::InvalidVersion { expected: String::from(VERSION), got: config.version });
+         }
++        let module_iterator = ModuleDirectory(modules_path.clone());
+         let repository = Repository {
+             path,
+             config_path,
+             items_path,
+             config,
+             modules_path,
++            module_iterator,
+         };
+         Ok(repository)
+     }
+@@ -266,20 +357,50 @@ impl Repository {
+                 // try assuming current path + `dir`
+                 path.push(dir);
+             } else {
+-               if Repository::open(&path).is_ok() {
+-                   break;
+-               } else {
+-                   return None;
+-               }
++                if Repository::open(&path).is_ok() {
++                    break;
++                } else {
++                    return None;
++                }
+             }
+         }
+         Some(path)
+     }
+ 
++}
++
++impl<MI> Repository<MI> {
++
++    /// Returns a new instance of this Repository with an additional module iterator
++    /// chained to the existing one
++    pub fn with_module_iterator<MI1>(self, module_iterator: MI1) -> Repository<(MI, MI1)> {
++        Repository {
++            path: self.path,
++            config_path: self.config_path,
++            modules_path: self.modules_path,
++            items_path: self.items_path,
++            config: self.config,
++            module_iterator: (self.module_iterator, module_iterator),
++        }
++    }
++
++    /// Returns a new instance of this Repository with a different module iterator
++    pub fn with_new_module_iterator<MI1>(self, module_iterator: MI1) -> Repository<MI1> {
++        Repository {
++            path: self.path,
++            config_path: self.config_path,
++            modules_path: self.modules_path,
++            items_path: self.items_path,
++            config: self.config,
++            module_iterator,
++        }
++    }
++
++
+ 
+     /// Saves the repository. Ensures the directory exists and the configuration has
+     /// been saved.
+-    fn save(&self) -> Result<(), Error> {
++    pub fn save(&self) -> Result<(), Error> {
+         fs::create_dir_all(&self.path)?;
+         let file = fs::File::create(&self.config_path)?;
+         serde_json::to_writer_pretty(file, &self.config)?;
+@@ -313,19 +434,25 @@ impl Repository {
+         &self.config
+     }
+ 
++    /// Returns repository's mutable config
++    pub fn config_mut(&mut self) -> &mut Config {
++        &mut self.config
++    }
++
++
+     /// Returns an unordered (as in "order not defined") item iterator
+-    pub fn item_iter(&self) -> Result<ItemIter, Error> {
++    pub fn item_iter(&self) -> Result<ItemIter<MI>, Error> {
+         Ok(ItemIter { repository: self, dir: fs::read_dir(&self.items_path)? })
+     }
+ 
+     /// Creates and returns a new item with a unique ID
+-    pub fn new_item(&self) -> Result<Item, Error> {
++    pub fn new_item(&self) -> Result<Item<MI>, Error> {
+         self.new_named_item(self.config.id_generator.generate())
+     }
+ 
+     /// Creates and returns a new item with a specific name. Will fail
+     /// if there's an item with the same name.
+-    pub fn new_named_item<S: Into<String>>(&self, name: S) -> Result<Item, Error> {
++    pub fn new_named_item<S: Into<String>>(&self, name: S) -> Result<Item<MI>, Error> {
+         let id: String = name.into();
+         let mut path = self.items_path.clone();
+         path.push(&id);
+@@ -338,7 +465,7 @@ impl Repository {
+     }
+ 
+     /// Finds an item by name (if there is one)
+-    pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item> {
++    pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item<MI>> {
+         let path = self.items_path().join(name.as_ref());
+         if path.is_dir() && path.strip_prefix(self.items_path()).is_ok() {
+             let mut test = path.clone();
+@@ -358,39 +485,19 @@ impl Repository {
+     pub fn modules_path(&self) -> &Path {
+         &self.modules_path
+     }
++}
+ 
++impl<MI> Repository<MI> where MI: ModuleIterator<PathBuf, Error>
++{
+     /// Returns an iterator over the list of modules (directories under `modules` directory)
+-    pub fn module_iter(&self) -> Result<Box<Iterator<Item = PathBuf>>, Error> {
+-        let path = self.path.join("modules");
+-        if !path.is_dir() {
+-            return Ok(Box::new(vec![].into_iter()));
+-        }
+-        let modules = fs::read_dir(path)?;
+-
+-        Ok(Box::new(modules.filter(Result::is_ok).map(Result::unwrap)
+-            .map(|f| {
+-                let mut path = f.path();
+-                if path.is_dir() {
+-                    return path
+-                } else {
+-                    let mut f = fs::File::open(&path).unwrap();
+-                    use std::io::Read;
+-                    let mut s = String::new();
+-                    f.read_to_string(&mut s).unwrap();
+-                    #[cfg(windows)] {
+-                        s = s.replace("/", "\\");
+-                    }
+-                    let trimmed_path = s.trim();
+-                    path.pop(); // remove the file name
+-                    path.join(PathBuf::from(trimmed_path))
+-               }
+-            })))
++    pub fn module_iter<'a>(&'a self) -> Result<MI::Iter, Error> {
++        Ok(self.module_iterator.iter()?)
+     }
+ }
+ 
+-impl PartialEq for Repository {
+-    fn eq(&self, rhs: &Repository) -> bool {
+-        (self as *const Repository) == (rhs as *const Repository)
++impl<MI> PartialEq for Repository<MI> {
++    fn eq(&self, rhs: &Repository<MI>) -> bool {
++        (self as *const Repository<MI>) == (rhs as *const Repository<MI>)
+     }
+ }
+ 
+@@ -400,17 +507,17 @@ use std::ffi::OsString;
+ 
+ /// An item residing in a repository
+ #[derive(Debug, PartialEq)]
+-pub struct Item<'a> {
+-    repository: &'a Repository,
++pub struct Item<'a, MI: 'a> {
++    repository: &'a Repository<MI>,
+     id: OsString,
+ }
+ 
+ use record::{File, OrderedFiles};
+ use relative_path::{RelativePath, Component as RelativeComponent};
+ 
+-impl<'a> Item<'a> {
++impl<'a, MI: 'a> Item<'a, MI> {
+     pub fn new_record_in<'f, P: AsRef<Path>, F: File + 'f, I: Into<OrderedFiles<'f, F>>>(&self, path: P, files: I, link_parents: bool) ->
+-           Result<<Item<'a> as ItemTrait>::Record, <Item<'a> as ItemTrait>::Error> where F::Read: 'f {
++           Result<<Item<'a, MI> as ItemTrait>::Record, <Item<'a, MI> as ItemTrait>::Error> where F::Read: 'f {
+         let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
+         let mut hasher = self.repository.config.hashing_algorithm.hasher();
+ 
+@@ -454,12 +561,12 @@ impl<'a> Item<'a> {
+     }
+ 
+ }
+-impl<'a> ItemTrait for Item<'a> {
++impl<'a, MI: 'a> ItemTrait for Item<'a, MI> {
+ 
+     type Error = Error;
+-    type Record = Record<'a>;
+-    type Records = Vec<Record<'a>>;
+-    type RecordIter = ItemRecordIter<'a>;
++    type Record = Record<'a, MI>;
++    type Records = Vec<Record<'a, MI>>;
++    type RecordIter = ItemRecordIter<'a, MI>;
+ 
+     fn id(&self) -> &str {
+         self.id.to_str().unwrap()
+@@ -485,15 +592,15 @@ impl<'a> ItemTrait for Item<'a> {
+ }
+ 
+ /// An iterator over records in an item
+-pub struct ItemRecordIter<'a> {
++pub struct ItemRecordIter<'a, MI: 'a> {
+     item: OsString,
+-    repository: &'a Repository,
++    repository: &'a Repository<MI>,
+     dir: Vec<fs::DirEntry>,
+     parents: Vec<String>,
+ }
+ 
+-impl<'a> Iterator for ItemRecordIter<'a> {
+-    type Item = Vec<Record<'a>>;
++impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
++    type Item = Vec<Record<'a, MI>>;
+ 
+     fn next(&mut self) -> Option<Self::Item> {
+         let item_path = self.repository.items_path.join(&self.item);
+@@ -542,13 +649,13 @@ impl<'a> Iterator for ItemRecordIter<'a> {
+ 
+ /// Unordered (as in "order not defined') item iterator
+ /// within a repository
+-pub struct ItemIter<'a> {
+-    repository: &'a Repository,
++pub struct ItemIter<'a, MI: 'a> {
++    repository: &'a Repository<MI>,
+     dir: fs::ReadDir,
+ }
+ 
+-impl<'a> Iterator for ItemIter<'a> {
+-    type Item = Item<'a>;
++impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
++    type Item = Item<'a, MI>;
+ 
+     fn next(&mut self) -> Option<Self::Item> {
+         loop {
+@@ -579,14 +686,14 @@ use super::Record as RecordTrait;
+ 
+ /// A record within an item
+ #[derive(Debug)]
+-pub struct Record<'a> {
++pub struct Record<'a, MI: 'a> {
+     hash: Vec<u8>,
+     item: OsString,
+-    repository: &'a Repository,
++    repository: &'a Repository<MI>,
+     path: PathBuf,
+ }
+ 
+-impl<'a> Record<'a> {
++impl<'a, MI: 'a> Record<'a, MI> {
+ 
+     /// Returns path to the record
+     pub fn path(&self) -> &Path {
+@@ -598,7 +705,7 @@ impl<'a> Record<'a> {
+ 
+ use serde::{Serialize, Serializer};
+ 
+-impl<'a> Serialize for Record<'a> {
++impl<'a, MI: 'a> Serialize for Record<'a, MI> {
+     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+         use record::RecordExt;
+         self.serde_serialize(serializer)
+@@ -606,13 +713,13 @@ impl<'a> Serialize for Record<'a> {
+ }
+ 
+ 
+-impl<'a> PartialEq for Record<'a> {
+-   fn eq(&self, other: &Record<'a>) -> bool {
++impl<'a, MI: 'a> PartialEq for Record<'a, MI> {
++   fn eq(&self, other: &Record<'a, MI>) -> bool {
+        self.hash == other.hash
+    }
+ }
+ 
+-impl<'a> RecordTrait for Record<'a> {
++impl<'a, MI: 'a> RecordTrait for Record<'a, MI> {
+     type Read = ::std::fs::File;
+     type Str = String;
+     type Hash = Vec<u8>;
+@@ -709,7 +816,7 @@ mod tests {
+         let item = repo.new_item().unwrap();
+         let repo = Repository::open(&tmp).unwrap();
+         // load items
+-        let mut items: Vec<Item> = repo.item_iter().unwrap().collect();
++        let mut items: Vec<Item<_>> = repo.item_iter().unwrap().collect();
+         assert_eq!(items.len(), 1);
+         // check equality of the item's ID
+         assert_eq!(items.pop().unwrap().id(), item.id());
+@@ -760,7 +867,7 @@ mod tests {
+         // create an item
+         let item = repo.new_item().unwrap();
+         // load items
+-        let mut items: Vec<Item> = repo.item_iter().unwrap().collect();
++        let mut items: Vec<Item<_>> = repo.item_iter().unwrap().collect();
+         assert_eq!(items.len(), 1);
+         // check equality of the item's ID
+         assert_eq!(items.pop().unwrap().id(), item.id());
+@@ -774,7 +881,7 @@ mod tests {
+         // create an item
+         let item = repo.new_named_item("one").unwrap();
+         // load items
+-        let mut items: Vec<Item> = repo.item_iter().unwrap().collect();
++        let mut items: Vec<Item<_>> = repo.item_iter().unwrap().collect();
+         assert_eq!(items.len(), 1);
+         // check equality of the item's ID
+         assert_eq!(items.pop().unwrap().id(), item.id());
+@@ -833,7 +940,7 @@ mod tests {
+         assert!(file.read_to_string(&mut string).is_ok());
+         assert_eq!(string, "hello");
+         // list records
+-        let mut records: Vec<Record> = item.record_iter().unwrap().flat_map(|v| v).collect();
++        let mut records: Vec<Record<_>> = item.record_iter().unwrap().flat_map(|v| v).collect();
+         assert_eq!(records.len(), 1);
+         assert_eq!(records.pop().unwrap().hash(), record.hash());
+     }
+@@ -1111,7 +1218,7 @@ mod tests {
+         fs::create_dir_all(&path).unwrap();
+         let mut iter = repo.module_iter().unwrap();
+ 
+-        assert_eq!(::dunce::canonicalize(iter.next().unwrap()).unwrap(), ::dunce::canonicalize(path).unwrap());
++        assert_eq!(::dunce::canonicalize(iter.next().unwrap().unwrap()).unwrap(), ::dunce::canonicalize(path).unwrap());
+         assert!(iter.next().is_none());
+     }
+ 
+@@ -1134,7 +1241,7 @@ mod tests {
+ 
+         let mut iter = repo.module_iter().unwrap();
+ 
+-        assert_eq!(iter.next().unwrap(), tmp2);
++        assert_eq!(iter.next().unwrap().unwrap(), tmp2);
+         assert!(iter.next().is_none());
+     }
+ 
+@@ -1159,11 +1266,23 @@ mod tests {
+ 
+         let mut iter = repo.module_iter().unwrap();
+ 
+-        assert_eq!(::dunce::canonicalize(iter.next().unwrap()).unwrap(), ::dunce::canonicalize(tmp.join("module1")).unwrap());
++        assert_eq!(::dunce::canonicalize(iter.next().unwrap().unwrap()).unwrap(), ::dunce::canonicalize(tmp.join("module1")).unwrap());
+         assert!(iter.next().is_none());
+     }
+ 
+-
++    #[test]
++    fn chaining_module_iterator() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        fs::create_dir_all(tmp.join("modules").join("1")).unwrap();
++        fs::create_dir_all(tmp.join("modules_1").join("1")).unwrap();
++        let mi1 = ModuleDirectory(tmp.join("modules"));
++        let mi2 = ModuleDirectory(tmp.join("modules_1"));
++
++        let mut iter = (mi1, mi2).iter().unwrap();
++        assert_eq!(tmp.join("modules").join("1"), iter.next().unwrap().unwrap());
++        assert_eq!(tmp.join("modules_1").join("1"), iter.next().unwrap().unwrap());
++        assert!(iter.next().is_none());
++    }
+ 
+ }
+ 
+diff --git a/sit-web/Cargo.toml b/sit-web/Cargo.toml
+index 8eb8f18..182db17 100644
+--- a/sit-web/Cargo.toml
++++ b/sit-web/Cargo.toml
+@@ -27,6 +27,7 @@ hex = "0.3"
+ which = "2.0"
+ thread_local = "0.3"
+ sit-core = { path = "../sit-core", version = "0.5.0-pre", features = ["git"] }
++sit = { path = "../sit", version = "0.5.0-pre" }
+ 
+ [build-dependencies]
+ include_dir = "0.1"
+diff --git a/sit-web/src/main.rs b/sit-web/src/main.rs
+index ca97b6b..c01a155 100644
+--- a/sit-web/src/main.rs
++++ b/sit-web/src/main.rs
+@@ -1,4 +1,5 @@
+ extern crate sit_core;
++extern crate sit;
+ 
+ extern crate chrono;
+ extern crate tempfile;
+@@ -43,6 +44,8 @@ extern crate which;
+ use std::ffi::OsString;
+ use which::which;
+ 
++use sit::ScriptModule;
++
+ extern crate thread_local;
+ 
+ pub fn gnupg(config: &cfg::Configuration) -> Result<OsString, which::Error> {
+@@ -133,5 +136,13 @@ fn main() {
+     let readonly = matches.is_present("readonly");
+     let overlays: Vec<_> = matches.values_of("overlay").unwrap_or(clap::Values::default()).collect();
+     println!("Serving on {}", listen);
+-    webapp::start(listen, config, repo, readonly, overlays);
++    match repo.config().clone().extra().get("module_manager") {
++            Some(serde_json::Value::String(name)) => {
++                let original_repo = repo.clone();
++                let repo = repo.with_module_iterator(ScriptModule(original_repo, cwd.clone(), name.clone()));
++                webapp::start(listen, config, repo, readonly, overlays);
++            },
++            _ => webapp::start(listen, config, repo, readonly, overlays),
++    };
++
+ }
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 1650de4..195cf1e 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -122,12 +122,26 @@ struct Config {
+     readonly: bool,
+ }
+ 
+-pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository, readonly: bool, overlays: Vec<&str>) {
++pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_core::cfg::Configuration, repo: Repository<MI>, readonly: bool, overlays: Vec<&str>)
++    where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
+     let mut overlays: Vec<_> = overlays.iter().map(|o| PathBuf::from(o)).collect();
+     let assets: PathBuf = repo.path().join("web").into();
+     overlays.push(assets);
+-    for module_name in repo.module_iter().unwrap() {
+-        overlays.push(repo.modules_path().join(module_name).join("web").into());
++    match repo.module_iter() {
++        Ok(iter) => {
++            for module_name in iter {
++                let module_name = module_name.unwrap();
++                overlays.push(repo.modules_path().join(module_name).join("web").into());
++            }
++        },
++        Err(sit_core::RepositoryError::OtherError(str)) => {
++            eprintln!("{}", str);
++            return;
++        },
++        Err(e) => {
++            eprintln!("error: {:?}", e);
++            return;
++        }
+     }
+     let repo_config = Config {
+       readonly,
+@@ -145,7 +159,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
+             use sit_core::item::ItemReduction;
+             let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
+             let mut reducer = Arc::new(Mutex::new(sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap()));
+-            let tl_reducer: ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>> = ThreadLocal::new();
++            let tl_reducer: ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record<MI>, MI>>> = ThreadLocal::new();
+ 
+             let filter_defined = filter_expr != "";
+             let filter = if filter_defined {
+diff --git a/sit/src/cli.rs b/sit/src/cli.rs
+new file mode 100644
+index 0000000..c2ad514
+--- /dev/null
++++ b/sit/src/cli.rs
+@@ -0,0 +1,50 @@
++use std::env;
++use std::path::{Path, PathBuf};
++use std::ffi::OsStr;
++use sit_core::{self, Repository};
++use which;
++
++#[derive(Error, Debug)]
++pub enum Error {
++    WhichError,
++    IoError(::std::io::Error),
++}
++
++impl From<which::Error> for Error {
++    fn from(_err: which::Error) -> Self {
++        Error::WhichError
++    }
++}
++
++pub fn execute_cli<MI, E, K, V>(repo: &Repository<MI>, cwd: &Path, subcommand: &str, args: Vec<String>,
++                       envs: E, capture_stdout: bool) -> Result<(i32, Vec<u8>), Error>
++    where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error>,
++          E: IntoIterator<Item=(K, V)>, K: AsRef<OsStr>, V: AsRef<OsStr> {
++    #[cfg(not(windows))]
++    let path_sep = ":";
++    #[cfg(windows)]
++    let path_sep = ";";
++
++    let mut path: String = repo.path().join("cli").to_str().unwrap().into();
++    for module_name in repo.module_iter().expect("can't iterate over modules") {
++        path += path_sep;
++        let module_name = module_name.expect("can't get module path");
++        path += repo.modules_path().join(module_name).join("cli").to_str().unwrap().into();
++    }
++
++    path += path_sep;
++    path += &env::var("PATH").unwrap();
++
++    let path = which::which_in(format!("sit-{}", subcommand), Some(path), &cwd)?;
++    let mut command = ::std::process::Command::new(path);
++    command.env("SIT_DIR", repo.path().to_str().unwrap());
++    command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
++    command.args(args);
++    if capture_stdout {
++        command.stdout(::std::process::Stdio::piped());
++    }
++    command.envs(envs);
++    let process = command.spawn()?;
++    let result = process.wait_with_output().unwrap();
++    Ok((result.status.code().unwrap(), result.stdout))
++}
+\ No newline at end of file
+diff --git a/sit/src/command_external.rs b/sit/src/command_external.rs
+index 8dc72b8..9f6b6b8 100644
+--- a/sit/src/command_external.rs
++++ b/sit/src/command_external.rs
+@@ -1,46 +1,12 @@
+-use std::env;
+-use std::path::Path;
++use std::path::{Path, PathBuf};
+ use clap::ArgMatches;
+-use sit_core::Repository;
+-use which;
++use sit_core::{self, Repository};
+ 
+-#[derive(Error, Debug)]
+-pub enum Error {
+-    WhichError,
+-    IoError(::std::io::Error),
+-}
++use cli::{execute_cli, Error};
+ 
+-impl From<which::Error> for Error {
+-    fn from(_err: which::Error) -> Self {
+-        Error::WhichError
+-    }
+-}
+-
+-pub fn command(matches: &ArgMatches, repo: Repository, cwd: &Path) -> Result<i32, Error> {
++pub fn command<MI>(matches: &ArgMatches, repo: Repository<MI>, cwd: &Path) -> Result<i32, Error>
++    where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
+     let (subcommand, args) = matches.subcommand();
+-
+-    #[cfg(not(windows))]
+-    let path_sep = ":";
+-    #[cfg(windows)]
+-    let path_sep = ";";
+-
+-    let mut path: String = repo.path().join("cli").to_str().unwrap().into();
+-    for module_name in repo.module_iter().expect("can't iterate over modules") {
+-        path += path_sep;
+-        path += repo.modules_path().join(module_name).join("cli").to_str().unwrap().into();
+-    }
+-
+-    path += path_sep;
+-    path += &env::var("PATH").unwrap();
+-
+-    let path = which::which_in(format!("sit-{}", subcommand), Some(path), &cwd)?;
+-    let mut command = ::std::process::Command::new(path);
+-    command.env("SIT_DIR", repo.path().to_str().unwrap());
+-    command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
+-    if let Some(args) = args {
+-        command.args(args.values_of_lossy("").unwrap_or(vec![]));
+-    }
+-    let mut process = command.spawn()?;
+-    let result = process.wait().unwrap();
+-    Ok(result.code().unwrap())
++    let args = args.and_then(|args| args.values_of_lossy("")).unwrap_or(vec![]);
++    return execute_cli::<_,_, &str, &str>(&repo, cwd, subcommand, args, None, false).map(|(code, _)| code);
+ }
+\ No newline at end of file
+diff --git a/sit/src/command_item.rs b/sit/src/command_item.rs
+index c2f2976..e73167e 100644
+--- a/sit/src/command_item.rs
++++ b/sit/src/command_item.rs
+@@ -2,7 +2,7 @@ use clap::ArgMatches;
+ use sit_core::{Repository, Item, repository::{Error}};
+ use std::io::ErrorKind as IoErrorKind;
+ 
+-pub fn command(matches: &ArgMatches, repo: &Repository) -> i32 {
++pub fn command<MI>(matches: &ArgMatches, repo: &Repository<MI>) -> i32 {
+     let named = matches.value_of("id");
+     let item = if named.is_none() {
+         repo.new_item()
+diff --git a/sit/src/command_items.rs b/sit/src/command_items.rs
+index 7e343f6..b290e7f 100644
+--- a/sit/src/command_items.rs
++++ b/sit/src/command_items.rs
+@@ -8,8 +8,11 @@ use jmespath;
+ use std::sync::{Arc, Mutex};
+ use std::cell::RefCell;
+ use thread_local::ThreadLocal;
++use std::path::PathBuf;
+ 
+-pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
++pub fn command<MI: Send + Sync>(matches: &ArgMatches, repo: &Repository<MI>, config: Configuration) -> i32
++    where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error>
++{
+     let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
+ 
+     let filter_expr = matches.value_of("named-filter")
+@@ -29,7 +32,7 @@ pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -
+     let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
+     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
+ 
+-    let tl_reducer : ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>> = ThreadLocal::new();
++    let tl_reducer : ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record<MI>, MI>>> = ThreadLocal::new();
+     let reducer = Arc::new(Mutex::new(DuktapeReducer::new(&repo).unwrap()));
+ 
+     items.into_par_iter()
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+index bc79774..6e4912e 100644
+--- a/sit/src/command_record.rs
++++ b/sit/src/command_record.rs
+@@ -10,7 +10,7 @@ use std::env;
+ use atty;
+ use serde_json;
+ 
+-pub fn command<P: AsRef<Path>, P1: AsRef<Path>>(matches: &ArgMatches, repo: &Repository, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
++pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: &Repository<MI>, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
+     if !matches.is_present("no-author") && config.author.is_none() {
+         if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
+             config.author = Some(author);
+diff --git a/sit/src/command_records.rs b/sit/src/command_records.rs
+index 1e9d5e8..76dda6b 100644
+--- a/sit/src/command_records.rs
++++ b/sit/src/command_records.rs
+@@ -5,7 +5,7 @@ use super::get_named_expression;
+ use jmespath;
+ use super::gnupg;
+ 
+-pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
++pub fn command<MI>(matches: &ArgMatches, repo: &Repository<MI>, config: Configuration) -> i32 {
+     let id = matches.value_of("id").unwrap();
+     match repo.item(id) {
+         None => {
+diff --git a/sit/src/command_reduce.rs b/sit/src/command_reduce.rs
+index 7ad844c..31d2508 100644
+--- a/sit/src/command_reduce.rs
++++ b/sit/src/command_reduce.rs
+@@ -3,8 +3,10 @@ use sit_core::{self, Repository, item::ItemReduction, cfg::Configuration};
+ use serde_json;
+ use super::get_named_expression;
+ use jmespath;
++use std::path::PathBuf;
+ 
+-pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
++pub fn command<MI>(matches: &ArgMatches, repo: &Repository<MI>, config: Configuration) -> i32
++    where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
+     let id = matches.value_of("id").unwrap();
+     match repo.item(id) {
+         None => {
+diff --git a/sit/src/lib.rs b/sit/src/lib.rs
+new file mode 100644
+index 0000000..c401068
+--- /dev/null
++++ b/sit/src/lib.rs
+@@ -0,0 +1,7 @@
++extern crate sit_core;
++extern crate which;
++#[macro_use] extern crate derive_error;
++mod cli;
++mod module_iter;
++
++pub use module_iter::{ScriptModuleIterator, ScriptModule};
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index f484d9a..1c6b142 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -30,6 +30,8 @@ mod command_records;
+ mod command_external;
+ mod command_jmespath;
+ 
++mod cli;
++
+ #[cfg(unix)]
+ extern crate xdg;
+ 
+@@ -56,7 +58,7 @@ extern crate thread_local;
+ #[macro_use] extern crate derive_error;
+ 
+ use std::collections::HashMap;
+-pub fn get_named_expression<S: AsRef<str>>(name: S, repo: &sit_core::Repository,
++pub fn get_named_expression<S: AsRef<str>, MI>(name: S, repo: &sit_core::Repository<MI>,
+                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
+     let path = repo.path().join(repo_path.as_ref()).join(name.as_ref());
+     if path.is_file() {
+@@ -81,6 +83,9 @@ pub fn gnupg(matches: &ArgMatches, config: &cfg::Configuration) -> Result<OsStri
+     Ok(program)
+ }
+ 
++mod module_iter;
++use module_iter::ScriptModule;
++
+ 
+ fn main() {
+     exit(main_with_result(true));
+@@ -348,7 +353,6 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+     }
+ 
+     let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
+-    let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
+     let dot_sit = working_dir.join(".sit");
+ 
+     if let Some(matches) = matches.subcommand_matches("config") {
+@@ -394,56 +398,80 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+                        .expect("Can't find a repository");
+         let repo = sit_core::Repository::open(&repo_path)
+             .expect("can't open repository");
+-
+-        if let Some(_) = matches.subcommand_matches("modules") {
+-            for module_path in repo.module_iter().expect("can't iterate over modules") {
+-                println!("{}", ::dunce::canonicalize(&module_path).unwrap_or(module_path).to_str().unwrap());
++        return match repo.config().clone().extra().get("external_module_manager") {
++            Some(serde_json::Value::String(name)) => {
++                let original_repo = repo.clone();
++                do_matches(matches.clone(), repo.with_module_iterator(ScriptModule(original_repo, &cwd, name.to_string())), cwd.clone(), config, config_path)
++            }
++            _ => do_matches(matches.clone(), repo, cwd.clone(), config, config_path),
++        };
++
++        fn do_matches<MI: Send + Sync>(matches: ArgMatches, repo: sit_core::Repository<MI>, cwd: PathBuf, config: cfg::Configuration, config_path: &str) -> i32
++            where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
++            let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
++            let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
++            if let Some(_) = matches.subcommand_matches("modules") {
++                match repo.module_iter() {
++                    Ok(iter) => {
++                        for module_path in iter {
++                            let module_path = module_path.expect("can't get module_path");
++                            println!("{}", ::dunce::canonicalize(&module_path).unwrap_or(module_path).to_str().unwrap());
++                        }
++                        return 0;
++                    },
++                    Err(sit_core::RepositoryError::OtherError(str)) => {
++                        eprintln!("{}", str);
++                        return 1;
++                    },
++                    Err(e) => {
++                        eprintln!("Error: {:?}", e);
++                        return 1;
++                    },
++                }
+             }
+-            return 0;
+-        }
+ 
+-        if let Some(_) = matches.subcommand_matches("populate-files") {
+-            repo.populate_default_files().expect("can't populate default files");
+-            return 0;
+-        } else if let Some(_) = matches.subcommand_matches("path") {
+-            println!("{}", repo.path().to_str().unwrap());
+-            return 0;
+-        } else if let Some(matches) = matches.subcommand_matches("item") {
+-            return command_item::command(matches, &repo);
+-        }
++            if let Some(_) = matches.subcommand_matches("populate-files") {
++                repo.populate_default_files().expect("can't populate default files");
++                return 0;
++            } else if let Some(_) = matches.subcommand_matches("path") {
++                println!("{}", repo.path().to_str().unwrap());
++                return 0;
++            } else if let Some(matches) = matches.subcommand_matches("item") {
++                return command_item::command(matches, &repo);
++            }
+ 
+-        if let Some(matches) = matches.subcommand_matches("items") {
+-            return command_items::command(matches, &repo, config);
+-        }
++            if let Some(matches) = matches.subcommand_matches("items") {
++                return command_items::command(matches, &repo, config);
++            }
+ 
+-        if let Some(matches) = matches.subcommand_matches("record") {
+-            return command_record::command(matches, &repo, config.clone(), canonical_working_dir, config_path);
+-        }
++            if let Some(matches) = matches.subcommand_matches("record") {
++                return command_record::command(matches, &repo, config.clone(), canonical_working_dir, config_path);
++            }
+ 
+-        if let Some(matches) = matches.subcommand_matches("records") {
+-            return command_records::command(matches, &repo, config);
+-        }
++            if let Some(matches) = matches.subcommand_matches("records") {
++                return command_records::command(matches, &repo, config);
++            }
+ 
+-        if let Some(matches) = matches.subcommand_matches("reduce") {
+-            return command_reduce::command(matches, &repo, config);
+-        }
++            if let Some(matches) = matches.subcommand_matches("reduce") {
++                return command_reduce::command(matches, &repo, config);
++            }
+ 
+-        if let Some(matches) = matches.subcommand_matches("config") {
+-            if matches.value_of("kind").unwrap() == "repository" {
+-                command_config::command(repo.config(), matches.value_of("query"));
++            if let Some(matches) = matches.subcommand_matches("config") {
++                if matches.value_of("kind").unwrap() == "repository" {
++                    command_config::command(repo.config(), matches.value_of("query"));
++                }
++                return 0;
+             }
+-            return 0;
+-        }
+ 
+-        match command_external::command(&matches, repo, &cwd) {
+-            Err(_) => {
+-                return main_with_result(false)
+-            },
+-            Ok(code) => {
+-                return code;
++            match command_external::command(&matches, repo, &cwd) {
++                Err(_) => {
++                    return main_with_result(false)
++                },
++                Ok(code) => {
++                    return code
++                }
+             }
+         }
+-
+     }
+ 
+ }
+diff --git a/sit/src/module_iter.rs b/sit/src/module_iter.rs
+new file mode 100644
+index 0000000..587ac12
+--- /dev/null
++++ b/sit/src/module_iter.rs
+@@ -0,0 +1,33 @@
++use cli;
++use std::path::{Path, PathBuf};
++use sit_core;
++
++pub struct ScriptModule<MI, P: AsRef<Path>>(pub sit_core::Repository<MI>, pub P, pub String);
++use sit_core::{RepositoryError, repository::ModuleIterator};
++
++use std::io::{Lines, BufRead, Cursor};
++
++impl<MI, P: AsRef<Path>> ModuleIterator<PathBuf, RepositoryError> for ScriptModule< MI, P>
++    where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
++    type Iter = ScriptModuleIterator;
++
++    fn iter(&self) -> Result<Self::Iter, RepositoryError> {
++        cli::execute_cli(&self.0, self.1.as_ref(), self.2.as_str(), vec![],
++                         vec![("SIT_MODULE_MANAGER", "list-modules")], true)
++            .map(|(_, out)| ScriptModuleIterator(Cursor::new(out).lines()))
++            .map_err(|_| RepositoryError::OtherError(format!("Can't find external module manager `sit-{}`. Please install it before proceeding", self.2.as_str())))
++    }
++}
++
++pub struct ScriptModuleIterator(Lines<Cursor<Vec<u8>>>);
++
++impl Iterator for ScriptModuleIterator {
++    type Item = Result<PathBuf, RepositoryError>;
++
++    fn next(&mut self) -> Option<Self::Item> {
++        self.0.next().map(|s|
++            s.map(|s_| PathBuf::from(s_))
++            .map_err(|e| e.into()))
++    }
++
++}
+diff --git a/sit/tests/command_external.rs b/sit/tests/command_external.rs
+index e66aee4..497dea4 100644
+--- a/sit/tests/command_external.rs
++++ b/sit/tests/command_external.rs
+@@ -1,22 +1,9 @@
+ extern crate cli_test_dir;
+ 
+ use cli_test_dir::*;
+-#[cfg(unix)]
+-use std::fs;
+-#[cfg(unix)]
+-use std::os::unix::fs::PermissionsExt;
+-
+-#[allow(unused_variables)]
+-fn create_script(dir: &TestDir, unix_path: &str, windows_path: &str, unix: &str, windows: &str) {
+-    #[cfg(unix)] {
+-        dir.create_file(unix_path, unix);
+-        let mut perms = fs::metadata(dir.path(unix_path)).unwrap().permissions();
+-        perms.set_mode(0o766);
+-        fs::set_permissions(dir.path(unix_path), perms).unwrap();
+-    }
+-    #[cfg(windows)]
+-    dir.create_file(windows_path, windows);
+-}
++
++mod helpers;
++use helpers::*;
+ 
+ /// Should fail on an unavailable command
+ #[test]
+diff --git a/sit/tests/command_modules.rs b/sit/tests/command_modules.rs
+new file mode 100644
+index 0000000..968a1a3
+--- /dev/null
++++ b/sit/tests/command_modules.rs
+@@ -0,0 +1,79 @@
++extern crate cli_test_dir;
++extern crate sit_core;
++use sit_core::serde_json::Value;
++
++use cli_test_dir::*;
++use std::fs;
++use sit_core::Repository;
++
++mod helpers;
++use helpers::*;
++
++/// Tests that modules defined via <repo>/modules/<directory> convention are listed by `sit modules`
++#[test]
++fn modules_convention_dir() {
++    let dir = TestDir::new("sit", "modules_convention_dir");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    fs::create_dir_all(dir.path(".sit/modules/test")).unwrap();
++
++    let output = String::from_utf8(dir.cmd().arg("modules").expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("{}.sit/modules/test", dir.path("").to_str().unwrap()));
++}
++
++/// Tests that modules defined via <repo>/modules/<file> convention are listed by `sit modules`
++#[test]
++fn modules_convention_link() {
++    let dir = TestDir::new("sit", "modules_convention_link");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    fs::create_dir_all(dir.path("module")).unwrap();
++    dir.create_file(".sit/modules/module", "../../module");
++
++    let output = String::from_utf8(dir.cmd().arg("modules").expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), format!("{}module", dir.path("").to_str().unwrap()));
++}
++
++/// Tests that modules defined via external module manager are listed by `sit modules`
++#[test]
++fn modules_convention_ext() {
++    let dir = TestDir::new("sit", "modules_convention_ext");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    let mut repo = Repository::open(dir.path(".sit")).unwrap();
++    repo.config_mut().set_extra_properties(vec![("external_module_manager", Value::String("modman".into()))]);
++    repo.save().unwrap();
++
++    create_script(&dir, ".sit/cli/sit-modman", ".sit/cli/sit-modman.bat",
++                  r#"#! /usr/bin/env bash
++                  echo /some/module
++                  "#,
++                  r#"
++                  @echo /some/module
++                  "#);
++
++    let output = String::from_utf8(dir.cmd().arg("modules").expect_success().stdout).unwrap();
++    assert_eq!(output.trim(), "/some/module");
++}
++
++/// Tests how `sit modules` will fail if the module manager is not available
++#[test]
++fn modules_convention_ext_invalid() {
++    let dir = TestDir::new("sit", "modules_convention_ext");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    let mut repo = Repository::open(dir.path(".sit")).unwrap();
++    repo.config_mut().set_extra_properties(vec![("external_module_manager", Value::String("modman".into()))]);
++    repo.save().unwrap();
++
++    let output = String::from_utf8(dir.cmd().arg("modules").expect_failure().stderr).unwrap();
++    assert!(output.contains("Can't find external module manager `sit-modman`"));
++}
+diff --git a/sit/tests/helpers.rs b/sit/tests/helpers.rs
+new file mode 100644
+index 0000000..297b81e
+--- /dev/null
++++ b/sit/tests/helpers.rs
+@@ -0,0 +1,22 @@
++extern crate cli_test_dir;
++
++use cli_test_dir::TestDir;
++
++#[cfg(unix)]
++use std::fs;
++#[cfg(unix)]
++use std::os::unix::fs::PermissionsExt;
++
++#[allow(unused_variables)]
++pub fn create_script(dir: &TestDir, unix_path: &str, windows_path: &str, unix: &str, windows: &str) {
++    #[cfg(unix)] {
++        dir.create_file(unix_path, unix);
++        let mut perms = fs::metadata(dir.path(unix_path)).unwrap().permissions();
++        perms.set_mode(0o766);
++        fs::set_permissions(dir.path(unix_path), perms).unwrap();
++    }
++    #[cfg(windows)]
++    dir.create_file(windows_path, windows);
++}
++
++
+-- 
+2.16.4
+

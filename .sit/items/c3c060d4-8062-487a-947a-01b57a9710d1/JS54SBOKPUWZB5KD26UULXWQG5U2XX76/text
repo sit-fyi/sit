@@ -1,0 +1,3 @@
+Previous patch wasn't quite finished in terms of handling
+error cases, in particular, it produced a cryptic message
+if the external module manager can't be found.
