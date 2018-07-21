@@ -8,6 +8,7 @@ license = "MIT/Apache-2.0"
 [dependencies]
 clap = "2.29"
 chrono = "0.4"
+dirs = "1.0"
 tempfile = "2.2"
 tempdir = "0.3"
 config = { version = "0.8", features = ["json"] }
@@ -34,4 +35,3 @@ fs_extra = "1.1"
 
 [features]
 windows7 = ["sit-core/windows7"]
-
