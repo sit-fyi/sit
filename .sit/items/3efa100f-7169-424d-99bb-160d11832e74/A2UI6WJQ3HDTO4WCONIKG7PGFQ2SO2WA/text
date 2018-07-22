@@ -1,0 +1,7 @@
+# Details of the merge request
+#  (ALL LINES STARTING WITH '#' WILL BE REMOVED)
+Explained
+https://internals.rust-lang.org/t/deprecate-or-break-fix-std-env-home-dir/7315
+
+Solution: Use dirs crate to supply the same functionality
+

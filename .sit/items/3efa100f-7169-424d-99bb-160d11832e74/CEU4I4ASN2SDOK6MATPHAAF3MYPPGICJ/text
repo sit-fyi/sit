@@ -1,0 +1,4 @@
+ Summary of the merge request (typically, one line)
+  If your patchset contained more than one commit, you will see a few options below. Please choose one.
+  (ALL LINES STARTING WITH '#' WILL BE REMOVED)
+Problem: std::env::home_dir not reliable on Windows

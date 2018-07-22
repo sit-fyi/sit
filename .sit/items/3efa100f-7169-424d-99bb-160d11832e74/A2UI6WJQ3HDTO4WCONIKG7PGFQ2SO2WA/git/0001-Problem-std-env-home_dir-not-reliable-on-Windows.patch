@@ -1,0 +1,101 @@
+From d9803251017f6943673d01a67b765493c070c361 Mon Sep 17 00:00:00 2001
+From: Stuart Hinson <stuart.hinson@gmail.com>
+Date: Sat, 21 Jul 2018 12:19:19 -0700
+Subject: [PATCH] Problem: std::env::home_dir not reliable on Windows
+
+Explained
+https://internals.rust-lang.org/t/deprecate-or-break-fix-std-env-home-dir/7315
+
+Solution: Use dirs crate to supply the same functionality
+---
+ Cargo.lock          | 11 +++++++++++
+ sit-web/Cargo.toml  |  2 +-
+ sit-web/src/main.rs |  5 +++--
+ 3 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index c236a21..aee6fb3 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -333,6 +333,15 @@ dependencies = [
+  "generic-array 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ ]
+ 
++[[package]]
++name = "dirs"
++version = "1.0.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "libc 0.2.40 (registry+https://github.com/rust-lang/crates.io-index)",
++ "winapi 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
++]
++
+ [[package]]
+ name = "dtoa"
+ version = "0.4.2"
+@@ -1164,6 +1173,7 @@ dependencies = [
+  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
+  "config 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "digest 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
++ "dirs 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+  "fs_extra 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+  "include_dir 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+@@ -1580,6 +1590,7 @@ dependencies = [
+ "checksum deflate 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)" = "32c8120d981901a9970a3a1c97cf8b630e0fa8c3ca31e75b6fd6fd5f9f427b31"
+ "checksum derive-error 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "ec098440b29ea3b1ece3e641bac424c19cf996779b623c9e0f2171495425c2c8"
+ "checksum digest 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)" = "00a49051fef47a72c9623101b19bd71924a45cca838826caae3eaa4d00772603"
++"checksum dirs 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "37a76dd8b997af7107d0bb69d43903cf37153a18266f8b3fdb9911f28efb5444"
+ "checksum dtoa 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "09c3753c3db574d215cba4ea76018483895d7bff25a31b49ba45db21c48e50ab"
+ "checksum dunce 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e86b07356baf1cc7058c95807ffba0bebe0c8cadd0df4c40b292c86194eabb37"
+ "checksum either 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3be565ca5c557d7f59e7cfcf1844f9e3033650c929c6566f511e8005f205c1d0"
+diff --git a/sit-web/Cargo.toml b/sit-web/Cargo.toml
+index 8eb8f18..f496d7b 100644
+--- a/sit-web/Cargo.toml
++++ b/sit-web/Cargo.toml
+@@ -8,6 +8,7 @@ license = "MIT/Apache-2.0"
+ [dependencies]
+ clap = "2.29"
+ chrono = "0.4"
++dirs = "1.0"
+ tempfile = "2.2"
+ tempdir = "0.3"
+ config = { version = "0.8", features = ["json"] }
+@@ -34,4 +35,3 @@ fs_extra = "1.1"
+ 
+ [features]
+ windows7 = ["sit-core/windows7"]
+-
+diff --git a/sit-web/src/main.rs b/sit-web/src/main.rs
+index ca97b6b..70ff7b3 100644
+--- a/sit-web/src/main.rs
++++ b/sit-web/src/main.rs
+@@ -1,6 +1,7 @@
+ extern crate sit_core;
+ 
+ extern crate chrono;
++extern crate dirs;
+ extern crate tempfile;
+ #[macro_use] extern crate clap;
+ 
+@@ -98,7 +99,7 @@ fn main() {
+     #[cfg(unix)]
+     let default_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
+     #[cfg(windows)]
+-    let default_config = env::home_dir().expect("can't identify home directory").join("sit_config.json");
++    let default_config = dirs::home_dir().expect("can't identify home directory").join("sit_config.json");
+ 
+     let config_path = matches.value_of("config").unwrap_or(default_config.to_str().unwrap());
+ 
+@@ -114,7 +115,7 @@ fn main() {
+     if config.author.is_none() {
+         if let Some(author) = cfg::Author::from_gitconfig(canonical_working_dir.join(".git/config")) {
+             config.author = Some(author);
+-        } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
++        } else if let Some(author) = cfg::Author::from_gitconfig(dirs::home_dir().expect("can't identify home directory").join(".gitconfig")) {
+             config.author = Some(author);
+         } else {
+             eprintln!("Authorship hasn't been configured. Update your {} config file\n\
+-- 
+2.15.2 (Apple Git-101.1)
+
