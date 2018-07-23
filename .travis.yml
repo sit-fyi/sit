@@ -16,10 +16,10 @@ matrix:
     - git config --global user.email "bot@sit.fyi"
     - git checkout -b ci
     - PATH=`pwd`/target/debug:$PATH ./scripts/ci ${TRAVIS_COMMIT_RANGE:-HEAD..HEAD} "cargo test" `git rev-parse HEAD` | tee log
-    - chmod 600 sit-inbox
+    - chmod 600 build-tools/travis-ci/sit-inbox
     - cat log | tail -1 | xargs git push git@git.sit.fyi:sit-fyi/sit-inbox.git
     env: 
-    - GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -i sit-inbox"
+    - GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -i build-tools/travis-ci/sit-inbox"
   - env:
       secure: NEQmng2pL4yPDYBvS16qm9IyXISV0BBsFLALlgNYA1ZSA23IPIEZTHvCPFZEApjEq4IjfHyh0r6Z/Je01LYbuTSddYjhxM8GLEFs8IJJdXtS9Xhhx77CZutKFbsEqdtAPzJdp/eSEymcc2nCnG7cj0Z7aFe814UpW+Rm1RVGPyHY/cTrtHEieH9n6bSoR7mB7YoVc6Y3VbBsB99DKhXfuKJXPJGwogo5ihygVR9qDANgJnvd9j5uP2KENxFC+pY9c6HSF9ez/dY8P0+0nfgL/sJPNco+9GdKfKEVrn8IEsGnecKOC5ws2yf8JUa+v70aqbk+cu6UxOh/Uw/CB3igSKqqLkrp5sEsmi/zOzRe0sYLTcVC82DyHkx4jDY1Ej6YtAC84T2pWpSNg+t9BAP/ly3FkB8z3ggTQuT7/fvy2huett+lx27lLcnEa33DrclIRsHvHq4kCk7cmTga1VawNv1cJtMy97PMH9BNw9gLGbTxeuqvywEcZKsT589yFzYC03ZEJPAV13wOMfA7e3y+GY+oCBdqjTcoHUAarfPf3Lx0FBazRQpyxB48ngaXdewNNQs2KdRkFb2LkxCoExxNX69+X8gxCU56fmiXtNukh7lLZ0LpA/oGGgUs821ReGnJ/I+EhioYFISot81Wecx54xRHsVJ7dOQXBAmpEjp+zWg=
     script:
