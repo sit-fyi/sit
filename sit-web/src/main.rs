@@ -1,6 +1,7 @@
 extern crate sit_core;
 
 extern crate chrono;
+extern crate dirs;
 extern crate tempfile;
 #[macro_use] extern crate clap;
 
@@ -98,7 +99,7 @@ fn main() {
     #[cfg(unix)]
     let default_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
     #[cfg(windows)]
-    let default_config = env::home_dir().expect("can't identify home directory").join("sit_config.json");
+    let default_config = dirs::home_dir().expect("can't identify home directory").join("sit_config.json");
 
     let config_path = matches.value_of("config").unwrap_or(default_config.to_str().unwrap());
 
@@ -114,7 +115,7 @@ fn main() {
     if config.author.is_none() {
         if let Some(author) = cfg::Author::from_gitconfig(canonical_working_dir.join(".git/config")) {
             config.author = Some(author);
-        } else if let Some(author) = cfg::Author::from_gitconfig(env::home_dir().expect("can't identify home directory").join(".gitconfig")) {
+        } else if let Some(author) = cfg::Author::from_gitconfig(dirs::home_dir().expect("can't identify home directory").join(".gitconfig")) {
             config.author = Some(author);
         } else {
             eprintln!("Authorship hasn't been configured. Update your {} config file\n\
