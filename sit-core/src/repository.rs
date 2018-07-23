@@ -37,8 +37,8 @@ const MODULES_PATH: &str = "modules";
 
 
 /// Repository is the container for all SIT artifacts
-#[derive(Debug)]
-pub struct Repository {
+#[derive(Debug, Clone)]
+pub struct Repository<MI> {
     /// Path to the container
     path: PathBuf,
     /// Path to the config file. Mainly to avoid creating
@@ -54,6 +54,80 @@ pub struct Repository {
     items_path: PathBuf,
     /// Configuration
     config: Config,
+    /// Module iterator
+    module_iterator: MI,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ModuleDirectory<P: AsRef<Path>>(P);
+
+pub trait ModuleIterator<P, E> {
+    type Iter : Iterator<Item = Result<P, E>>;
+    fn iter(&self) -> Result<Self::Iter, E>;
+}
+
+impl<P: AsRef<Path>> ModuleIterator<PathBuf, Error> for ModuleDirectory<P> {
+    type Iter = ModuleDirectoryIterator;
+
+    fn iter(&self) -> Result<Self::Iter, Error> {
+        let path = self.0.as_ref();
+        if !path.is_dir() {
+            Ok(ModuleDirectoryIterator(None))
+        } else {
+            Ok(ModuleDirectoryIterator(Some(fs::read_dir(path)?)))
+        }
+    }
+}
+
+impl<T1, T2, P, E> ModuleIterator<P, E> for (T1, T2)
+    where T1: ModuleIterator<P, E>, T2: ModuleIterator<P, E> {
+    type Iter = ::std::iter::Chain<T1::Iter, T2::Iter>;
+
+    fn iter(&self) -> Result<Self::Iter, E> {
+        let t1 = self.0.iter()?;
+        let t2 = self.1.iter()?;
+        Ok(t1.chain(t2))
+    }
+}
+
+pub struct ModuleDirectoryIterator(Option<fs::ReadDir>);
+
+impl Iterator for ModuleDirectoryIterator {
+    type Item = Result<PathBuf, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.0 {
+            None => None,
+            Some(ref mut modules) => {
+                match modules.next() {
+                    None => None,
+                    Some(Ok(f)) => {
+                        let mut path = f.path();
+                        if path.is_dir() {
+                            Some(Ok(path))
+                        } else {
+                            Some(fs::File::open(&path)
+                                .and_then(|mut f| {
+                                    use std::io::Read;
+                                    let mut s = String::new();
+                                    f.read_to_string(&mut s).map(|_| s)
+                                })
+                                .and_then(|s| {
+                                    #[cfg(windows)] {
+                                        s = s.replace("/", "\\");
+                                    }
+                                    let trimmed_path = s.trim();
+                                    path.pop(); // remove the file name
+                                    Ok(path.join(PathBuf::from(trimmed_path)))
+                                })
+                                .map_err(|e| e.into()))
+                        }
+                    },
+                    Some(Err(e)) => Some(Err(e.into())),
+                }
+            }
+        }
+    }
 }
 
 /// Repository configuration
@@ -80,6 +154,18 @@ impl Config {
     /// Returns encoding
     pub fn encoding(&self) -> &Encoding {
         &self.encoding
+    }
+    /// Returns extra configuration
+    pub fn extra(&self) -> &HashMap<String, serde_json::Value> {
+        &self.extra
+    }
+    /// Sets extra free-form properties in the configuration file
+    /// (overrides existing ones)
+    pub fn set_extra_properties<E, K, V>(&mut self, extra: E)
+        where E: IntoIterator<Item = (K, V)>, K: AsRef<str>, V: Into<serde_json::Value> {
+        for (k, v) in extra.into_iter() {
+            self.extra.insert(k.as_ref().into(), v.into());
+        }
     }
 }
 
@@ -123,6 +209,9 @@ pub enum Error {
     SerializationError(serde_json::Error),
     /// Base decoding error
     BaseDecodeError(::data_encoding::DecodeError),
+    /// Other errors
+    #[error(no_from, non_std)]
+    OtherError(String),
 }
 
 #[allow(unused_variables,dead_code)]
@@ -151,8 +240,7 @@ mod default_files {
 
 }
 
-impl Repository {
-
+impl Repository<ModuleDirectory<PathBuf>> {
     /// Attempts creating a new repository. Fails with `Error::AlreadyExists`
     /// if a repository already exists.
     pub fn new<P: Into<PathBuf>>(path: P) -> Result<Self, Error> {
@@ -178,17 +266,18 @@ impl Repository {
             items_path.push(ITEMS_PATH);
             fs::create_dir_all(&items_path)?;
             let modules_path = path.join(MODULES_PATH);
+            let module_iterator = ModuleDirectory(modules_path.clone());
             let repo = Repository {
                 path,
                 config_path,
                 items_path,
                 config,
                 modules_path,
+                module_iterator,
             };
             repo.save()?;
             Ok(repo)
         }
-
     }
 
     /// Opens an existing repository. Fails if there's no valid repository at the
@@ -235,12 +324,14 @@ impl Repository {
         if config.version != VERSION {
             return Err(Error::InvalidVersion { expected: String::from(VERSION), got: config.version });
         }
+        let module_iterator = ModuleDirectory(modules_path.clone());
         let repository = Repository {
             path,
             config_path,
             items_path,
             config,
             modules_path,
+            module_iterator,
         };
         Ok(repository)
     }
@@ -266,20 +357,50 @@ impl Repository {
                 // try assuming current path + `dir`
                 path.push(dir);
             } else {
-               if Repository::open(&path).is_ok() {
-                   break;
-               } else {
-                   return None;
-               }
+                if Repository::open(&path).is_ok() {
+                    break;
+                } else {
+                    return None;
+                }
             }
         }
         Some(path)
     }
 
+}
+
+impl<MI> Repository<MI> {
+
+    /// Returns a new instance of this Repository with an additional module iterator
+    /// chained to the existing one
+    pub fn with_module_iterator<MI1>(self, module_iterator: MI1) -> Repository<(MI, MI1)> {
+        Repository {
+            path: self.path,
+            config_path: self.config_path,
+            modules_path: self.modules_path,
+            items_path: self.items_path,
+            config: self.config,
+            module_iterator: (self.module_iterator, module_iterator),
+        }
+    }
+
+    /// Returns a new instance of this Repository with a different module iterator
+    pub fn with_new_module_iterator<MI1>(self, module_iterator: MI1) -> Repository<MI1> {
+        Repository {
+            path: self.path,
+            config_path: self.config_path,
+            modules_path: self.modules_path,
+            items_path: self.items_path,
+            config: self.config,
+            module_iterator,
+        }
+    }
+
+
 
     /// Saves the repository. Ensures the directory exists and the configuration has
     /// been saved.
-    fn save(&self) -> Result<(), Error> {
+    pub fn save(&self) -> Result<(), Error> {
         fs::create_dir_all(&self.path)?;
         let file = fs::File::create(&self.config_path)?;
         serde_json::to_writer_pretty(file, &self.config)?;
@@ -313,19 +434,25 @@ impl Repository {
         &self.config
     }
 
+    /// Returns repository's mutable config
+    pub fn config_mut(&mut self) -> &mut Config {
+        &mut self.config
+    }
+
+
     /// Returns an unordered (as in "order not defined") item iterator
-    pub fn item_iter(&self) -> Result<ItemIter, Error> {
+    pub fn item_iter(&self) -> Result<ItemIter<MI>, Error> {
         Ok(ItemIter { repository: self, dir: fs::read_dir(&self.items_path)? })
     }
 
     /// Creates and returns a new item with a unique ID
-    pub fn new_item(&self) -> Result<Item, Error> {
+    pub fn new_item(&self) -> Result<Item<MI>, Error> {
         self.new_named_item(self.config.id_generator.generate())
     }
 
     /// Creates and returns a new item with a specific name. Will fail
     /// if there's an item with the same name.
-    pub fn new_named_item<S: Into<String>>(&self, name: S) -> Result<Item, Error> {
+    pub fn new_named_item<S: Into<String>>(&self, name: S) -> Result<Item<MI>, Error> {
         let id: String = name.into();
         let mut path = self.items_path.clone();
         path.push(&id);
@@ -338,7 +465,7 @@ impl Repository {
     }
 
     /// Finds an item by name (if there is one)
-    pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item> {
+    pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item<MI>> {
         let path = self.items_path().join(name.as_ref());
         if path.is_dir() && path.strip_prefix(self.items_path()).is_ok() {
             let mut test = path.clone();
@@ -358,39 +485,19 @@ impl Repository {
     pub fn modules_path(&self) -> &Path {
         &self.modules_path
     }
+}
 
+impl<MI> Repository<MI> where MI: ModuleIterator<PathBuf, Error>
+{
     /// Returns an iterator over the list of modules (directories under `modules` directory)
-    pub fn module_iter(&self) -> Result<Box<Iterator<Item = PathBuf>>, Error> {
-        let path = self.path.join("modules");
-        if !path.is_dir() {
-            return Ok(Box::new(vec![].into_iter()));
-        }
-        let modules = fs::read_dir(path)?;
-
-        Ok(Box::new(modules.filter(Result::is_ok).map(Result::unwrap)
-            .map(|f| {
-                let mut path = f.path();
-                if path.is_dir() {
-                    return path
-                } else {
-                    let mut f = fs::File::open(&path).unwrap();
-                    use std::io::Read;
-                    let mut s = String::new();
-                    f.read_to_string(&mut s).unwrap();
-                    #[cfg(windows)] {
-                        s = s.replace("/", "\\");
-                    }
-                    let trimmed_path = s.trim();
-                    path.pop(); // remove the file name
-                    path.join(PathBuf::from(trimmed_path))
-               }
-            })))
+    pub fn module_iter<'a>(&'a self) -> Result<MI::Iter, Error> {
+        Ok(self.module_iterator.iter()?)
     }
 }
 
-impl PartialEq for Repository {
-    fn eq(&self, rhs: &Repository) -> bool {
-        (self as *const Repository) == (rhs as *const Repository)
+impl<MI> PartialEq for Repository<MI> {
+    fn eq(&self, rhs: &Repository<MI>) -> bool {
+        (self as *const Repository<MI>) == (rhs as *const Repository<MI>)
     }
 }
 
@@ -400,17 +507,17 @@ use std::ffi::OsString;
 
 /// An item residing in a repository
 #[derive(Debug, PartialEq)]
-pub struct Item<'a> {
-    repository: &'a Repository,
+pub struct Item<'a, MI: 'a> {
+    repository: &'a Repository<MI>,
     id: OsString,
 }
 
 use record::{File, OrderedFiles};
 use relative_path::{RelativePath, Component as RelativeComponent};
 
-impl<'a> Item<'a> {
+impl<'a, MI: 'a> Item<'a, MI> {
     pub fn new_record_in<'f, P: AsRef<Path>, F: File + 'f, I: Into<OrderedFiles<'f, F>>>(&self, path: P, files: I, link_parents: bool) ->
-           Result<<Item<'a> as ItemTrait>::Record, <Item<'a> as ItemTrait>::Error> where F::Read: 'f {
+           Result<<Item<'a, MI> as ItemTrait>::Record, <Item<'a, MI> as ItemTrait>::Error> where F::Read: 'f {
         let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
         let mut hasher = self.repository.config.hashing_algorithm.hasher();
 
@@ -454,12 +561,12 @@ impl<'a> Item<'a> {
     }
 
 }
-impl<'a> ItemTrait for Item<'a> {
+impl<'a, MI: 'a> ItemTrait for Item<'a, MI> {
 
     type Error = Error;
-    type Record = Record<'a>;
-    type Records = Vec<Record<'a>>;
-    type RecordIter = ItemRecordIter<'a>;
+    type Record = Record<'a, MI>;
+    type Records = Vec<Record<'a, MI>>;
+    type RecordIter = ItemRecordIter<'a, MI>;
 
     fn id(&self) -> &str {
         self.id.to_str().unwrap()
@@ -485,15 +592,15 @@ impl<'a> ItemTrait for Item<'a> {
 }
 
 /// An iterator over records in an item
-pub struct ItemRecordIter<'a> {
+pub struct ItemRecordIter<'a, MI: 'a> {
     item: OsString,
-    repository: &'a Repository,
+    repository: &'a Repository<MI>,
     dir: Vec<fs::DirEntry>,
     parents: Vec<String>,
 }
 
-impl<'a> Iterator for ItemRecordIter<'a> {
-    type Item = Vec<Record<'a>>;
+impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
+    type Item = Vec<Record<'a, MI>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let item_path = self.repository.items_path.join(&self.item);
@@ -542,13 +649,13 @@ impl<'a> Iterator for ItemRecordIter<'a> {
 
 /// Unordered (as in "order not defined') item iterator
 /// within a repository
-pub struct ItemIter<'a> {
-    repository: &'a Repository,
+pub struct ItemIter<'a, MI: 'a> {
+    repository: &'a Repository<MI>,
     dir: fs::ReadDir,
 }
 
-impl<'a> Iterator for ItemIter<'a> {
-    type Item = Item<'a>;
+impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
+    type Item = Item<'a, MI>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -579,14 +686,14 @@ use super::Record as RecordTrait;
 
 /// A record within an item
 #[derive(Debug)]
-pub struct Record<'a> {
+pub struct Record<'a, MI: 'a> {
     hash: Vec<u8>,
     item: OsString,
-    repository: &'a Repository,
+    repository: &'a Repository<MI>,
     path: PathBuf,
 }
 
-impl<'a> Record<'a> {
+impl<'a, MI: 'a> Record<'a, MI> {
 
     /// Returns path to the record
     pub fn path(&self) -> &Path {
@@ -598,7 +705,7 @@ impl<'a> Record<'a> {
 
 use serde::{Serialize, Serializer};
 
-impl<'a> Serialize for Record<'a> {
+impl<'a, MI: 'a> Serialize for Record<'a, MI> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
         use record::RecordExt;
         self.serde_serialize(serializer)
@@ -606,13 +713,13 @@ impl<'a> Serialize for Record<'a> {
 }
 
 
-impl<'a> PartialEq for Record<'a> {
-   fn eq(&self, other: &Record<'a>) -> bool {
+impl<'a, MI: 'a> PartialEq for Record<'a, MI> {
+   fn eq(&self, other: &Record<'a, MI>) -> bool {
        self.hash == other.hash
    }
 }
 
-impl<'a> RecordTrait for Record<'a> {
+impl<'a, MI: 'a> RecordTrait for Record<'a, MI> {
     type Read = ::std::fs::File;
     type Str = String;
     type Hash = Vec<u8>;
@@ -709,7 +816,7 @@ mod tests {
         let item = repo.new_item().unwrap();
         let repo = Repository::open(&tmp).unwrap();
         // load items
-        let mut items: Vec<Item> = repo.item_iter().unwrap().collect();
+        let mut items: Vec<Item<_>> = repo.item_iter().unwrap().collect();
         assert_eq!(items.len(), 1);
         // check equality of the item's ID
         assert_eq!(items.pop().unwrap().id(), item.id());
@@ -760,7 +867,7 @@ mod tests {
         // create an item
         let item = repo.new_item().unwrap();
         // load items
-        let mut items: Vec<Item> = repo.item_iter().unwrap().collect();
+        let mut items: Vec<Item<_>> = repo.item_iter().unwrap().collect();
         assert_eq!(items.len(), 1);
         // check equality of the item's ID
         assert_eq!(items.pop().unwrap().id(), item.id());
@@ -774,7 +881,7 @@ mod tests {
         // create an item
         let item = repo.new_named_item("one").unwrap();
         // load items
-        let mut items: Vec<Item> = repo.item_iter().unwrap().collect();
+        let mut items: Vec<Item<_>> = repo.item_iter().unwrap().collect();
         assert_eq!(items.len(), 1);
         // check equality of the item's ID
         assert_eq!(items.pop().unwrap().id(), item.id());
@@ -833,7 +940,7 @@ mod tests {
         assert!(file.read_to_string(&mut string).is_ok());
         assert_eq!(string, "hello");
         // list records
-        let mut records: Vec<Record> = item.record_iter().unwrap().flat_map(|v| v).collect();
+        let mut records: Vec<Record<_>> = item.record_iter().unwrap().flat_map(|v| v).collect();
         assert_eq!(records.len(), 1);
         assert_eq!(records.pop().unwrap().hash(), record.hash());
     }
@@ -1111,7 +1218,7 @@ mod tests {
         fs::create_dir_all(&path).unwrap();
         let mut iter = repo.module_iter().unwrap();
 
-        assert_eq!(::dunce::canonicalize(iter.next().unwrap()).unwrap(), ::dunce::canonicalize(path).unwrap());
+        assert_eq!(::dunce::canonicalize(iter.next().unwrap().unwrap()).unwrap(), ::dunce::canonicalize(path).unwrap());
         assert!(iter.next().is_none());
     }
 
@@ -1134,7 +1241,7 @@ mod tests {
 
         let mut iter = repo.module_iter().unwrap();
 
-        assert_eq!(iter.next().unwrap(), tmp2);
+        assert_eq!(iter.next().unwrap().unwrap(), tmp2);
         assert!(iter.next().is_none());
     }
 
@@ -1159,11 +1266,23 @@ mod tests {
 
         let mut iter = repo.module_iter().unwrap();
 
-        assert_eq!(::dunce::canonicalize(iter.next().unwrap()).unwrap(), ::dunce::canonicalize(tmp.join("module1")).unwrap());
+        assert_eq!(::dunce::canonicalize(iter.next().unwrap().unwrap()).unwrap(), ::dunce::canonicalize(tmp.join("module1")).unwrap());
         assert!(iter.next().is_none());
     }
 
+    #[test]
+    fn chaining_module_iterator() {
+        let tmp = TempDir::new("sit").unwrap().into_path();
+        fs::create_dir_all(tmp.join("modules").join("1")).unwrap();
+        fs::create_dir_all(tmp.join("modules_1").join("1")).unwrap();
+        let mi1 = ModuleDirectory(tmp.join("modules"));
+        let mi2 = ModuleDirectory(tmp.join("modules_1"));
 
+        let mut iter = (mi1, mi2).iter().unwrap();
+        assert_eq!(tmp.join("modules").join("1"), iter.next().unwrap().unwrap());
+        assert_eq!(tmp.join("modules_1").join("1"), iter.next().unwrap().unwrap());
+        assert!(iter.next().is_none());
+    }
 
 }
 

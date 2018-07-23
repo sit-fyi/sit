@@ -122,12 +122,26 @@ struct Config {
     readonly: bool,
 }
 
-pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, repo: Repository, readonly: bool, overlays: Vec<&str>) {
+pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_core::cfg::Configuration, repo: Repository<MI>, readonly: bool, overlays: Vec<&str>)
+    where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
     let mut overlays: Vec<_> = overlays.iter().map(|o| PathBuf::from(o)).collect();
     let assets: PathBuf = repo.path().join("web").into();
     overlays.push(assets);
-    for module_name in repo.module_iter().unwrap() {
-        overlays.push(repo.modules_path().join(module_name).join("web").into());
+    match repo.module_iter() {
+        Ok(iter) => {
+            for module_name in iter {
+                let module_name = module_name.unwrap();
+                overlays.push(repo.modules_path().join(module_name).join("web").into());
+            }
+        },
+        Err(sit_core::RepositoryError::OtherError(str)) => {
+            eprintln!("{}", str);
+            return;
+        },
+        Err(e) => {
+            eprintln!("error: {:?}", e);
+            return;
+        }
     }
     let repo_config = Config {
       readonly,
@@ -145,7 +159,7 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
             use sit_core::item::ItemReduction;
             let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
             let mut reducer = Arc::new(Mutex::new(sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap()));
-            let tl_reducer: ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>> = ThreadLocal::new();
+            let tl_reducer: ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record<MI>, MI>>> = ThreadLocal::new();
 
             let filter_defined = filter_expr != "";
             let filter = if filter_defined {

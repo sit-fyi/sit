@@ -8,8 +8,11 @@ use jmespath;
 use std::sync::{Arc, Mutex};
 use std::cell::RefCell;
 use thread_local::ThreadLocal;
+use std::path::PathBuf;
 
-pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -> i32 {
+pub fn command<MI: Send + Sync>(matches: &ArgMatches, repo: &Repository<MI>, config: Configuration) -> i32
+    where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error>
+{
     let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
 
     let filter_expr = matches.value_of("named-filter")
@@ -29,7 +32,7 @@ pub fn command(matches: &ArgMatches, repo: &Repository, config: Configuration) -
     let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
-    let tl_reducer : ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>> = ThreadLocal::new();
+    let tl_reducer : ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record<MI>, MI>>> = ThreadLocal::new();
     let reducer = Arc::new(Mutex::new(DuktapeReducer::new(&repo).unwrap()));
 
     items.into_par_iter()

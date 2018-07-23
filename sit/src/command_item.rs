@@ -2,7 +2,7 @@ use clap::ArgMatches;
 use sit_core::{Repository, Item, repository::{Error}};
 use std::io::ErrorKind as IoErrorKind;
 
-pub fn command(matches: &ArgMatches, repo: &Repository) -> i32 {
+pub fn command<MI>(matches: &ArgMatches, repo: &Repository<MI>) -> i32 {
     let named = matches.value_of("id");
     let item = if named.is_none() {
         repo.new_item()
