@@ -1,0 +1,64 @@
+From 43af92d9c64bdada441fe215236ca86739a530cf Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 24 Jul 2018 11:50:23 +0700
+Subject: [PATCH] Problem: compilation fails on Windows
+
+This happened because module iterator patch was not
+tested on Windows and conditionally-introduced code
+was effectively trying to reassing an immutable variable.
+
+Solution: fix the code to compile
+and adjust tests so that they pass on Windows as well
+---
+ sit-core/src/repository.rs   | 5 ++---
+ sit/tests/command_modules.rs | 5 +++--
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 28b8ddb..4cfba16 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -113,9 +113,8 @@ impl Iterator for ModuleDirectoryIterator {
+                                     f.read_to_string(&mut s).map(|_| s)
+                                 })
+                                 .and_then(|s| {
+-                                    #[cfg(windows)] {
+-                                        s = s.replace("/", "\\");
+-                                    }
++                                    #[cfg(windows)]
++                                    let s = s.replace("/", "\\");
+                                     let trimmed_path = s.trim();
+                                     path.pop(); // remove the file name
+                                     Ok(path.join(PathBuf::from(trimmed_path)))
+diff --git a/sit/tests/command_modules.rs b/sit/tests/command_modules.rs
+index 968a1a3..674f528 100644
+--- a/sit/tests/command_modules.rs
++++ b/sit/tests/command_modules.rs
+@@ -1,5 +1,6 @@
+ extern crate cli_test_dir;
+ extern crate sit_core;
++extern crate dunce;
+ use sit_core::serde_json::Value;
+ 
+ use cli_test_dir::*;
+@@ -20,7 +21,7 @@ fn modules_convention_dir() {
+     fs::create_dir_all(dir.path(".sit/modules/test")).unwrap();
+ 
+     let output = String::from_utf8(dir.cmd().arg("modules").expect_success().stdout).unwrap();
+-    assert_eq!(output.trim(), format!("{}.sit/modules/test", dir.path("").to_str().unwrap()));
++    assert_eq!(output.trim(), dunce::canonicalize(dir.path(".sit/modules/test")).unwrap().to_str().unwrap());
+ }
+ 
+ /// Tests that modules defined via <repo>/modules/<file> convention are listed by `sit modules`
+@@ -35,7 +36,7 @@ fn modules_convention_link() {
+     dir.create_file(".sit/modules/module", "../../module");
+ 
+     let output = String::from_utf8(dir.cmd().arg("modules").expect_success().stdout).unwrap();
+-    assert_eq!(output.trim(), format!("{}module", dir.path("").to_str().unwrap()));
++    assert_eq!(output.trim(), dunce::canonicalize(dir.path("module")).unwrap().to_str().unwrap());
+ }
+ 
+ /// Tests that modules defined via external module manager are listed by `sit modules`
+-- 
+2.16.4
+

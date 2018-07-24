@@ -1,0 +1,7 @@
+This happened because module iterator patch was not
+tested on Windows and conditionally-introduced code
+was effectively trying to reassing an immutable variable.
+
+Solution: fix the code to compile
+and adjust tests so that they pass on Windows as well
+
