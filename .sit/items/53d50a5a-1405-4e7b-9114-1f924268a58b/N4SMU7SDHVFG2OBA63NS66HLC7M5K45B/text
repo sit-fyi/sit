@@ -1,0 +1,21 @@
+This means that it will include records with invalid
+hashes into its consideration. Kind of defeating the point
+of this feature. The reason why this is so is performance.
+
+However, I think this is a bad idea as it promotes an
+unhealthy balance between performance and integrity.
+
+Solution: enable integrity checking by default
+but enable turning it off both from the API and
+command line (`-i/--disable-integrity-check).
+
+Also, by providing an additional `sit integrity`
+command, we can enable users to verify their repositories
+and get a report on records violating the integrity check.
+
+If one wants to optimize certain scripts, initial `sit integrity`
+command can be used to check the repository's current status and
+the follow-up integrity checks in other commands can be further
+disabled by defining the `SIT_DISABLE_INTEGRITY_CHECK` environment
+variable.
+

@@ -1,0 +1,447 @@
+From 60a63436beec6804daf957534be4665b01bf0502 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 24 Jul 2018 07:40:05 +0700
+Subject: [PATCH] Problem: sit doesn't check records' integrity
+
+This means that it will include records with invalid
+hashes into its consideration. Kind of defeating the point
+of this feature. The reason why this is so is performance.
+
+However, I think this is a bad idea as it promotes an
+unhealthy balance between performance and integrity.
+
+Solution: enable integrity checking by default
+but enable turning it off both from the API and
+command line (`-i/--disable-integrity-check).
+
+Also, by providing an additional `sit integrity`
+command, we can enable users to verify their repositories
+and get a report on records violating the integrity check.
+
+If one wants to optimize certain scripts, initial `sit integrity`
+command can be used to check the repository's current status and
+the follow-up integrity checks in other commands can be further
+disabled by defining the `SIT_DISABLE_INTEGRITY_CHECK` environment
+variable.
+---
+ sit-core/src/repository.rs     | 142 +++++++++++++++++++++++++++++++++++++----
+ sit/src/command_integrity.rs   |  27 ++++++++
+ sit/src/main.rs                |  16 ++++-
+ sit/tests/command_integrity.rs |  59 +++++++++++++++++
+ 4 files changed, 232 insertions(+), 12 deletions(-)
+ create mode 100644 sit/src/command_integrity.rs
+ create mode 100644 sit/tests/command_integrity.rs
+
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 28b8ddb..fdc498a 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -56,6 +56,8 @@ pub struct Repository<MI> {
+     config: Config,
+     /// Module iterator
+     module_iterator: MI,
++    /// Integrity check
++    integrity_check: bool,
+ }
+ 
+ #[derive(Clone, Debug, PartialEq)]
+@@ -274,6 +276,7 @@ impl Repository<ModuleDirectory<PathBuf>> {
+                 config,
+                 modules_path,
+                 module_iterator,
++                integrity_check: true,
+             };
+             repo.save()?;
+             Ok(repo)
+@@ -332,6 +335,7 @@ impl Repository<ModuleDirectory<PathBuf>> {
+             config,
+             modules_path,
+             module_iterator,
++            integrity_check: true,
+         };
+         Ok(repository)
+     }
+@@ -381,6 +385,7 @@ impl<MI> Repository<MI> {
+             items_path: self.items_path,
+             config: self.config,
+             module_iterator: (self.module_iterator, module_iterator),
++            integrity_check: self.integrity_check,
+         }
+     }
+ 
+@@ -393,9 +398,33 @@ impl<MI> Repository<MI> {
+             items_path: self.items_path,
+             config: self.config,
+             module_iterator,
++            integrity_check: self.integrity_check,
+         }
+     }
+ 
++    /// Returns the status of integrity check
++    pub fn integrity_check(&self) -> bool {
++        self.integrity_check
++    }
++
++
++    /// Mutably changes the requirement for integrity check
++    pub fn set_integrity_check(&mut self, value: bool) {
++        self.integrity_check = value;
++    }
++
++    /// Creates a new instance of `Repository` with a changed requirement for integrity check
++    pub fn with_integrity_check(self, value: bool) -> Self {
++        Repository {
++            path: self.path,
++            config_path: self.config_path,
++            modules_path: self.modules_path,
++            items_path: self.items_path,
++            config: self.config,
++            module_iterator: self.module_iterator,
++            integrity_check: value,
++        }
++    }
+ 
+ 
+     /// Saves the repository. Ensures the directory exists and the configuration has
+@@ -442,7 +471,7 @@ impl<MI> Repository<MI> {
+ 
+     /// Returns an unordered (as in "order not defined") item iterator
+     pub fn item_iter(&self) -> Result<ItemIter<MI>, Error> {
+-        Ok(ItemIter { repository: self, dir: fs::read_dir(&self.items_path)? })
++        Ok(ItemIter { repository: self, dir: fs::read_dir(&self.items_path)?, integrity_check: self.integrity_check })
+     }
+ 
+     /// Creates and returns a new item with a unique ID
+@@ -461,6 +490,7 @@ impl<MI> Repository<MI> {
+         Ok(Item {
+             repository: self,
+             id,
++            integrity_check: self.integrity_check,
+         })
+     }
+ 
+@@ -474,7 +504,7 @@ impl<MI> Repository<MI> {
+                 return None;
+             }
+             let id = path.file_name().unwrap().to_os_string();
+-            let item = Item { repository: self, id };
++            let item = Item { repository: self, id, integrity_check: self.integrity_check };
+             Some(item)
+         } else {
+             None
+@@ -510,12 +540,35 @@ use std::ffi::OsString;
+ pub struct Item<'a, MI: 'a> {
+     repository: &'a Repository<MI>,
+     id: OsString,
++    integrity_check: bool,
+ }
+ 
+ use record::{File, OrderedFiles};
+ use relative_path::{RelativePath, Component as RelativeComponent};
+ 
+ impl<'a, MI: 'a> Item<'a, MI> {
++
++    /// Returns the status of integrity check
++    pub fn integrity_check(&self) -> bool {
++        self.integrity_check
++    }
++
++
++    /// Mutably changes the requirement for integrity check
++    pub fn set_integrity_check(&mut self, value: bool) {
++        self.integrity_check = value;
++    }
++
++    /// Creates a new instance of `Item` with a changed requirement for integrity check
++    pub fn with_integrity_check(self, value: bool) -> Self {
++        Item {
++            repository: self.repository,
++            id: self.id,
++            integrity_check: value,
++        }
++    }
++
++
+     pub fn new_record_in<'f, P: AsRef<Path>, F: File + 'f, I: Into<OrderedFiles<'f, F>>>(&self, path: P, files: I, link_parents: bool) ->
+            Result<<Item<'a, MI> as ItemTrait>::Record, <Item<'a, MI> as ItemTrait>::Error> where F::Read: 'f {
+         let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
+@@ -582,6 +635,7 @@ impl<'a, MI: 'a> ItemTrait for Item<'a, MI> {
+             repository: self.repository,
+             dir,
+             parents: vec![],
++            integrity_check: self.integrity_check,
+         })
+     }
+ 
+@@ -597,6 +651,7 @@ pub struct ItemRecordIter<'a, MI: 'a> {
+     repository: &'a Repository<MI>,
+     dir: Vec<fs::DirEntry>,
+     parents: Vec<String>,
++    integrity_check: bool,
+ }
+ 
+ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
+@@ -627,16 +682,33 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
+ 
+                     }
+                 };
++
+                 has_all_valid_parents
+             });
+-        let result: Vec<_> = filtered.iter()
+-            .map(|e| Record {
+-                hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
+-                item: self.item.clone(),
+-                repository: self.repository,
+-                path: item_path.join(e.file_name()),
+-            })
+-            .collect();
++        let result: Vec<_> = {
++            let mapped = filtered.iter()
++                .map(|e| Record {
++                    hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
++                    item: self.item.clone(),
++                    repository: self.repository,
++                    path: item_path.join(e.file_name()),
++                });
++            if self.integrity_check {
++                mapped.filter(|r| {
++                    let mut hasher = self.repository.config.hashing_algorithm.hasher();
++                    let ordered_files = OrderedFiles::from(r.file_iter());
++                    match ordered_files.hash(&mut *hasher) {
++                        Ok(_) => {
++                            let hash = hasher.result_box();
++                            r.hash == hash
++                        },
++                        _ => false
++                    }
++                }).collect()
++            } else {
++                mapped.collect()
++            }
++        };
+         self.dir = dir;
+         if result.len() == 0 {
+             return None
+@@ -652,6 +724,7 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
+ pub struct ItemIter<'a, MI: 'a> {
+     repository: &'a Repository<MI>,
+     dir: fs::ReadDir,
++    integrity_check: bool,
+ }
+ 
+ impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
+@@ -672,7 +745,7 @@ impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
+                     }
+                     let file_type = file_type.unwrap();
+                     if file_type.is_dir() {
+-                        return Some(Item { repository: self.repository, id: entry.file_name() });
++                        return Some(Item { repository: self.repository, id: entry.file_name(), integrity_check: self.integrity_check });
+                     } else {
+                         continue;
+                     }
+@@ -945,6 +1018,53 @@ mod tests {
+         assert_eq!(records.pop().unwrap().hash(), record.hash());
+     }
+ 
++    #[test]
++    fn record_integrity_check() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(&tmp).unwrap();
++        // create an item
++        let mut item = repo.new_item().unwrap();
++        // create a record
++        let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
++        // tamper with the record
++        let mut file = fs::File::create(repo.items_path().join(item.id()).join(record.encoded_hash()).join("file")).unwrap();
++        file.write(b"test").unwrap();
++        drop(file);
++        // list records
++        let records: Vec<Record<_>> = item.record_iter().unwrap().flat_map(|v| v).collect();
++        // invalid record should not be listed
++        assert_eq!(records.len(), 0);
++        // disable integrity check
++        item.set_integrity_check(false);
++        let mut records: Vec<Record<_>> = item.record_iter().unwrap().flat_map(|v| v).collect();
++        // now there should be a record
++        assert_eq!(records.len(), 1);
++        assert_eq!(records.pop().unwrap().hash(), record.hash());
++    }
++
++    #[test]
++    fn record_integrity_check_propagates_from_repository() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let mut repo = Repository::new(&tmp).unwrap();
++        repo.set_integrity_check(false);
++        // create an item
++        let item = repo.new_item().unwrap();
++        assert!(!item.integrity_check());
++        // create a record
++        let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
++        // tamper with the record
++        let mut file = fs::File::create(repo.items_path().join(item.id()).join(record.encoded_hash()).join("file")).unwrap();
++        file.write(b"test").unwrap();
++        drop(file);
++        // list records
++        let mut records: Vec<Record<_>> = item.record_iter().unwrap().flat_map(|v| v).collect();
++        // now there should be a record
++        assert_eq!(records.len(), 1);
++        assert_eq!(records.pop().unwrap().hash(), record.hash());
++    }
++
+     #[test]
+     fn record_files_path() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+diff --git a/sit/src/command_integrity.rs b/sit/src/command_integrity.rs
+new file mode 100644
+index 0000000..ee7559a
+--- /dev/null
++++ b/sit/src/command_integrity.rs
+@@ -0,0 +1,27 @@
++use sit_core::{Item, Record, Repository};
++use rayon::prelude::*;
++
++pub fn command<MI: Send + Sync>(repo: Repository<MI>) -> i32 {
++    let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
++    let valid = items.into_par_iter()
++        .map(|mut item| {
++            item.set_integrity_check(false);
++            let all_records: Vec<_> = item.record_iter().expect("can't list records").flat_map(|v| v).collect();
++            item.set_integrity_check(true);
++            let checked_records: Vec<_> = item.record_iter().expect("can't list records").flat_map(|v| v).collect();
++            let invalid_records: Vec<_> = all_records.into_iter()
++                .filter(|r| !checked_records.iter().any(|r_| r_.hash() == r.hash()))
++                .collect();
++            let valid = invalid_records.is_empty();
++            for record in invalid_records {
++                println!("{} {}", item.id(), record.encoded_hash());
++            }
++            valid
++        })
++        .reduce(|| true, |a, b| a && b);
++    if valid {
++        0
++    } else {
++        1
++    }
++}
+\ No newline at end of file
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 1c6b142..e6435e2 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -29,6 +29,7 @@ mod command_reduce;
+ mod command_records;
+ mod command_external;
+ mod command_jmespath;
++mod command_integrity;
+ 
+ mod cli;
+ 
+@@ -118,6 +119,13 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+             .long("config")
+             .takes_value(true)
+             .help("Config file (overrides default)"))
++        .arg(Arg::with_name("disable-integrity-check")
++                 .short("i")
++                 .long("disable-integrity-check")
++                 .help("Disables record integrity check (mostly for performance reasons)"))
++        .subcommand(SubCommand::with_name("integrity")
++            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
++            .about("Checks the integrity of record hashes and lists invalid records"))
+         .subcommand(SubCommand::with_name("upgrade")
+             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+             .about("Upgrades the repository"))
+@@ -396,8 +404,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+         let repo_path = matches.value_of("repository").map(PathBuf::from)
+                        .or_else(|| sit_core::Repository::find_in_or_above(".sit",&working_dir))
+                        .expect("Can't find a repository");
+-        let repo = sit_core::Repository::open(&repo_path)
++        let mut repo = sit_core::Repository::open(&repo_path)
+             .expect("can't open repository");
++        let integrity_check = !matches.is_present("disable-integrity-check") && !env::var("SIT_DISABLE_INTEGRITY_CHECK").is_ok();
++        repo.set_integrity_check(integrity_check);
+         return match repo.config().clone().extra().get("external_module_manager") {
+             Some(serde_json::Value::String(name)) => {
+                 let original_repo = repo.clone();
+@@ -463,6 +473,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+                 return 0;
+             }
+ 
++            if let Some(_) = matches.subcommand_matches("integrity") {
++                return command_integrity::command(repo);
++            }
++
+             match command_external::command(&matches, repo, &cwd) {
+                 Err(_) => {
+                     return main_with_result(false)
+diff --git a/sit/tests/command_integrity.rs b/sit/tests/command_integrity.rs
+new file mode 100644
+index 0000000..a2fbd0f
+--- /dev/null
++++ b/sit/tests/command_integrity.rs
+@@ -0,0 +1,59 @@
++extern crate cli_test_dir;
++
++use cli_test_dir::*;
++
++/// Should list records with failed integrity check
++#[test]
++fn integrity_failure() {
++    let dir = TestDir::new("sit", "integrity_failure");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    // create an item
++    let id = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap();
++    // create a record
++    let record = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", id.trim(), "--no-author", "-t", "Sometype"])
++        .expect_success().stdout).unwrap();
++    // at this point, integrity check should not fail
++    dir.cmd().arg("integrity").expect_success();
++    // now, lets tamper with the record
++    dir.create_file(dir.path(".sit/items").join(id.trim()).join(record.trim()).join("tamper"), "");
++    // now, integrity check should fail
++    // (we event set -i/--disable-integrity-check to make sure the command works with integrity check
++    //  suppressed from the command line)
++    let output = String::from_utf8(dir.cmd().args(&["-i", "integrity"]).expect_failure().stdout).unwrap();
++    assert_eq!(output, format!("{} {}\n", id.trim(), record.trim()));
++}
++
++/// Should not list records with failed integrity check unless it is disabled
++#[test]
++fn integrity_check_flag() {
++    let dir = TestDir::new("sit", "integrity_pass");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    // create an item
++    let id = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap();
++    // create a record
++    let record = String::from_utf8(dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .args(&["record", id.trim(), "--no-author", "-t", "Sometype"])
++        .expect_success().stdout).unwrap();
++    // now, lets tamper with the record
++    dir.create_file(dir.path(".sit/items").join(id.trim()).join(record.trim()).join("tamper"), "");
++    // now, the record should not appear
++    let output = String::from_utf8(dir.cmd().args(&["records", id.trim()]).expect_success().stdout).unwrap();
++    assert_eq!(output, "");
++    // but if we disable integrity check:
++    let output = String::from_utf8(dir.cmd().args(&["-i", "records", id.trim()]).expect_success().stdout).unwrap();
++    assert_eq!(output, format!("{}\n", record.trim()));
++    // or if we disable it through env:
++     let output = String::from_utf8(dir.cmd().env("SIT_DISABLE_INTEGRITY_CHECK", "1").args(&["records", id.trim()]).expect_success().stdout).unwrap();
++    assert_eq!(output, format!("{}\n", record.trim()));
++}
+-- 
+2.16.4
+
