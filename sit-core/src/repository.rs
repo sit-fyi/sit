@@ -113,9 +113,8 @@ impl Iterator for ModuleDirectoryIterator {
                                     f.read_to_string(&mut s).map(|_| s)
                                 })
                                 .and_then(|s| {
-                                    #[cfg(windows)] {
-                                        s = s.replace("/", "\\");
-                                    }
+                                    #[cfg(windows)]
+                                    let s = s.replace("/", "\\");
                                     let trimmed_path = s.trim();
                                     path.pop(); // remove the file name
                                     Ok(path.join(PathBuf::from(trimmed_path)))

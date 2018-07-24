@@ -1,5 +1,6 @@
 extern crate cli_test_dir;
 extern crate sit_core;
+extern crate dunce;
 use sit_core::serde_json::Value;
 
 use cli_test_dir::*;
@@ -20,7 +21,7 @@ fn modules_convention_dir() {
     fs::create_dir_all(dir.path(".sit/modules/test")).unwrap();
 
     let output = String::from_utf8(dir.cmd().arg("modules").expect_success().stdout).unwrap();
-    assert_eq!(output.trim(), format!("{}.sit/modules/test", dir.path("").to_str().unwrap()));
+    assert_eq!(output.trim(), dunce::canonicalize(dir.path(".sit/modules/test")).unwrap().to_str().unwrap());
 }
 
 /// Tests that modules defined via <repo>/modules/<file> convention are listed by `sit modules`
@@ -35,7 +36,7 @@ fn modules_convention_link() {
     dir.create_file(".sit/modules/module", "../../module");
 
     let output = String::from_utf8(dir.cmd().arg("modules").expect_success().stdout).unwrap();
-    assert_eq!(output.trim(), format!("{}module", dir.path("").to_str().unwrap()));
+    assert_eq!(output.trim(), dunce::canonicalize(dir.path("module")).unwrap().to_str().unwrap());
 }
 
 /// Tests that modules defined via external module manager are listed by `sit modules`
