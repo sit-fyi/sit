@@ -1,0 +1,36 @@
+From bf6ad7dee83f07e9d181aeb730a40d215a37ddc0 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 25 Jul 2018 00:48:22 +0700
+Subject: [PATCH] Problem: cross-compilation for MacOSX fails
+
+The error is: `ld: unknown option: -plugin`
+
+Solution: improve the setup of toolchain
+
+Most importantly, don't link ld to the cross-compiling ld
+---
+ build-tools/cross-compile-osx/Dockerfile | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/build-tools/cross-compile-osx/Dockerfile b/build-tools/cross-compile-osx/Dockerfile
+index b73326c..8e3ff8d 100644
+--- a/build-tools/cross-compile-osx/Dockerfile
++++ b/build-tools/cross-compile-osx/Dockerfile
+@@ -4,11 +4,10 @@ RUN rustup target add x86_64-apple-darwin
+ RUN git clone https://github.com/tpoechtrager/osxcross && cd osxcross && git checkout 1a1733a
+ COPY MacOSX10.11.sdk.tar.xz /osxcross/tarballs/
+ RUN cd osxcross && UNATTENDED=1 OSX_VERSION_MIN=10.7 ./build.sh
+-RUN ln -s /osxcross/target/bin/x86_64-apple-darwin15-ld  /osxcross/target/bin/ld
+ ENV PATH="/osxcross/target/bin:$PATH"
+ ENV CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER x86_64-apple-darwin15-clang
+ ENV CC_X86_64_APPLE_DARWIN_LINKER x86_64-apple-darwin15-clang
+-ENV CC x86_64-apple-darwin15-clang
+-ENV CMAKE_LINKER x86_64-apple-darwin15-ld
++ENV CC x86_64-apple-darwin15-cc
+ ENV CMAKE_C_LINK_EXECUTABLE x86_64-apple-darwin15-ld
+-ENV CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN x86_64-apple-darwin15-clang
++ENV CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN x86_64-apple-darwin15-cc
++ENV CMAKE_C_COMPILER x86_64-apple-darwin15-cc
+-- 
+2.16.4
+

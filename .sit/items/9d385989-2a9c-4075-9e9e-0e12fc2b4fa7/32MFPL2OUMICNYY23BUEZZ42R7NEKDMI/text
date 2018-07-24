@@ -1,0 +1,6 @@
+The error is: `ld: unknown option: -plugin`
+
+Solution: improve the setup of toolchain
+
+Most importantly, don't link ld to the cross-compiling ld
+
