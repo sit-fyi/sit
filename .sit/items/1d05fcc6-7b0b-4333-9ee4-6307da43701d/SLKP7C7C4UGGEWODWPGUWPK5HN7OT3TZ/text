@@ -1,0 +1,6 @@
+While the issue was addressed in 7425c6e0-22bd-4d19-81b8-6d6dfd70b9ff,
+it wasn't properly tested.
+
+Solution: cover it with the test
+and close the original issue 27be18aa-6cdd-4029-824c-9697533fce41
+

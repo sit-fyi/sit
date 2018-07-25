@@ -1,0 +1,128 @@
+From 846224546bcaa32c57c787d8c123c9ec6e60f115 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 25 Jul 2018 12:51:18 +0700
+Subject: [PATCH] Problem: `sit record` recording directories
+
+While the issue was addressed in 7425c6e0-22bd-4d19-81b8-6d6dfd70b9ff,
+it wasn't properly tested.
+
+Solution: cover it with the test
+and close the original issue 27be18aa-6cdd-4029-824c-9697533fce41
+---
+ .../ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.authors      |  1 +
+ .../.prev/XYMDP2MSZ6SSK6H5KQV3KHIDQ46YSS37         |  0
+ .../ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.signature    | 17 ++++++++++++
+ .../ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.timestamp    |  1 +
+ .../ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.type/Closed  |  0
+ .../.type/Commented                                |  0
+ .../ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/text          |  1 +
+ sit/tests/command_record.rs                        | 30 ++++++++++++++++++++++
+ 8 files changed, 50 insertions(+)
+ create mode 100644 .sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.authors
+ create mode 100644 .sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.prev/XYMDP2MSZ6SSK6H5KQV3KHIDQ46YSS37
+ create mode 100644 .sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.signature
+ create mode 100644 .sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.timestamp
+ create mode 100644 .sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.type/Closed
+ create mode 100644 .sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.type/Commented
+ create mode 100644 .sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/text
+
+diff --git a/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.authors b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.authors
+new file mode 100644
+index 0000000..8022052
+--- /dev/null
++++ b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.authors
+@@ -0,0 +1 @@
++Yurii Rashkovskii <me@yrashk.com>
+\ No newline at end of file
+diff --git a/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.prev/XYMDP2MSZ6SSK6H5KQV3KHIDQ46YSS37 b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.prev/XYMDP2MSZ6SSK6H5KQV3KHIDQ46YSS37
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.signature b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.signature
+new file mode 100644
+index 0000000..865d5b4
+--- /dev/null
++++ b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.signature
+@@ -0,0 +1,17 @@
++-----BEGIN PGP SIGNATURE-----
++
++iQJCBAABCAAsFiEEjmkaFOaskcs7s6g8HWDXz9gIRf8FAltYD3sOHG1lQHlyYXNo
++ay5jb20ACgkQHWDXz9gIRf9RthAAn0yGFgMLM3/6NOhheU9Ygc1Ei+t8pJTXeaep
++LfwmTT3vpTN/XoYkas8/9ioy3mbVxu8sL5xETUrAd3S9849TTNw1PGUqlbRHbsXU
++Kxq5+kgE4WpCu1Ihy/Z7oDfJ/aHCNI+5QH/pMm5Yq+epu1fRMin2epOR2NhXDNQW
++waNouF0C8Hfw1DeJ9qMhvDiU2IS4wOrg/w8QRr1nPDRQr5dzbz4VfE8cHiB2tw59
++IlORJJ+FINmsHYyhhWVzyCVEZvmEiEK+kao8ENgAKYJOYY8K5njq0tkHiBroTcbH
++AZAN40jf9DG0IYxcckjyrP1t8Wgn1Y6pIqh6RwH34pz7Ky7ISrT7Ab1hscW4g5ga
++s+mIuQ4zTVp4XSc8Zs4YNxG0b98VsBCbaV/e7jXXchqTJZpLOyRjNtyk+Ei/V8A1
++SOSLUGItzGeto4er7qpzLkTFoFPn/gHY6oq5V3BHGqV1f6t5YScoXhivpPCCUsmQ
++W14FME+Xgbh41HMavoTqRCX+r0241xIQXfCONeAa8mjWpJ8e7gqSa4IbzaOLfTOh
++udDDSkuVgkJIOSgosputyX4IrBEP3vY3MHwApeSVF46VU/lpJClJ2u73X7l23aDN
++wuP4fHu4MrKoAgQ9C7aAKcvJnCLdZwdgWC0Ietf4aD3q83LdGW5Ru9a9cKBgcGam
++eL6Ljpw=
++=/qEt
++-----END PGP SIGNATURE-----
+diff --git a/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.timestamp b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.timestamp
+new file mode 100644
+index 0000000..4300ba8
+--- /dev/null
++++ b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.timestamp
+@@ -0,0 +1 @@
++2018-07-25T05:49:46.047Z
+\ No newline at end of file
+diff --git a/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.type/Closed b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.type/Closed
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.type/Commented b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/.type/Commented
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/text b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/text
+new file mode 100644
+index 0000000..4d16176
+--- /dev/null
++++ b/.sit/items/27be18aa-6cdd-4029-824c-9697533fce41/ERO37TTBF5QMZDPTMNM2NKCFXZKNZ2G6/text
+@@ -0,0 +1 @@
++Fixed in 7425c6e0-22bd-4d19-81b8-6d6dfd70b9ff
+\ No newline at end of file
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index fb0d4c0..aeec94e 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -277,6 +277,36 @@ fn record_should_record_files() {
+     assert_eq!(s, "file2");
+ }
+ 
++/// Should record files and directories
++#[test]
++fn record_should_record_files_and_directories() {
++    let dir = TestDir::new("sit", "record_should_record_files_and_directories");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    dir.create_file("file1","file1");
++    dir.create_file("files/file2","file2");
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
++        .args(&["record", &id, "--no-author", "-t","Sometype","file1", "files"])
++        .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    let mut s = String::new();
++    use std::io::Read;
++    record.file("file1").unwrap().read_to_string(&mut s).unwrap();
++    assert_eq!(s, "file1");
++    s.clear();
++    record.file("files/file2").unwrap().read_to_string(&mut s).unwrap();
++    assert_eq!(s, "file2");
++}
++
++
+ /// Should sign if configuration says so
+ #[test]
+ fn record_should_sign_if_configured() {
+-- 
+2.16.4
+
