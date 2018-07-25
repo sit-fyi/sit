@@ -1,0 +1,3 @@
+Solution: use the Dirwalk crate the iterate over any folders that are
+given, and translate the exit calls into Results so that Drop is
+called as expected
