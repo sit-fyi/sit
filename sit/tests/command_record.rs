@@ -277,6 +277,36 @@ fn record_should_record_files() {
     assert_eq!(s, "file2");
 }
 
+/// Should record files and directories
+#[test]
+fn record_should_record_files_and_directories() {
+    let dir = TestDir::new("sit", "record_should_record_files_and_directories");
+    dir.cmd()
+        .arg("init")
+        .expect_success();
+    let id: String = String::from_utf8(dir.cmd()
+        .arg("item")
+        .expect_success().stdout).unwrap().trim().into();
+    dir.create_file("file1","file1");
+    dir.create_file("files/file2","file2");
+    dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .args(&["record", &id, "--no-author", "-t","Sometype","file1", "files"])
+        .expect_success();
+    let repo = Repository::open(dir.path(".sit")).unwrap();
+    let item = repo.item(id).unwrap();
+    let mut records = item.record_iter().unwrap();
+    let record = records.next().unwrap().pop().unwrap();
+    let mut s = String::new();
+    use std::io::Read;
+    record.file("file1").unwrap().read_to_string(&mut s).unwrap();
+    assert_eq!(s, "file1");
+    s.clear();
+    record.file("files/file2").unwrap().read_to_string(&mut s).unwrap();
+    assert_eq!(s, "file2");
+}
+
+
 /// Should sign if configuration says so
 #[test]
 fn record_should_sign_if_configured() {
