@@ -1,14 +1,118 @@
-use clap::{self, ArgMatches};
-use sit_core::{Repository, Record, Item, record::{OrderedFiles, BoxedOrderedFiles}};
-use sit_core::cfg::{self, Configuration};
-use chrono::prelude::*;
-use std::process::exit;
-use std::io::{self, Cursor, Write};
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::env;
 use atty;
+use chrono::prelude::*;
+use clap::{self, ArgMatches};
+use dunce;
 use serde_json;
+use sit_core::cfg::{self, Configuration};
+use sit_core::{
+    record::{BoxedOrderedFiles, OrderedFiles},
+    Item, Record, Repository,
+};
+use std::env;
+use std::ffi::OsString;
+use std::fs;
+use std::io::{self, Cursor, ErrorKind, Write};
+use std::path::{Path, PathBuf};
+use walkdir::{self as walk, WalkDir};
+
+fn record_files(
+    matches: &ArgMatches,
+    utc: DateTime<Utc>,
+    config: &Configuration,
+) -> Result<BoxedOrderedFiles<'static>, io::Error> {
+    let files = matches
+        .values_of("FILES")
+        .unwrap_or(clap::Values::default());
+
+    let files: OrderedFiles<_> = files
+        .into_iter()
+        .map(|name| {
+            let path = PathBuf::from(&name);
+            if path.is_file() {
+                Ok(vec![(OsString::from(name), path)])
+            } else if path.is_dir() {
+                let entries = WalkDir::new(path)
+                    .into_iter()
+                    .filter_map(|f| {
+                        if let Ok(f) = f {
+                            if f.metadata().expect("error reading metadata").is_file() {
+                                Some(f)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .map(|entry: walk::DirEntry| {
+                        (entry.file_name().to_owned(), entry.path().to_owned())
+                    })
+                    .collect();
+
+                Ok(entries)
+            } else {
+                Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "{} does not exist or is not a regular file",
+                        path.to_str().unwrap()
+                    ),
+                ))
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .iter()
+        .flat_map(|files| {
+            files.iter().map(|(name, path)| {
+                let abs_name = dunce::canonicalize(path).expect("can't canonicalize path");
+                let cur_dir = dunce::canonicalize(
+                    env::current_dir().expect("can't get current directory"),
+                ).expect("can't canonicalize current directory");
+                match abs_name.strip_prefix(&cur_dir) {
+                    Err(_) => Err(io::Error::new(
+                        ErrorKind::InvalidInput,
+                        format!(
+                            "Path {:?} is not relative to {} current directory",
+                            name,
+                            cur_dir.to_str().unwrap()
+                        ),
+                    )),
+                    Ok(path) => Ok(String::from(path.to_str().unwrap())),
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .iter()
+        .map(|name| (name.clone(), fs::File::open(name).expect("can't open file")))
+        .into();
+
+    let types: Vec<_> = match matches.value_of("type") {
+        Some(types) => types.split(",").collect(),
+        None => vec![],
+    };
+
+    let type_files: OrderedFiles<_> = types
+        .iter()
+        .map(|t| (format!(".type/{}", *t), &[][..]))
+        .into();
+
+    // .authors
+    let authorship_files: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-author") {
+        let authors = format!("{}", config.author.clone().unwrap());
+        Some(vec![(String::from(".authors"), Cursor::new(authors))].into())
+    } else {
+        None
+    };
+
+    let timestamp: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-timestamp") {
+        let timestamp = format!("{:?}", utc);
+        Some(vec![(String::from(".timestamp"), Cursor::new(timestamp))].into())
+    } else {
+        None
+    };
+
+    Ok(files + type_files + authorship_files + timestamp)
+}
 
 pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: &Repository<MI>, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
     if !matches.is_present("no-author") && config.author.is_none() {
@@ -43,7 +147,8 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: 
                     Some(answer) => panic!("Invalid answer {:?}", answer),
                 };
                 config.author = Some(cfg::Author { name, email });
-                let file = fs::File::create(config_path).expect("can't open config file for writing");
+                let file =
+                    fs::File::create(config_path).expect("can't open config file for writing");
                 serde_json::to_writer_pretty(file, &config).expect("can't write config");
             } else {
                 eprintln!("SIT needs your authorship identity to be configured (supported sources: sit, git), or re-run this command in a terminal\n");
@@ -57,58 +162,9 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: 
         None => {
             eprintln!("Item {} not found", id);
             return 1;
-        },
+        }
         Some(item) => {
-            fn record_files(matches: &ArgMatches, utc: DateTime<Utc>, config: &Configuration) -> Result<BoxedOrderedFiles<'static>, io::Error> {
-                let files = matches.values_of("FILES").unwrap_or(clap::Values::default());
-                let files: OrderedFiles<_> = files.into_iter()
-                    .map(move |name| {
-                        let path = PathBuf::from(&name);
-                        if !path.is_file() {
-                            eprintln!("{} does not exist or is not a regular file", path.to_str().unwrap());
-                            exit(1);
-                        }
-                        let abs_name = ::dunce::canonicalize(path).expect("can't canonicalize path");
-                        let cur_dir = ::dunce::canonicalize(env::current_dir().expect("can't get current directory")).expect("can't canonicalize current directory");
-                        match abs_name.strip_prefix(&cur_dir) {
-                            Err(_) => {
-                                eprintln!("Path {} is not relative to {} current directory", name, cur_dir.to_str().unwrap());
-                                exit(1);
-                            },
-                            Ok(path) => String::from(path.to_str().unwrap()),
-                        }
-                    })
-                    .map(|name| (name.clone(), ::std::fs::File::open(name).expect("can't open file"))).into();
-
-                let types: Vec<_> = match matches.value_of("type") {
-                    Some(types) => types.split(",").collect(),
-                    None => vec![],
-                };
-
-                let type_files: OrderedFiles<_> = types.iter().map(|t|
-                    (format!(".type/{}", *t),&[][..])).into();
-
-                // .authors
-                let authorship_files: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-author") {
-                    let authors = format!("{}", config.author.clone().unwrap());
-                    Some(vec![(String::from(".authors"), Cursor::new(authors))].into())
-                } else {
-                    None
-                };
-
-                let timestamp: Option<OrderedFiles<(String, _)>>= if !matches.is_present("no-timestamp") {
-                    let timestamp = format!("{:?}", utc);
-                    Some(vec![(String::from(".timestamp"), Cursor::new(timestamp))].into())
-                } else {
-                    None
-                };
-
-                Ok(files + type_files + authorship_files + timestamp)
-
-            }
-
             let utc: DateTime<Utc> = Utc::now();
-
 
             let signing = matches.is_present("sign") || config.signing.enabled;
 

@@ -2,16 +2,18 @@ extern crate sit_core;
 
 extern crate chrono;
 extern crate tempfile;
-#[macro_use] extern crate clap;
+#[macro_use]
+extern crate clap;
 
 use std::env;
 use std::path::PathBuf;
 use std::process::exit;
 
-use clap::{Arg, App, SubCommand, ArgMatches};
+use clap::{App, Arg, ArgMatches, SubCommand};
 
 extern crate serde;
 extern crate serde_json;
+extern crate walkdir;
 extern crate yaml_rust;
 
 extern crate config;
@@ -235,7 +237,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             .arg(Arg::with_name("FILES")
                      .multiple(true)
                      .takes_value(true)
-                     .help("Collection of files the record will be built from")))
+                     .help("Collection of files or folders the record will be built from")))
         .subcommand(SubCommand::with_name("records")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Lists records")
