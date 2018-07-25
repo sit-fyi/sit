@@ -29,6 +29,7 @@ mod command_reduce;
 mod command_records;
 mod command_external;
 mod command_jmespath;
+mod command_integrity;
 
 mod cli;
 
@@ -118,6 +119,13 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             .long("config")
             .takes_value(true)
             .help("Config file (overrides default)"))
+        .arg(Arg::with_name("disable-integrity-check")
+                 .short("i")
+                 .long("disable-integrity-check")
+                 .help("Disables record integrity check (mostly for performance reasons)"))
+        .subcommand(SubCommand::with_name("integrity")
+            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+            .about("Checks the integrity of record hashes and lists invalid records"))
         .subcommand(SubCommand::with_name("upgrade")
             .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
             .about("Upgrades the repository"))
@@ -396,8 +404,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         let repo_path = matches.value_of("repository").map(PathBuf::from)
                        .or_else(|| sit_core::Repository::find_in_or_above(".sit",&working_dir))
                        .expect("Can't find a repository");
-        let repo = sit_core::Repository::open(&repo_path)
+        let mut repo = sit_core::Repository::open(&repo_path)
             .expect("can't open repository");
+        let integrity_check = !matches.is_present("disable-integrity-check") && !env::var("SIT_DISABLE_INTEGRITY_CHECK").is_ok();
+        repo.set_integrity_check(integrity_check);
         return match repo.config().clone().extra().get("external_module_manager") {
             Some(serde_json::Value::String(name)) => {
                 let original_repo = repo.clone();
@@ -461,6 +471,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                     command_config::command(repo.config(), matches.value_of("query"));
                 }
                 return 0;
+            }
+
+            if let Some(_) = matches.subcommand_matches("integrity") {
+                return command_integrity::command(repo);
             }
 
             match command_external::command(&matches, repo, &cwd) {

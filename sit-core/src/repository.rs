@@ -56,6 +56,8 @@ pub struct Repository<MI> {
     config: Config,
     /// Module iterator
     module_iterator: MI,
+    /// Integrity check
+    integrity_check: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -273,6 +275,7 @@ impl Repository<ModuleDirectory<PathBuf>> {
                 config,
                 modules_path,
                 module_iterator,
+                integrity_check: true,
             };
             repo.save()?;
             Ok(repo)
@@ -331,6 +334,7 @@ impl Repository<ModuleDirectory<PathBuf>> {
             config,
             modules_path,
             module_iterator,
+            integrity_check: true,
         };
         Ok(repository)
     }
@@ -380,6 +384,7 @@ impl<MI> Repository<MI> {
             items_path: self.items_path,
             config: self.config,
             module_iterator: (self.module_iterator, module_iterator),
+            integrity_check: self.integrity_check,
         }
     }
 
@@ -392,9 +397,33 @@ impl<MI> Repository<MI> {
             items_path: self.items_path,
             config: self.config,
             module_iterator,
+            integrity_check: self.integrity_check,
         }
     }
 
+    /// Returns the status of integrity check
+    pub fn integrity_check(&self) -> bool {
+        self.integrity_check
+    }
+
+
+    /// Mutably changes the requirement for integrity check
+    pub fn set_integrity_check(&mut self, value: bool) {
+        self.integrity_check = value;
+    }
+
+    /// Creates a new instance of `Repository` with a changed requirement for integrity check
+    pub fn with_integrity_check(self, value: bool) -> Self {
+        Repository {
+            path: self.path,
+            config_path: self.config_path,
+            modules_path: self.modules_path,
+            items_path: self.items_path,
+            config: self.config,
+            module_iterator: self.module_iterator,
+            integrity_check: value,
+        }
+    }
 
 
     /// Saves the repository. Ensures the directory exists and the configuration has
@@ -441,7 +470,7 @@ impl<MI> Repository<MI> {
 
     /// Returns an unordered (as in "order not defined") item iterator
     pub fn item_iter(&self) -> Result<ItemIter<MI>, Error> {
-        Ok(ItemIter { repository: self, dir: fs::read_dir(&self.items_path)? })
+        Ok(ItemIter { repository: self, dir: fs::read_dir(&self.items_path)?, integrity_check: self.integrity_check })
     }
 
     /// Creates and returns a new item with a unique ID
@@ -460,6 +489,7 @@ impl<MI> Repository<MI> {
         Ok(Item {
             repository: self,
             id,
+            integrity_check: self.integrity_check,
         })
     }
 
@@ -473,7 +503,7 @@ impl<MI> Repository<MI> {
                 return None;
             }
             let id = path.file_name().unwrap().to_os_string();
-            let item = Item { repository: self, id };
+            let item = Item { repository: self, id, integrity_check: self.integrity_check };
             Some(item)
         } else {
             None
@@ -509,12 +539,35 @@ use std::ffi::OsString;
 pub struct Item<'a, MI: 'a> {
     repository: &'a Repository<MI>,
     id: OsString,
+    integrity_check: bool,
 }
 
 use record::{File, OrderedFiles};
 use relative_path::{RelativePath, Component as RelativeComponent};
 
 impl<'a, MI: 'a> Item<'a, MI> {
+
+    /// Returns the status of integrity check
+    pub fn integrity_check(&self) -> bool {
+        self.integrity_check
+    }
+
+
+    /// Mutably changes the requirement for integrity check
+    pub fn set_integrity_check(&mut self, value: bool) {
+        self.integrity_check = value;
+    }
+
+    /// Creates a new instance of `Item` with a changed requirement for integrity check
+    pub fn with_integrity_check(self, value: bool) -> Self {
+        Item {
+            repository: self.repository,
+            id: self.id,
+            integrity_check: value,
+        }
+    }
+
+
     pub fn new_record_in<'f, P: AsRef<Path>, F: File + 'f, I: Into<OrderedFiles<'f, F>>>(&self, path: P, files: I, link_parents: bool) ->
            Result<<Item<'a, MI> as ItemTrait>::Record, <Item<'a, MI> as ItemTrait>::Error> where F::Read: 'f {
         let tempdir = TempDir::new_in(&self.repository.path,"sit")?;
@@ -581,6 +634,7 @@ impl<'a, MI: 'a> ItemTrait for Item<'a, MI> {
             repository: self.repository,
             dir,
             parents: vec![],
+            integrity_check: self.integrity_check,
         })
     }
 
@@ -596,6 +650,7 @@ pub struct ItemRecordIter<'a, MI: 'a> {
     repository: &'a Repository<MI>,
     dir: Vec<fs::DirEntry>,
     parents: Vec<String>,
+    integrity_check: bool,
 }
 
 impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
@@ -626,16 +681,33 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
 
                     }
                 };
+
                 has_all_valid_parents
             });
-        let result: Vec<_> = filtered.iter()
-            .map(|e| Record {
-                hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
-                item: self.item.clone(),
-                repository: self.repository,
-                path: item_path.join(e.file_name()),
-            })
-            .collect();
+        let result: Vec<_> = {
+            let mapped = filtered.iter()
+                .map(|e| Record {
+                    hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
+                    item: self.item.clone(),
+                    repository: self.repository,
+                    path: item_path.join(e.file_name()),
+                });
+            if self.integrity_check {
+                mapped.filter(|r| {
+                    let mut hasher = self.repository.config.hashing_algorithm.hasher();
+                    let ordered_files = OrderedFiles::from(r.file_iter());
+                    match ordered_files.hash(&mut *hasher) {
+                        Ok(_) => {
+                            let hash = hasher.result_box();
+                            r.hash == hash
+                        },
+                        _ => false
+                    }
+                }).collect()
+            } else {
+                mapped.collect()
+            }
+        };
         self.dir = dir;
         if result.len() == 0 {
             return None
@@ -651,6 +723,7 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
 pub struct ItemIter<'a, MI: 'a> {
     repository: &'a Repository<MI>,
     dir: fs::ReadDir,
+    integrity_check: bool,
 }
 
 impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
@@ -671,7 +744,7 @@ impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
                     }
                     let file_type = file_type.unwrap();
                     if file_type.is_dir() {
-                        return Some(Item { repository: self.repository, id: entry.file_name() });
+                        return Some(Item { repository: self.repository, id: entry.file_name(), integrity_check: self.integrity_check });
                     } else {
                         continue;
                     }
@@ -940,6 +1013,53 @@ mod tests {
         assert_eq!(string, "hello");
         // list records
         let mut records: Vec<Record<_>> = item.record_iter().unwrap().flat_map(|v| v).collect();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records.pop().unwrap().hash(), record.hash());
+    }
+
+    #[test]
+    fn record_integrity_check() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(&tmp).unwrap();
+        // create an item
+        let mut item = repo.new_item().unwrap();
+        // create a record
+        let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
+        // tamper with the record
+        let mut file = fs::File::create(repo.items_path().join(item.id()).join(record.encoded_hash()).join("file")).unwrap();
+        file.write(b"test").unwrap();
+        drop(file);
+        // list records
+        let records: Vec<Record<_>> = item.record_iter().unwrap().flat_map(|v| v).collect();
+        // invalid record should not be listed
+        assert_eq!(records.len(), 0);
+        // disable integrity check
+        item.set_integrity_check(false);
+        let mut records: Vec<Record<_>> = item.record_iter().unwrap().flat_map(|v| v).collect();
+        // now there should be a record
+        assert_eq!(records.len(), 1);
+        assert_eq!(records.pop().unwrap().hash(), record.hash());
+    }
+
+    #[test]
+    fn record_integrity_check_propagates_from_repository() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let mut repo = Repository::new(&tmp).unwrap();
+        repo.set_integrity_check(false);
+        // create an item
+        let item = repo.new_item().unwrap();
+        assert!(!item.integrity_check());
+        // create a record
+        let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
+        // tamper with the record
+        let mut file = fs::File::create(repo.items_path().join(item.id()).join(record.encoded_hash()).join("file")).unwrap();
+        file.write(b"test").unwrap();
+        drop(file);
+        // list records
+        let mut records: Vec<Record<_>> = item.record_iter().unwrap().flat_map(|v| v).collect();
+        // now there should be a record
         assert_eq!(records.len(), 1);
         assert_eq!(records.pop().unwrap().hash(), record.hash());
     }
