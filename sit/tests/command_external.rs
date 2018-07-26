@@ -4,6 +4,7 @@ use cli_test_dir::*;
 
 mod helpers;
 use helpers::*;
+use std::env;
 
 /// Should fail on an unavailable command
 #[test]
@@ -24,7 +25,7 @@ fn ext_sit_path() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    create_script(&dir, ".sit/cli/sit-path", ".sit/cli/sit-path.bat", r#"#! /bin/bash
+    create_script(&dir, ".sit/cli/sit-path", ".sit/cli/sit-path.bat", r#"#! /usr/bin/env bash
         echo -n ${SIT}
     "#, r#"
     @echo off
@@ -46,7 +47,7 @@ fn ext_cli() {
         .arg("init")
         .expect_success();
 
-    create_script(&dir, ".sit/cli/sit-exists", ".sit/cli/sit-exists.bat", r#"#! /bin/bash
+    create_script(&dir, ".sit/cli/sit-exists", ".sit/cli/sit-exists.bat", r#"#! /usr/bin/env bash
         echo SIT_DIR=${SIT_DIR}
     "#, r#"
     @echo off
@@ -68,7 +69,7 @@ fn ext_modules_cli() {
         .arg("init")
         .expect_success();
 
-    create_script(&dir, ".sit/modules/test/cli/sit-exists", ".sit/modules/test/cli/sit-exists.bat", r#"#! /bin/bash
+    create_script(&dir, ".sit/modules/test/cli/sit-exists", ".sit/modules/test/cli/sit-exists.bat", r#"#! /usr/bin/env bash
         echo SIT_DIR=${SIT_DIR}
     "#, r#"
     @echo off
@@ -90,7 +91,7 @@ fn ext_modules_path() {
         .arg("init")
         .expect_success();
 
-    create_script(&dir, "sit-exists", "sit-exists.bat", r#"#! /bin/bash
+    create_script(&dir, "sit-exists", "sit-exists.bat", r#"#! /usr/bin/env bash
         echo SIT_DIR=${SIT_DIR}
     "#, r#"
     @echo off
@@ -98,7 +99,7 @@ fn ext_modules_path() {
     "#);
 
     let result = String::from_utf8(dir.cmd()
-        .env("PATH", dir.path(".").to_str().unwrap())
+        .env("PATH", format!("{}:{}", env::var("PATH").unwrap(), dir.path(".").to_str().unwrap()))
         .arg("exists")
         .expect_success().stdout).unwrap().replace("\r","");
 
@@ -113,21 +114,21 @@ fn ext_cli_over_modules_cli_and_path() {
         .arg("init")
         .expect_success();
 
-    create_script(&dir, "sit-exists", "sit-exists.bat", r#"#! /bin/bash
+    create_script(&dir, "sit-exists", "sit-exists.bat", r#"#! /usr/bin/env bash
     echo path
     "#, r#"
     @echo off
     echo path
     "#);
 
-    create_script(&dir, ".sit/cli/sit-exists", ".sit/cli/sit-exists.bat", r#"#! /bin/bash
+    create_script(&dir, ".sit/cli/sit-exists", ".sit/cli/sit-exists.bat", r#"#! /usr/bin/env bash
     echo cli
     "#, r#"
     @echo off
     echo cli
     "#);
 
-    create_script(&dir, ".sit/modules/test/cli/sit-exists", ".sit/modules/test/cli/sit-exists.bat", r#"#! /bin/bash
+    create_script(&dir, ".sit/modules/test/cli/sit-exists", ".sit/modules/test/cli/sit-exists.bat", r#"#! /usr/bin/env bash
     echo modules
     "#, r#"
     @echo off
@@ -136,7 +137,7 @@ fn ext_cli_over_modules_cli_and_path() {
 
 
     let result = String::from_utf8(dir.cmd()
-        .env("PATH", dir.path(".").to_str().unwrap())
+        .env("PATH", format!("{}:{}", env::var("PATH").unwrap(), dir.path(".").to_str().unwrap()))
         .arg("exists")
         .expect_success().stdout).unwrap().replace("\r","");
 
@@ -151,14 +152,14 @@ fn ext_modules_over_path() {
         .arg("init")
         .expect_success();
 
-    create_script(&dir, "sit-exists", "sit-exists.bat", r#"#! /bin/bash
+    create_script(&dir, "sit-exists", "sit-exists.bat", r#"#! /usr/bin/env bash
     echo path
     "#, r#"
     @echo off
     echo path
     "#);
 
-    create_script(&dir, ".sit/modules/test/cli/sit-exists", ".sit/modules/test/cli/sit-exists.bat", r#"#! /bin/bash
+    create_script(&dir, ".sit/modules/test/cli/sit-exists", ".sit/modules/test/cli/sit-exists.bat", r#"#! /usr/bin/env bash
     echo modules
     "#, r#"
     @echo off
@@ -167,7 +168,7 @@ fn ext_modules_over_path() {
 
 
     let result = String::from_utf8(dir.cmd()
-        .env("PATH", dir.path(".").to_str().unwrap())
+        .env("PATH", format!("{}:{}", env::var("PATH").unwrap(), dir.path(".").to_str().unwrap()))
         .arg("exists")
         .expect_success().stdout).unwrap().replace("\r","");
 
