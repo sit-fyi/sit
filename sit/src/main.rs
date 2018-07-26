@@ -111,6 +111,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             .short("r")
             .long("repository")
             .takes_value(true)
+            .env("SIT_DIR")
             .help("Point to a specific directory of SIT's repository"))
         .arg(Arg::with_name("verbosity")
             .short("v")
