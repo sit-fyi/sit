@@ -1,0 +1,6 @@
+The main thought here is that `cfg` defines structures
+that are used by code outside of `sit-core` (namely, `sit`
+and `sit-web`).
+
+Solution: move `cfg` to the `sit` crate
+
