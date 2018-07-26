@@ -1,0 +1,8 @@
+Under these tests, sit is seemingly failing to find
+CLI commands, but only on some systems.
+
+Solution: don't use hardcoded /bin/bash interpreter
+
+Instead, rely on `/usr/bin/env bash` and amending
+the PATH instead of changing it.
+
