@@ -35,9 +35,6 @@ mod command_integrity;
 
 mod cli;
 
-#[cfg(unix)]
-extern crate xdg;
-
 extern crate jmespath;
 
 extern crate fs_extra;
@@ -59,6 +56,7 @@ use which::which;
 extern crate thread_local;
 
 #[macro_use] extern crate derive_error;
+extern crate directories;
 
 use std::collections::HashMap;
 pub fn get_named_expression<S: AsRef<str>, MI>(name: S, repo: &sit_core::Repository<MI>,
@@ -95,10 +93,8 @@ fn main() {
 }
 
 fn main_with_result(allow_external_subcommands: bool) -> i32 {
-    #[cfg(unix)]
-    let xdg_dir = xdg::BaseDirectories::with_prefix("sit").unwrap();
-
     let cwd = env::current_dir().expect("can't get current working directory");
+
     let mut app = App::new("SIT")
         .version(crate_version!())
         .about(crate_description!())
@@ -345,10 +341,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         return command_args::command(&matches);
    }
 
-    #[cfg(unix)]
-    let default_config = PathBuf::from(xdg_dir.place_config_file("config.json").expect("can't create config directory"));
-    #[cfg(windows)]
-    let default_config = env::home_dir().expect("can't identify home directory").join("sit_config.json");
+    let project_dirs = directories::ProjectDirs::from("fyi", "sit", "sit").expect("can't derive project directories");
+    let default_config = project_dirs.config_dir().join("config.json");
 
     let config_path = matches.value_of("config").unwrap_or(default_config.to_str().unwrap());
 

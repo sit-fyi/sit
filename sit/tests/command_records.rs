@@ -10,6 +10,8 @@ use sit_core::{Repository, Item};
 use cli_test_dir::*;
 use remove_dir_all::*;
 
+include!("includes/config.rs");
+
 /// Should list no records if there are none
 #[test]
 fn no_records() {
@@ -81,11 +83,11 @@ fn named_user_filter() {
     let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
     // filter out item we just created
     let cfg = &format!(r#"{{"records": {{"filters": {{"f1": "hash != '{}'"}}}}}}"#, record.trim());
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
+    user_config(&dir, cfg);
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
     assert_eq!(output, record1);
 }
 
@@ -101,12 +103,12 @@ fn repo_over_named_user_filter() {
     let record1 = String::from_utf8(dir.cmd().args(&["record", id.trim(), "--no-author", "-t", "Type"]).expect_success().stdout).unwrap();
     // filter out item we just created
     let cfg = &format!(r#"{{"records": {{"filters": {{"f1": "hash != '{}'"}}}}}}"#, record1.trim());
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
+    user_config(&dir, cfg);
     dir.create_file(".sit/.records/filters/f1", &format!("hash != '{}'", record1.trim()));
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["records", id.trim(), "-F", "f1"]).expect_success().stdout).unwrap();
     assert_eq!(output, record);
 }
 
@@ -158,11 +160,11 @@ fn named_user_query() {
     // create a record
     let _record = item.new_record(vec![("test", &b"passed"[..])].into_iter(), true).unwrap();
     let cfg = r#"{"records": {"queries": {"q1": "files.test"}}}"#;
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["records", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
+    user_config(&dir, cfg);
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["records", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), "passed");
 }
 
@@ -181,11 +183,11 @@ fn repo_over_named_user_query() {
     let _record = item.new_record(vec![("test", &b"passed"[..])].into_iter(), true).unwrap();
     dir.create_file(".sit/.records/queries/q1", "files.test");
     let cfg = r#"{"records": {"queries": {"q1": "null"}}}"#;
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["records", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
+    user_config(&dir, cfg);
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["records", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), "passed");
 }
 
@@ -193,6 +195,7 @@ fn repo_over_named_user_query() {
 #[test]
 fn pgp_signature() {
     let dir = TestDir::new("sit", "pgp");
+    no_user_config(&dir);
 
     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
 
@@ -229,12 +232,14 @@ fn pgp_signature() {
 
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
         .args(&["record", "--sign",  "--signing-key", "test@test.com", &id, "--no-author", "-t","Sometype"])
         .expect_success();
 
     let output = String::from_utf8(dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
         .args(&["records", id.trim(), "-v", "-q", "verification.success"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), "true");
@@ -244,6 +249,7 @@ fn pgp_signature() {
 #[test]
 fn pgp_signature_wrong_data() {
     let dir = TestDir::new("sit", "pgps");
+    no_user_config(&dir);
 
     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
 
@@ -281,6 +287,7 @@ fn pgp_signature_wrong_data() {
     // Snatch the signature
     let oldrec = String::from_utf8(dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
         .args(&["record", "--sign",  "--signing-key", "test@test.com", &id, "--no-author", "-t","Sometype"])
         .expect_success().stdout).unwrap();
@@ -298,6 +305,7 @@ fn pgp_signature_wrong_data() {
 
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "-t","Sometype1", ".signature"])
         .expect_success();
@@ -305,6 +313,7 @@ fn pgp_signature_wrong_data() {
 
     let output = String::from_utf8(dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
         .args(&["records", id.trim(), "-v", "-q", "verification.success"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), "false");
@@ -315,6 +324,7 @@ fn pgp_signature_wrong_data() {
 #[test]
 fn pgp_no_signature() {
     let dir = TestDir::new("sit", "pgpno");
+    no_user_config(&dir);
 
     dir.cmd()
         .arg("init")
@@ -325,11 +335,13 @@ fn pgp_no_signature() {
 
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "-t","Sometype"])
         .expect_success();
 
     let output = String::from_utf8(dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["records", id.trim(), "-v", "-q", "verification"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), "null");
 }

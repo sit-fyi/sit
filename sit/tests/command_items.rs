@@ -5,6 +5,8 @@ use sit_core::{Repository, Item};
 
 use cli_test_dir::*;
 
+include!("includes/config.rs");
+
 /// Should list no items if there are none
 #[test]
 fn no_items() {
@@ -68,11 +70,11 @@ fn item_named_user_filter() {
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
     // filter out item we just created
     let cfg = &format!(r#"{{"items": {{"filters": {{"f1": "id != '{}'"}}}}}}"#, id.trim());
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
+    user_config(&dir, cfg);
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
     assert_eq!(output, id_);
 }
 
@@ -86,13 +88,13 @@ fn item_repo_over_named_user_filter() {
     let id_ = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
     let id = String::from_utf8(dir.cmd().arg("item").expect_success().stdout).unwrap();
     let cfg = &format!(r#"{{"items": {{"filters": {{"f1": "id == '{}'"}}}}}}"#, id.trim());
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
+    user_config(&dir, cfg);
     // filter out item we just created
     dir.create_file(".sit/.items/filters/f1", &format!("id != '{}'", id.trim()));
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["items","-F", "f1"]).expect_success().stdout).unwrap();
     assert_eq!(output, id_);
 }
 
@@ -152,11 +154,11 @@ fn item_named_user_query() {
     // create a record
     Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id, value])"}}}"#;
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
+    user_config(&dir, cfg);
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
 }
 
@@ -176,12 +178,12 @@ fn item_repo_over_named_user_query() {
     // create a record
     Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id])"}}}"#;
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
+    user_config(&dir, cfg);
     dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["items","-Q", "q1"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
 }
 

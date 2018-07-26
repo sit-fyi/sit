@@ -8,6 +8,8 @@ use cli_test_dir::*;
 use sit_core::{Repository, Item, record::RecordExt};
 use std::process;
 
+include!("includes/config.rs");
+
 /// Should derive authorship from the config file
 #[test]
 fn record_authorship() {
@@ -18,12 +20,10 @@ fn record_authorship() {
     let id: String = String::from_utf8(dir.cmd()
         .arg("item")
         .expect_success().stdout).unwrap().trim().into();
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
+    user_config(&dir, r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "-t", "Sometype"])
         .expect_success();
     verify_authors(&dir, &id,"Test <test@test.com>");
@@ -40,8 +40,10 @@ fn record_no_authorship_no_git() {
     let id = dir.cmd()
         .arg("item")
         .expect_success().stdout;
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", ::std::str::from_utf8(&id).unwrap(), "-t","Sometype"])
         .expect_failure();
 }
@@ -56,8 +58,10 @@ fn record_no_authorship_no_author() {
     let id: String = String::from_utf8(dir.cmd()
         .arg("item")
         .expect_success().stdout).unwrap().trim().into();
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "-t", "Sometype"])
         .expect_success();
 }
@@ -73,8 +77,10 @@ fn record_no_authorship_local_git() {
         .arg("item")
         .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".git/config", "[user]\nname=Test\nemail=test@test.com");
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "-t", "Sometype"])
         .expect_success();
     verify_authors(&dir, &id,"Test <test@test.com>");
@@ -91,8 +97,10 @@ fn record_no_authorship_user_git() {
         .arg("item")
         .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".gitconfig","[user]\nname=Test\nemail=test@test.com");
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "-t","Sometype"])
         .expect_success();
     verify_authors(&dir, &id,"Test <test@test.com>");
@@ -110,8 +118,10 @@ fn record_no_authorship_local_over_user_git() {
         .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".gitconfig","[user]\nname=Test\nemail=test@test.com");
     dir.create_file(".git/config","[user]\nname=User\nemail=user@test.com");
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "-t","Sometype"])
         .expect_success();
     verify_authors(&dir, &id,"User <user@test.com>");
@@ -127,8 +137,10 @@ fn record_should_record_timestamp() {
     let id: String = String::from_utf8(dir.cmd()
         .arg("item")
         .expect_success().stdout).unwrap().trim().into();
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "-t","Sometype"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
@@ -154,8 +166,10 @@ fn record_should_not_record_timestamp() {
     let id: String = String::from_utf8(dir.cmd()
         .arg("item")
         .expect_success().stdout).unwrap().trim().into();
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "--no-timestamp", "-t","Sometype"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
@@ -176,8 +190,10 @@ fn record_should_not_record_if_files_are_missing() {
         .arg("item")
         .expect_success().stdout).unwrap().trim().into();
     dir.create_file("exists","");
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "-t","Sometype", "exists", "missing"])
         .expect_failure();
 }
@@ -193,8 +209,10 @@ fn record_should_fail_if_no_type() {
         .arg("item")
         .expect_success().stdout).unwrap().trim().into();
     dir.create_file("file", "");
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "file"])
         .expect_success();
 }
@@ -210,8 +228,10 @@ fn record_dot_type_sufficiency() {
         .arg("item")
         .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".type/MyType","");
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", ".type/MyType"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
@@ -234,8 +254,10 @@ fn record_should_merge_types() {
         .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".type/MyType","");
     dir.create_file(".type/OurType","");
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "-t","Sometype,SomeOtherType",".type/MyType", ".type/OurType"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
@@ -260,8 +282,10 @@ fn record_should_record_files() {
         .expect_success().stdout).unwrap().trim().into();
     dir.create_file("file1","file1");
     dir.create_file("files/file2","file2");
+    no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "-t","Sometype","file1", "files/file2"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
@@ -311,6 +335,7 @@ fn record_should_record_files_and_directories() {
 #[test]
 fn record_should_sign_if_configured() {
     let dir = TestDir::new("sit", "rssic"); // workaround for "File name too long" error
+    no_user_config(&dir);
 
     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
 
@@ -338,11 +363,7 @@ fn record_should_sign_if_configured() {
     }
     genkey.expect_success();
 
-    #[cfg(unix)]
-    let cfg = ".config/sit/config.json";
-    #[cfg(windows)]
-    let cfg = "sit_config.json";
-    dir.create_file(cfg, r#"{"author": {"name": "Test", "email": "test@test.com"}, "signing": {"enabled": true, "key": "test@test.com"}}"#);
+    user_config(&dir, r#"{"author": {"name": "Test", "email": "test@test.com"}, "signing": {"enabled": true, "key": "test@test.com"}}"#);
 
     dir.cmd()
         .arg("init")
@@ -353,6 +374,7 @@ fn record_should_sign_if_configured() {
 
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "-t","Sometype"])
         .expect_success();
@@ -367,6 +389,7 @@ fn record_should_sign_if_configured() {
 #[test]
 fn record_should_sign_if_instructed_cmdline() {
     let dir = TestDir::new("sit", "rssiic"); // workaround for "File name too long" error
+    no_user_config(&dir);
 
     let gpg = which::which("gpg2").or_else(|_| which::which("gpg")).expect("should have gpg installed");
 
@@ -403,6 +426,7 @@ fn record_should_sign_if_instructed_cmdline() {
 
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
         .args(&["record", "--sign",  "--signing-key", "test@test.com", &id, "--no-author", "-t","Sometype"])
         .expect_success();

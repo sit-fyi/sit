@@ -6,6 +6,8 @@ use sit_core::{Repository, Item};
 
 use cli_test_dir::*;
 
+include!("includes/config.rs");
+
 /// Should fail if there is no item to reduce
 #[test]
 fn no_item() {
@@ -95,11 +97,11 @@ fn item_named_user_query() {
     // create a record
     Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id, value])"}}}"#;
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
+    user_config(&dir, cfg);
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
 }
 
@@ -119,11 +121,11 @@ fn item_repo_over_named_user_query() {
     // create a record
     Repository::open(dir.path(".sit")).unwrap().item(id.trim()).unwrap().new_record(vec![("test", &b""[..])].into_iter(), true).unwrap();
     let cfg = r#"{"items": {"queries": {"q1": "join(' ', ['item', id])"}}}"#;
-    #[cfg(unix)]
-    dir.create_file(".config/sit/config.json", cfg);
-    #[cfg(windows)]
-    dir.create_file("sit_config.json", cfg);
+    user_config(&dir, cfg);
     dir.create_file(".sit/.items/queries/q1", "join(' ', ['item', id, value])");
-    let output = String::from_utf8(dir.cmd().env("HOME", dir.path(".").to_str().unwrap()).args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
+    let output = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap())
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["reduce", id.trim(), "-Q", "q1"]).expect_success().stdout).unwrap();
     assert_eq!(output.trim(), format!("item {} hello", id.trim()));
 }
