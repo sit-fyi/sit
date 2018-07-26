@@ -26,7 +26,6 @@ sha-1 = { version = "0.7", optional = true }
 uuid = { version = "0.5", features = ["v4"], optional = true }
 memmap = { version = "0.6", optional = true}
 cesu8 = { version = "1.1", optional = true }
-git2 = { version = "0.7", optional = true, default-features = false }
 relative-path = "0.3"
 
 [dev-dependencies]
@@ -45,5 +44,4 @@ duktape-reducers = ["duktape", "cesu8"]
 duktape = []
 duktape-mmap = ["memmap"]
 windows7 = []
-git = ["git2"]
 deprecated-item-api = []

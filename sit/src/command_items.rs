@@ -1,5 +1,6 @@
 use clap::ArgMatches;
-use sit_core::{self, reducers::duktape::DuktapeReducer, Repository, record::RecordContainerReduction, cfg::Configuration};
+use sit_core::{self, reducers::duktape::DuktapeReducer, Repository, record::RecordContainerReduction};
+use cfg::Configuration;
 use serde_json;
 use rayon::prelude::*;
 use super::get_named_expression;

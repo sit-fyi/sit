@@ -63,4 +63,3 @@ pub mod reducers;
 pub use reducers::Reducer;
 #[cfg(feature = "duktape")]
 pub mod duktape;
-pub mod cfg;
