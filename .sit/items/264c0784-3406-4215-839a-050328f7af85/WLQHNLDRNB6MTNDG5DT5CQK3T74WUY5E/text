@@ -1,0 +1,10 @@
+The error is happening during the compilation of
+`pbr` 1.0.0 (dependency):
+
+```
+ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut winsize)
+                     ^^^^^^^^^^ expected u64, found u32
+```
+
+Solution: upgrade to pbr 1.0.1
+
