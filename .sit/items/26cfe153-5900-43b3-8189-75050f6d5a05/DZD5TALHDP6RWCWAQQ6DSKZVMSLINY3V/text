@@ -1,0 +1,8 @@
+While `sit` sets `SIT_DIR` environment variable when
+executing external commands, it ignores `SIT_DIR` itself,
+meaning those external commands should pass the directory
+explcitly back to `sit` if they call it to ensure the
+right repository will be used.
+
+Solution: make `sit` respect SIT_DIR
+

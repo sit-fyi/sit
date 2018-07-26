@@ -1,0 +1,75 @@
+From 0c7ae0cac5bdbe00036126a67e15806f92f2badd Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 26 Jul 2018 10:32:48 +0700
+Subject: [PATCH] Problem: `sit` doesn't respect SIT_DIR
+
+While `sit` sets `SIT_DIR` environment variable when
+executing external commands, it ignores `SIT_DIR` itself,
+meaning those external commands should pass the directory
+explcitly back to `sit` if they call it to ensure the
+right repository will be used.
+
+Solution: make `sit` respect SIT_DIR
+---
+ sit/src/main.rs           |  1 +
+ sit/tests/command_path.rs | 36 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 37 insertions(+)
+ create mode 100644 sit/tests/command_path.rs
+
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index d65abf4..81c8884 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -111,6 +111,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+             .short("r")
+             .long("repository")
+             .takes_value(true)
++            .env("SIT_DIR")
+             .help("Point to a specific directory of SIT's repository"))
+         .arg(Arg::with_name("verbosity")
+             .short("v")
+diff --git a/sit/tests/command_path.rs b/sit/tests/command_path.rs
+new file mode 100644
+index 0000000..9626d8e
+--- /dev/null
++++ b/sit/tests/command_path.rs
+@@ -0,0 +1,36 @@
++extern crate cli_test_dir;
++
++use cli_test_dir::*;
++use std::fs;
++
++/// `sit path` should print repository's directory
++#[test]
++fn path() {
++    let dir = TestDir::new("sit", "path");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let path = String::from_utf8(dir.cmd().arg("path").expect_success().stdout).unwrap();
++    assert_eq!(path.trim(), dir.path(".sit").to_str().unwrap());
++}
++
++/// `sit path` should print repository's directory when it's suplied over SIT_DIR
++#[test]
++fn path_sit_dir() {
++    let dir = TestDir::new("sit", "path_sit_dir");
++    fs::create_dir_all(dir.path("1")).unwrap();
++    fs::create_dir_all(dir.path("2")).unwrap();
++    dir.cmd()
++        .current_dir(dir.path("1"))
++        .arg("init")
++        .expect_success();
++    dir.cmd()
++        .current_dir(dir.path("2"))
++        .arg("init")
++        .expect_success();
++    let path = String::from_utf8(dir.cmd().current_dir(dir.path("2"))
++        .env("SIT_DIR", dir.path("1").join(".sit")).arg("path")
++        .expect_success().stdout).unwrap();
++    assert_eq!(path.trim(), dir.path("1").join(".sit").to_str().unwrap());
++}
++
+-- 
+2.16.4
+
