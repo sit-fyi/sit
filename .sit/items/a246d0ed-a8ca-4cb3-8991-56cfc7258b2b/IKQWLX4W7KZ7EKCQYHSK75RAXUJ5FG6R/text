@@ -1,0 +1,16 @@
+Currently, unless instructed, `sit` will record some auxiliary
+information in every record (specifically, authorship information
+and a timestamp). This behaviour can be disabled, however, every
+piece of information has to be disabled individually (`--no-author`,
+`--no-timestamp`).
+
+However, with SIT's gradual transition to a more generic solution
+than it was originally (an issue tracker) this behaviour could be
+a nuisance. While in the future it is most likely that by default
+`sit` will not record this information and it'll be rather done by
+hooks (which haven't been developed yet), the need to pass two
+long flags to suppress this information is rather annoying.
+
+Solution: introduce `--no-aux/-n` argument to the `record` subcommand
+that will suppress authorship and timestamp information from the record.
+

@@ -1,0 +1,117 @@
+From 39cf826b27e8801867c01f414b8ed357bd0f1628 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sat, 28 Jul 2018 15:52:28 +0700
+Subject: [PATCH] Problem: sit recording auxiliary information
+
+Currently, unless instructed, `sit` will record some auxiliary
+information in every record (specifically, authorship information
+and a timestamp). This behaviour can be disabled, however, every
+piece of information has to be disabled individually (`--no-author`,
+`--no-timestamp`).
+
+However, with SIT's gradual transition to a more generic solution
+than it was originally (an issue tracker) this behaviour could be
+a nuisance. While in the future it is most likely that by default
+`sit` will not record this information and it'll be rather done by
+hooks (which haven't been developed yet), the need to pass two
+long flags to suppress this information is rather annoying.
+
+Solution: introduce `--no-aux/-n` argument to the `record` subcommand
+that will suppress authorship and timestamp information from the record.
+---
+ sit/src/command_record.rs   |  6 +++---
+ sit/src/main.rs             |  4 ++++
+ sit/tests/command_record.rs | 30 ++++++++++++++++++++++++++++++
+ 3 files changed, 37 insertions(+), 3 deletions(-)
+
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+index 1db5ac0..5d72dd0 100644
+--- a/sit/src/command_record.rs
++++ b/sit/src/command_record.rs
+@@ -97,14 +97,14 @@ fn record_files(
+         .into();
+ 
+     // .authors
+-    let authorship_files: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-author") {
++    let authorship_files: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-aux") && !matches.is_present("no-author") {
+         let authors = format!("{}", config.author.clone().unwrap());
+         Some(vec![(String::from(".authors"), Cursor::new(authors))].into())
+     } else {
+         None
+     };
+ 
+-    let timestamp: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-timestamp") {
++    let timestamp: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-aux") && !matches.is_present("no-timestamp") {
+         let timestamp = format!("{:?}", utc);
+         Some(vec![(String::from(".timestamp"), Cursor::new(timestamp))].into())
+     } else {
+@@ -115,7 +115,7 @@ fn record_files(
+ }
+ 
+ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: &Repository<MI>, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
+-    if !matches.is_present("no-author") && config.author.is_none() {
++    if !matches.is_present("no-aux") && !matches.is_present("no-author") && config.author.is_none() {
+         if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
+             config.author = Some(author);
+         } else {
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 5507e4c..c2398ad 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -217,6 +217,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+             .arg(Arg::with_name("no-author")
+                 .long("no-author")
+                 .help("By default, SIT will authorship information to all new records. This option disables this behaviour"))
++            .arg(Arg::with_name("no-aux")
++                .long("no-aux")
++                .short("n")
++                .help("By default, SIT will attempt to add auxiliary information. This option disables this behaviour"))
+             .arg(Arg::with_name("sign")
+                 .long("sign")
+                 .short("s")
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index b3b0cf3..e42785e 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -64,8 +64,38 @@ fn record_no_authorship_no_author() {
+         .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", &id, "--no-author", "-t", "Sometype"])
+         .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    assert!(record.file(".authors").is_none());
++}
++
++/// Should not attempt to record any auxiliary information if specifically asked to do so
++#[test]
++fn record_no_aux() {
++    let dir = TestDir::new("sit", "record_no_aux");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    let id: String = String::from_utf8(dir.cmd()
++        .arg("item")
++        .expect_success().stdout).unwrap().trim().into();
++    no_user_config(&dir);
++    dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["record", &id, "--no-aux"])
++        .expect_success();
++    let repo = Repository::open(dir.path(".sit")).unwrap();
++    let item = repo.item(id).unwrap();
++    let mut records = item.record_iter().unwrap();
++    let record = records.next().unwrap().pop().unwrap();
++    assert!(record.file(".timestamp").is_none());
++    assert!(record.file(".authors").is_none());
+ }
+ 
++
+ /// Should derive authorship from /working/directory/.git/config if it is otherwise unavailable
+ #[test]
+ fn record_no_authorship_local_git() {
+-- 
+2.16.4
+
