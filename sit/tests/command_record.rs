@@ -64,7 +64,37 @@ fn record_no_authorship_no_author() {
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", &id, "--no-author", "-t", "Sometype"])
         .expect_success();
+    let repo = Repository::open(dir.path(".sit")).unwrap();
+    let item = repo.item(id).unwrap();
+    let mut records = item.record_iter().unwrap();
+    let record = records.next().unwrap().pop().unwrap();
+    assert!(record.file(".authors").is_none());
 }
+
+/// Should not attempt to record any auxiliary information if specifically asked to do so
+#[test]
+fn record_no_aux() {
+    let dir = TestDir::new("sit", "record_no_aux");
+    dir.cmd()
+        .arg("init")
+        .expect_success();
+    let id: String = String::from_utf8(dir.cmd()
+        .arg("item")
+        .expect_success().stdout).unwrap().trim().into();
+    no_user_config(&dir);
+    dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["record", &id, "--no-aux"])
+        .expect_success();
+    let repo = Repository::open(dir.path(".sit")).unwrap();
+    let item = repo.item(id).unwrap();
+    let mut records = item.record_iter().unwrap();
+    let record = records.next().unwrap().pop().unwrap();
+    assert!(record.file(".timestamp").is_none());
+    assert!(record.file(".authors").is_none());
+}
+
 
 /// Should derive authorship from /working/directory/.git/config if it is otherwise unavailable
 #[test]
