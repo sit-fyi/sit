@@ -56,6 +56,8 @@ pub struct Repository {
     config: Config,
 }
 
+use path::{HasPath, ResolvePath};
+
 /// Repository configuration
 #[derive(Debug, Clone, TypedBuilder, Serialize, Deserialize)]
 pub struct Config {
@@ -266,7 +268,15 @@ impl Repository {
         }
         Some(path)
     }
+}
 
+impl HasPath for Repository {
+    fn path(&self) -> &Path {
+        self.path.as_path()
+    }
+}
+
+impl Repository {
 
     /// Saves the repository. Ensures the directory exists and the configuration has
     /// been saved.
@@ -287,11 +297,6 @@ impl Repository {
             f.write(file.contents)?;
         }
         Ok(())
-    }
-
-    /// Returns repository path
-    pub fn path(&self) -> &Path {
-        self.path.as_path()
     }
 
     /// Returns items path
@@ -324,6 +329,7 @@ impl Repository {
         let id = OsString::from(id);
         Ok(Item {
             repository: self,
+            path: self.items_path.join(&id),
             id,
         })
     }
@@ -331,14 +337,20 @@ impl Repository {
     /// Finds an item by name (if there is one)
     pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item> {
         let path = self.items_path().join(name.as_ref());
-        if path.is_dir() && path.strip_prefix(self.items_path()).is_ok() {
+        if path.exists() && path.strip_prefix(self.items_path()).is_ok() {
             let mut test = path.clone();
             test.pop();
             if test != self.items_path() {
                 return None;
             }
             let id = path.file_name().unwrap().to_os_string();
-            let item = Item { repository: self, id };
+            let p = self.items_path().join(&id);
+            let path = p.resolve_dir().unwrap_or(p);
+            let item = Item {
+                repository: self,
+                path,
+                id,
+            };
             Some(item)
         } else {
             None
@@ -394,6 +406,16 @@ use std::ffi::OsString;
 pub struct Item<'a> {
     repository: &'a Repository,
     id: OsString,
+    path: PathBuf,
+}
+
+impl<'a> HasPath for Item<'a> {
+
+    /// Returns path to the record
+    fn path(&self) -> &Path {
+        self.path.as_path()
+    }
+
 }
 
 use record::{File, OrderedFiles};
@@ -487,11 +509,16 @@ impl<'a> Iterator for ItemRecordIter<'a> {
     type Item = Vec<Record<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let item_path = self.repository.items_path.join(&self.item);
+        let item = match self.repository.item(self.item.to_str().unwrap()) {
+            None => return None,
+            Some(item) => item,
+        };
+        let item_path = item.path();
         // TODO: if https://github.com/rust-lang/rust/issues/43244 is finalized, try to use drain_filter instead
         let (filtered, dir): (Vec<_>, Vec<_>) = ::std::mem::replace(&mut self.dir, vec![]).into_iter()
             .partition(|e| {
-                if !e.file_type().unwrap().is_dir() {
+                let path = e.path().resolve_dir().unwrap_or(e.path());
+                if !path.is_dir() {
                     return false
                 }
                 let valid_name = self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).is_ok();
@@ -499,7 +526,7 @@ impl<'a> Iterator for ItemRecordIter<'a> {
                     return false;
                 }
 
-                let dot_prev = e.path().join(".prev");
+                let dot_prev = path.join(".prev");
                 let has_all_valid_parents = !dot_prev.is_dir() || match fs::read_dir(dot_prev) {
                     Err(_) => false,
                     Ok(dir) => {
@@ -548,18 +575,13 @@ impl<'a> Iterator for ItemIter<'a> {
                 // bail on an entry if the entry is erroneous
                 Some(Err(_)) => continue,
                 Some(Ok(entry)) => {
-                    let file_type = entry.file_type();
-                    // bail on an entry if checking for the file type
-                    // resulted in an error
-                    if file_type.is_err() {
-                        continue;
-                    }
-                    let file_type = file_type.unwrap();
-                    if file_type.is_dir() {
-                        return Some(Item { repository: self.repository, id: entry.file_name() });
-                    } else {
-                        continue;
-                    }
+                    let p = self.repository.items_path().join(entry.file_name());
+                    let path = p.resolve_dir().unwrap_or(p);
+                    return Some(Item {
+                        repository: self.repository,
+                        id: entry.file_name(),
+                        path,
+                    });
                 }
             }
         }
@@ -577,10 +599,10 @@ pub struct Record<'a> {
     path: PathBuf,
 }
 
-impl<'a> Record<'a> {
+impl<'a> HasPath for Record<'a> {
 
     /// Returns path to the record
-    pub fn path(&self) -> &Path {
+    fn path(&self) -> &Path {
         self.path.as_path()
     }
 
@@ -670,6 +692,7 @@ mod tests {
     use tempdir::TempDir;
 
     use super::*;
+    use path::HasPath;
 
     #[test]
     fn new_repo() {
@@ -782,6 +805,53 @@ mod tests {
         item.new_record(vec![("test/it", &[1u8][..])].into_iter(), false).unwrap();
         assert!(repo.item("one/it").is_none());
     }
+
+    /// This test ensures that item symlinks expressed as text files (for system
+    /// without symlinks) will be interpreted as symlinks
+    #[test]
+    fn item_path_link() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(&tmp).unwrap();
+        // create an item
+        let item = repo.new_item().unwrap();
+        // move the item
+        fs::rename(item.path(), tmp.join(item.id())).unwrap();
+        // link it
+        let mut f = fs::File::create(repo.items_path().join(item.id())).unwrap();
+        f.write(format!("../{}", item.id()).as_bytes()).unwrap();
+        use dunce;
+        // find it
+        assert_eq!(dunce::canonicalize(repo.item(item.id()).unwrap().path()).unwrap(),
+                   dunce::canonicalize(tmp.join(item.id())).unwrap());
+        // iterate for it
+        let mut item_iter = repo.item_iter().unwrap();
+        assert_eq!(item_iter.next().unwrap().id(), item.id());
+        assert!(item_iter.next().is_none());
+    }
+
+    /// This test ensures that record symlinks expressed as text files (for system
+    /// without symlinks) will be interpreted as symlinks
+    #[test]
+    fn record_path_link() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(&tmp).unwrap();
+        // create an item
+        let item = repo.new_item().unwrap();
+        // create a record
+        let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
+        // move the record
+        fs::rename(record.path(), tmp.join(record.encoded_hash())).unwrap();
+        // link it
+        let mut f = fs::File::create(item.path().join(record.encoded_hash())).unwrap();
+        f.write(format!("../../{}", record.encoded_hash()).as_bytes()).unwrap();
+        // iterate for it
+        let mut record_iter = item.record_iter().unwrap();
+        assert_eq!(record_iter.next().unwrap().get(0).unwrap().encoded_hash(), record.encoded_hash());
+        assert!(record_iter.next().is_none());
+    }
+
 
     #[test]
     fn new_record() {

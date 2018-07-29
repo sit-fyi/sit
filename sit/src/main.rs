@@ -77,6 +77,7 @@ pub fn gnupg(matches: &ArgMatches, config: &cfg::Configuration) -> Result<OsStri
     Ok(program)
 }
 
+use sit_core::path::HasPath;
 
 fn main() {
     exit(main_with_result(true));
