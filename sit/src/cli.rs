@@ -1,7 +1,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
-use sit_core::{self, Repository};
+use sit_core::{self, Repository, path::HasPath};
 use which;
 
 #[derive(Error, Debug)]

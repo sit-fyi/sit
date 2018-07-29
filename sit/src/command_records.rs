@@ -1,5 +1,5 @@
 use clap::ArgMatches;
-use sit_core::{Repository, Record, Item, cfg::Configuration, record::OrderedFiles};
+use sit_core::{Repository, Record, Item, cfg::Configuration, record::OrderedFiles, path::HasPath};
 use serde_json;
 use super::get_named_expression;
 use jmespath;

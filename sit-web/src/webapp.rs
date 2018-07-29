@@ -64,7 +64,7 @@ use std::path::PathBuf;
 use std::fs;
 use std::net::ToSocketAddrs;
 
-use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles};
+use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles, path::HasPath};
 use std::io::Cursor;
 
 use mime_guess::get_mime_type_str;
