@@ -1,0 +1,533 @@
+From ed344cb245e4a5b677a3864b484443f4e0c52b6f Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sun, 29 Jul 2018 11:22:54 +0700
+Subject: [PATCH] Problem: migrating items & records
+
+In anticipation of upcoming changes to the layout of
+the repository, where all records will be stored in
+a flat namespace and items as such will be abolished,
+an issue of migration has come up.
+
+Initially, the idea was to create records of certain
+kind for every item for the target software to interpret
+it. However, that didn't seem to be flexible enough.
+
+The next idea was to allow external logic to be invoked
+upon unwrapping of every migrated item. This, too, was
+discarded as kind of complex.
+
+Solution: allow items and paths to be expressed as text links
+
+Borrowing from Git, sit already uses Git's symlink notation
+for systems that don't support symlinks. That is, a symlink
+can be represented as a text file with a (relative) path. It
+uses this notation for iterating over modules so that modules
+can be located elsewhere.
+
+Lucky for us, items and records are directories as well, so
+this mechanism can be reused. This is what this patch does.
+
+While by itself, the patch doesn't do any migrations (too early
+for that) it lays a foundation for one.
+
+The idea is that upon migration, records will be moved to some
+other directory (say, `records`) and `items/XXXX/YYYY` will be
+rewritten to such links, pointing to `records/YYYY`.
+
+This way, a system using SIT can continue using old layout and
+commands (provided we'll leave deprecated versions of them for
+some time) and it can take action of converting items into
+whatever explicit records (if any) at its own convenience.
+
+P.S. This functionality would also allow for further mechanisms
+of creating shared storages if anything like that will be needed.
+---
+ sit-core/src/lib.rs              |   1 +
+ sit-core/src/path.rs             |  86 ++++++++++++++++++++++
+ sit-core/src/reducers/duktape.rs |   2 +
+ sit-core/src/repository.rs       | 155 ++++++++++++++++++++++++++-------------
+ sit-web/src/webapp.rs            |   2 +-
+ sit/src/cli.rs                   |   2 +-
+ sit/src/command_records.rs       |   2 +-
+ sit/src/main.rs                  |   1 +
+ sit/src/rebuild.rs               |   2 +-
+ 9 files changed, 198 insertions(+), 55 deletions(-)
+ create mode 100644 sit-core/src/path.rs
+
+diff --git a/sit-core/src/lib.rs b/sit-core/src/lib.rs
+index 6d0e51a..26d3b91 100644
+--- a/sit-core/src/lib.rs
++++ b/sit-core/src/lib.rs
+@@ -42,6 +42,7 @@ extern crate relative_path;
+ #[cfg(test)] #[macro_use] extern crate proptest;
+ 
+ 
++pub mod path;
+ pub mod hash;
+ pub mod encoding;
+ pub mod id;
+diff --git a/sit-core/src/path.rs b/sit-core/src/path.rs
+new file mode 100644
+index 0000000..a7e5731
+--- /dev/null
++++ b/sit-core/src/path.rs
+@@ -0,0 +1,86 @@
++//! Path related utilities
++
++use std::path::{Path, PathBuf};
++use std::io;
++use std::fs;
++
++/// Denotes value as having path on a file system
++pub trait HasPath {
++    /// Returns a reference to a path
++    fn path(&self) -> &Path;
++}
++
++/// Allows for directory resolution
++pub trait ResolvePath {
++    /// Resolves to an actual directory
++    ///
++    /// It will interpret common conventions for resolving a directory
++    /// (so, for example, a file with a textual link in it will be resolved
++    /// to the directory it points to)
++    fn resolve_dir(&self) -> Result<PathBuf, io::Error>;
++}
++
++impl<T> ResolvePath for T where T: AsRef<Path> {
++    fn resolve_dir(&self) -> Result<PathBuf, io::Error> {
++        let mut path: PathBuf = self.as_ref().into();
++        if path.is_dir() {
++            Ok(path)
++        } else {
++            fs::File::open(&path)
++                .and_then(|mut f| {
++                    use std::io::Read;
++                    let mut s = String::new();
++                    f.read_to_string(&mut s).map(|_| s)
++                })
++                .and_then(|s| {
++                    #[cfg(windows)]
++                    let s = s.replace("/", "\\");
++                    let trimmed_path = s.trim();
++                    path.pop(); // remove the file name
++                    path.join(PathBuf::from(trimmed_path)).resolve_dir()
++                })
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::ResolvePath;
++    use std::fs;
++    use std::io::Write;
++    use tempdir::TempDir;
++
++    #[test]
++    fn resolve_dir() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        assert_eq!(tmp.resolve_dir().unwrap(), tmp);
++    }
++
++    #[test]
++    fn resolve_link() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        fs::create_dir_all(tmp.join("dir")).unwrap();
++        let mut f = fs::File::create(tmp.join("1")).unwrap();
++        f.write(b"dir").unwrap();
++        assert_eq!(tmp.join("1").resolve_dir().unwrap(), tmp.join("dir"));
++    }
++
++    #[test]
++    fn resolve_broken_link() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        let mut f = fs::File::create(tmp.join("1")).unwrap();
++        f.write(b"dir").unwrap();
++        assert!(tmp.join("1").resolve_dir().is_err());
++    }
++
++    #[test]
++    fn resolve_link_nested() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        fs::create_dir_all(tmp.join("dir")).unwrap();
++        let mut f = fs::File::create(tmp.join("1")).unwrap();
++        f.write(b"dir").unwrap();
++        let mut f = fs::File::create(tmp.join("2")).unwrap();
++        f.write(b"1").unwrap();
++        assert_eq!(tmp.join("2").resolve_dir().unwrap(), tmp.join("dir"));
++    }
++}
+\ No newline at end of file
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index b725d03..57f2983 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -9,6 +9,7 @@ use std::ptr;
+ use std::ffi::{CString, CStr, OsStr};
+ use std::path::PathBuf;
+ use std::fs;
++use path::HasPath;
+ 
+ #[cfg(feature = "duktape-mmap")]
+ use memmap;
+@@ -517,6 +518,7 @@ mod tests {
+     use super::*;
+     use ::Repository;
+     use item::{Item, ItemReduction};
++    use path::HasPath;
+ 
+     #[test]
+     fn undefined_result() {
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 54a3c7a..57e67cb 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -94,6 +94,8 @@ impl<T1, T2, P, E> ModuleIterator<P, E> for (T1, T2)
+ 
+ pub struct ModuleDirectoryIterator(Option<fs::ReadDir>);
+ 
++use path::ResolvePath;
++
+ impl Iterator for ModuleDirectoryIterator {
+     type Item = Result<PathBuf, Error>;
+ 
+@@ -103,27 +105,7 @@ impl Iterator for ModuleDirectoryIterator {
+             Some(ref mut modules) => {
+                 match modules.next() {
+                     None => None,
+-                    Some(Ok(f)) => {
+-                        let mut path = f.path();
+-                        if path.is_dir() {
+-                            Some(Ok(path))
+-                        } else {
+-                            Some(fs::File::open(&path)
+-                                .and_then(|mut f| {
+-                                    use std::io::Read;
+-                                    let mut s = String::new();
+-                                    f.read_to_string(&mut s).map(|_| s)
+-                                })
+-                                .and_then(|s| {
+-                                    #[cfg(windows)]
+-                                    let s = s.replace("/", "\\");
+-                                    let trimmed_path = s.trim();
+-                                    path.pop(); // remove the file name
+-                                    Ok(path.join(PathBuf::from(trimmed_path)))
+-                                })
+-                                .map_err(|e| e.into()))
+-                        }
+-                    },
++                    Some(Ok(f)) => Some(f.path().resolve_dir().map_err(|e| e.into())),
+                     Some(Err(e)) => Some(Err(e.into())),
+                 }
+             }
+@@ -241,6 +223,8 @@ mod default_files {
+ 
+ }
+ 
++use path::HasPath;
++
+ impl Repository<ModuleDirectory<PathBuf>> {
+     /// Attempts creating a new repository. Fails with `Error::AlreadyExists`
+     /// if a repository already exists.
+@@ -372,6 +356,12 @@ impl Repository<ModuleDirectory<PathBuf>> {
+ 
+ }
+ 
++impl<'a, MI> HasPath for Repository<MI> {
++    fn path(&self) -> &Path {
++        self.path.as_path()
++    }
++}
++
+ impl<MI> Repository<MI> {
+ 
+     /// Returns a new instance of this Repository with an additional module iterator
+@@ -447,11 +437,6 @@ impl<MI> Repository<MI> {
+         Ok(())
+     }
+ 
+-    /// Returns repository path
+-    pub fn path(&self) -> &Path {
+-        self.path.as_path()
+-    }
+-
+     /// Returns items path
+     pub fn items_path(&self) -> &Path {
+         self.items_path.as_path()
+@@ -488,22 +473,30 @@ impl<MI> Repository<MI> {
+         let id = OsString::from(id);
+         Ok(Item {
+             repository: self,
+-            id,
+             integrity_check: self.integrity_check,
++            path: self.items_path().join(&id),
++            id,
+         })
+     }
+ 
+     /// Finds an item by name (if there is one)
+     pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item<MI>> {
+         let path = self.items_path().join(name.as_ref());
+-        if path.is_dir() && path.strip_prefix(self.items_path()).is_ok() {
++        if path.exists() && path.strip_prefix(self.items_path()).is_ok() {
+             let mut test = path.clone();
+             test.pop();
+             if test != self.items_path() {
+                 return None;
+             }
+             let id = path.file_name().unwrap().to_os_string();
+-            let item = Item { repository: self, id, integrity_check: self.integrity_check };
++            let p = self.items_path().join(&id);
++            let path = p.resolve_dir().unwrap_or(p);
++            let item = Item {
++                repository: self,
++                integrity_check: self.integrity_check,
++                path,
++                id,
++            };
+             Some(item)
+         } else {
+             None
+@@ -540,11 +533,18 @@ pub struct Item<'a, MI: 'a> {
+     repository: &'a Repository<MI>,
+     id: OsString,
+     integrity_check: bool,
++    path: PathBuf,
+ }
+ 
+ use record::{File, OrderedFiles};
+ use relative_path::{RelativePath, Component as RelativeComponent};
+ 
++impl<'a, MI: 'a> HasPath for Item<'a, MI> {
++    fn path(&self) -> &Path {
++        self.path.as_path()
++    }
++}
++
+ impl<'a, MI: 'a> Item<'a, MI> {
+ 
+     /// Returns the status of integrity check
+@@ -564,6 +564,7 @@ impl<'a, MI: 'a> Item<'a, MI> {
+             repository: self.repository,
+             id: self.id,
+             integrity_check: value,
++            path: self.path,
+         }
+     }
+ 
+@@ -657,11 +658,16 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
+     type Item = Vec<Record<'a, MI>>;
+ 
+     fn next(&mut self) -> Option<Self::Item> {
+-        let item_path = self.repository.items_path.join(&self.item);
++        let item = match self.repository.item(self.item.to_str().unwrap()) {
++            None => return None,
++            Some(item) => item,
++        };
++        let item_path = item.path();
+         // TODO: if https://github.com/rust-lang/rust/issues/43244 is finalized, try to use drain_filter instead
+         let (filtered, dir): (Vec<_>, Vec<_>) = ::std::mem::replace(&mut self.dir, vec![]).into_iter()
+             .partition(|e| {
+-                if !e.file_type().unwrap().is_dir() {
++                let path = e.path().resolve_dir().unwrap_or(e.path());
++                if !path.is_dir() {
+                     return false
+                 }
+                 let valid_name = self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).is_ok();
+@@ -669,7 +675,7 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
+                     return false;
+                 }
+ 
+-                let dot_prev = e.path().join(".prev");
++                let dot_prev = path.join(".prev");
+                 let has_all_valid_parents = !dot_prev.is_dir() || match fs::read_dir(dot_prev) {
+                     Err(_) => false,
+                     Ok(dir) => {
+@@ -686,11 +692,14 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
+             });
+         let result: Vec<_> = {
+             let mapped = filtered.iter()
+-                .map(|e| Record {
+-                    hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
+-                    item: self.item.clone(),
+-                    repository: self.repository,
+-                    path: item_path.join(e.file_name()),
++                .map(|e| {
++                    let path = item_path.join(e.file_name());
++                    Record {
++                        hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
++                        item: self.item.clone(),
++                        repository: self.repository,
++                        path: path.resolve_dir().unwrap_or(path),
++                    }
+                 });
+             if self.integrity_check {
+                 mapped.filter(|r| {
+@@ -736,18 +745,14 @@ impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
+                 // bail on an entry if the entry is erroneous
+                 Some(Err(_)) => continue,
+                 Some(Ok(entry)) => {
+-                    let file_type = entry.file_type();
+-                    // bail on an entry if checking for the file type
+-                    // resulted in an error
+-                    if file_type.is_err() {
+-                        continue;
+-                    }
+-                    let file_type = file_type.unwrap();
+-                    if file_type.is_dir() {
+-                        return Some(Item { repository: self.repository, id: entry.file_name(), integrity_check: self.integrity_check });
+-                    } else {
+-                        continue;
+-                    }
++                    let p = self.repository.items_path().join(entry.file_name());
++                    let path = p.resolve_dir().unwrap_or(p);
++                    return Some(Item {
++                        repository: self.repository,
++                        id: entry.file_name(),
++                        integrity_check: self.integrity_check,
++                        path,
++                    });
+                 }
+             }
+         }
+@@ -765,10 +770,10 @@ pub struct Record<'a, MI: 'a> {
+     path: PathBuf,
+ }
+ 
+-impl<'a, MI: 'a> Record<'a, MI> {
++impl<'a, MI: 'a> HasPath for Record<'a, MI> {
+ 
+     /// Returns path to the record
+-    pub fn path(&self) -> &Path {
++    fn path(&self) -> &Path {
+         self.path.as_path()
+     }
+ 
+@@ -858,6 +863,7 @@ mod tests {
+     use tempdir::TempDir;
+ 
+     use super::*;
++    use path::HasPath;
+ 
+     #[test]
+     fn new_repo() {
+@@ -993,6 +999,53 @@ mod tests {
+         assert!(repo.item("one/it").is_none());
+     }
+ 
++    /// This test ensures that item symlinks expressed as text files (for system
++    /// without symlinks) will be interpreted as symlinks
++    #[test]
++    fn item_path_link() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(&tmp).unwrap();
++        // create an item
++        let item = repo.new_item().unwrap();
++        // move the item
++        fs::rename(item.path(), tmp.join(item.id())).unwrap();
++        // link it
++        let mut f = fs::File::create(repo.items_path().join(item.id())).unwrap();
++        f.write(format!("../{}", item.id()).as_bytes()).unwrap();
++        use dunce;
++        // find it
++        assert_eq!(dunce::canonicalize(repo.item(item.id()).unwrap().path()).unwrap(),
++                   dunce::canonicalize(tmp.join(item.id())).unwrap());
++        // iterate for it
++        let mut item_iter = repo.item_iter().unwrap();
++        assert_eq!(item_iter.next().unwrap().id(), item.id());
++        assert!(item_iter.next().is_none());
++    }
++
++    /// This test ensures that record symlinks expressed as text files (for system
++    /// without symlinks) will be interpreted as symlinks
++    #[test]
++    fn record_path_link() {
++        let mut tmp = TempDir::new("sit").unwrap().into_path();
++        tmp.push(".sit");
++        let repo = Repository::new(&tmp).unwrap();
++        // create an item
++        let item = repo.new_item().unwrap();
++        // create a record
++        let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
++        // move the record
++        fs::rename(record.path(), tmp.join(record.encoded_hash())).unwrap();
++        // link it
++        let mut f = fs::File::create(item.path().join(record.encoded_hash())).unwrap();
++        f.write(format!("../../{}", record.encoded_hash()).as_bytes()).unwrap();
++        // iterate for it
++        let mut record_iter = item.record_iter().unwrap();
++        assert_eq!(record_iter.next().unwrap().get(0).unwrap().encoded_hash(), record.encoded_hash());
++        assert!(record_iter.next().is_none());
++    }
++
++
+     #[test]
+     fn new_record() {
+         let mut tmp = TempDir::new("sit").unwrap().into_path();
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 195cf1e..0b7c8c3 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -64,7 +64,7 @@ use std::path::PathBuf;
+ use std::fs;
+ use std::net::ToSocketAddrs;
+ 
+-use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles};
++use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles, path::HasPath};
+ use std::io::Cursor;
+ 
+ use mime_guess::get_mime_type_str;
+diff --git a/sit/src/cli.rs b/sit/src/cli.rs
+index c2ad514..2d761c6 100644
+--- a/sit/src/cli.rs
++++ b/sit/src/cli.rs
+@@ -1,7 +1,7 @@
+ use std::env;
+ use std::path::{Path, PathBuf};
+ use std::ffi::OsStr;
+-use sit_core::{self, Repository};
++use sit_core::{self, Repository, path::HasPath};
+ use which;
+ 
+ #[derive(Error, Debug)]
+diff --git a/sit/src/command_records.rs b/sit/src/command_records.rs
+index 76dda6b..9245361 100644
+--- a/sit/src/command_records.rs
++++ b/sit/src/command_records.rs
+@@ -1,5 +1,5 @@
+ use clap::ArgMatches;
+-use sit_core::{Repository, Record, Item, cfg::Configuration, record::OrderedFiles};
++use sit_core::{Repository, Record, Item, cfg::Configuration, record::OrderedFiles, path::HasPath};
+ use serde_json;
+ use super::get_named_expression;
+ use jmespath;
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 5507e4c..29cc5a3 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -87,6 +87,7 @@ pub fn gnupg(matches: &ArgMatches, config: &cfg::Configuration) -> Result<OsStri
+ mod module_iter;
+ use module_iter::ScriptModule;
+ 
++use sit_core::path::HasPath;
+ 
+ fn main() {
+     exit(main_with_result(true));
+diff --git a/sit/src/rebuild.rs b/sit/src/rebuild.rs
+index a47dc35..008704c 100644
+--- a/sit/src/rebuild.rs
++++ b/sit/src/rebuild.rs
+@@ -2,7 +2,7 @@ use std::path::PathBuf;
+ use std::fs;
+ use std::ffi::OsString;
+ use fs_extra;
+-use sit_core::{Repository, Item, Record};
++use sit_core::{Repository, Item, Record, path::HasPath};
+ use pbr::ProgressBar;
+ use tempdir::TempDir;
+ use glob;
+-- 
+2.16.4
+
