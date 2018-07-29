@@ -97,14 +97,14 @@ fn record_files(
         .into();
 
     // .authors
-    let authorship_files: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-author") {
+    let authorship_files: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-aux") && !matches.is_present("no-author") {
         let authors = format!("{}", config.author.clone().unwrap());
         Some(vec![(String::from(".authors"), Cursor::new(authors))].into())
     } else {
         None
     };
 
-    let timestamp: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-timestamp") {
+    let timestamp: Option<OrderedFiles<(String, _)>> = if !matches.is_present("no-aux") && !matches.is_present("no-timestamp") {
         let timestamp = format!("{:?}", utc);
         Some(vec![(String::from(".timestamp"), Cursor::new(timestamp))].into())
     } else {
@@ -115,7 +115,7 @@ fn record_files(
 }
 
 pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: &Repository<MI>, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
-    if !matches.is_present("no-author") && config.author.is_none() {
+    if !matches.is_present("no-aux") && !matches.is_present("no-author") && config.author.is_none() {
         if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
             config.author = Some(author);
         } else {
