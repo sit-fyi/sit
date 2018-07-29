@@ -1,0 +1,39 @@
+In anticipation of upcoming changes to the layout of
+the repository, where all records will be stored in
+a flat namespace and items as such will be abolished,
+an issue of migration has come up.
+
+Initially, the idea was to create records of certain
+kind for every item for the target software to interpret
+it. However, that didn't seem to be flexible enough.
+
+The next idea was to allow external logic to be invoked
+upon unwrapping of every migrated item. This, too, was
+discarded as kind of complex.
+
+Solution: allow items and paths to be expressed as text links
+
+Borrowing from Git, sit already uses Git's symlink notation
+for systems that don't support symlinks. That is, a symlink
+can be represented as a text file with a (relative) path. It
+uses this notation for iterating over modules so that modules
+can be located elsewhere.
+
+Lucky for us, items and records are directories as well, so
+this mechanism can be reused. This is what this patch does.
+
+While by itself, the patch doesn't do any migrations (too early
+for that) it lays a foundation for one.
+
+The idea is that upon migration, records will be moved to some
+other directory (say, `records`) and `items/XXXX/YYYY` will be
+rewritten to such links, pointing to `records/YYYY`.
+
+This way, a system using SIT can continue using old layout and
+commands (provided we'll leave deprecated versions of them for
+some time) and it can take action of converting items into
+whatever explicit records (if any) at its own convenience.
+
+P.S. This functionality would also allow for further mechanisms
+of creating shared storages if anything like that will be needed.
+
