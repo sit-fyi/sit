@@ -94,6 +94,8 @@ impl<T1, T2, P, E> ModuleIterator<P, E> for (T1, T2)
 
 pub struct ModuleDirectoryIterator(Option<fs::ReadDir>);
 
+use path::ResolvePath;
+
 impl Iterator for ModuleDirectoryIterator {
     type Item = Result<PathBuf, Error>;
 
@@ -103,27 +105,7 @@ impl Iterator for ModuleDirectoryIterator {
             Some(ref mut modules) => {
                 match modules.next() {
                     None => None,
-                    Some(Ok(f)) => {
-                        let mut path = f.path();
-                        if path.is_dir() {
-                            Some(Ok(path))
-                        } else {
-                            Some(fs::File::open(&path)
-                                .and_then(|mut f| {
-                                    use std::io::Read;
-                                    let mut s = String::new();
-                                    f.read_to_string(&mut s).map(|_| s)
-                                })
-                                .and_then(|s| {
-                                    #[cfg(windows)]
-                                    let s = s.replace("/", "\\");
-                                    let trimmed_path = s.trim();
-                                    path.pop(); // remove the file name
-                                    Ok(path.join(PathBuf::from(trimmed_path)))
-                                })
-                                .map_err(|e| e.into()))
-                        }
-                    },
+                    Some(Ok(f)) => Some(f.path().resolve_dir().map_err(|e| e.into())),
                     Some(Err(e)) => Some(Err(e.into())),
                 }
             }
@@ -240,6 +222,8 @@ mod default_files {
     }
 
 }
+
+use path::HasPath;
 
 impl Repository<ModuleDirectory<PathBuf>> {
     /// Attempts creating a new repository. Fails with `Error::AlreadyExists`
@@ -372,6 +356,12 @@ impl Repository<ModuleDirectory<PathBuf>> {
 
 }
 
+impl<'a, MI> HasPath for Repository<MI> {
+    fn path(&self) -> &Path {
+        self.path.as_path()
+    }
+}
+
 impl<MI> Repository<MI> {
 
     /// Returns a new instance of this Repository with an additional module iterator
@@ -447,11 +437,6 @@ impl<MI> Repository<MI> {
         Ok(())
     }
 
-    /// Returns repository path
-    pub fn path(&self) -> &Path {
-        self.path.as_path()
-    }
-
     /// Returns items path
     pub fn items_path(&self) -> &Path {
         self.items_path.as_path()
@@ -488,22 +473,30 @@ impl<MI> Repository<MI> {
         let id = OsString::from(id);
         Ok(Item {
             repository: self,
-            id,
             integrity_check: self.integrity_check,
+            path: self.items_path().join(&id),
+            id,
         })
     }
 
     /// Finds an item by name (if there is one)
     pub fn item<S: AsRef<str>>(&self, name: S) -> Option<Item<MI>> {
         let path = self.items_path().join(name.as_ref());
-        if path.is_dir() && path.strip_prefix(self.items_path()).is_ok() {
+        if path.exists() && path.strip_prefix(self.items_path()).is_ok() {
             let mut test = path.clone();
             test.pop();
             if test != self.items_path() {
                 return None;
             }
             let id = path.file_name().unwrap().to_os_string();
-            let item = Item { repository: self, id, integrity_check: self.integrity_check };
+            let p = self.items_path().join(&id);
+            let path = p.resolve_dir().unwrap_or(p);
+            let item = Item {
+                repository: self,
+                integrity_check: self.integrity_check,
+                path,
+                id,
+            };
             Some(item)
         } else {
             None
@@ -540,10 +533,17 @@ pub struct Item<'a, MI: 'a> {
     repository: &'a Repository<MI>,
     id: OsString,
     integrity_check: bool,
+    path: PathBuf,
 }
 
 use record::{File, OrderedFiles};
 use relative_path::{RelativePath, Component as RelativeComponent};
+
+impl<'a, MI: 'a> HasPath for Item<'a, MI> {
+    fn path(&self) -> &Path {
+        self.path.as_path()
+    }
+}
 
 impl<'a, MI: 'a> Item<'a, MI> {
 
@@ -564,6 +564,7 @@ impl<'a, MI: 'a> Item<'a, MI> {
             repository: self.repository,
             id: self.id,
             integrity_check: value,
+            path: self.path,
         }
     }
 
@@ -657,11 +658,16 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
     type Item = Vec<Record<'a, MI>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let item_path = self.repository.items_path.join(&self.item);
+        let item = match self.repository.item(self.item.to_str().unwrap()) {
+            None => return None,
+            Some(item) => item,
+        };
+        let item_path = item.path();
         // TODO: if https://github.com/rust-lang/rust/issues/43244 is finalized, try to use drain_filter instead
         let (filtered, dir): (Vec<_>, Vec<_>) = ::std::mem::replace(&mut self.dir, vec![]).into_iter()
             .partition(|e| {
-                if !e.file_type().unwrap().is_dir() {
+                let path = e.path().resolve_dir().unwrap_or(e.path());
+                if !path.is_dir() {
                     return false
                 }
                 let valid_name = self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).is_ok();
@@ -669,7 +675,7 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
                     return false;
                 }
 
-                let dot_prev = e.path().join(".prev");
+                let dot_prev = path.join(".prev");
                 let has_all_valid_parents = !dot_prev.is_dir() || match fs::read_dir(dot_prev) {
                     Err(_) => false,
                     Ok(dir) => {
@@ -686,11 +692,14 @@ impl<'a, MI: 'a> Iterator for ItemRecordIter<'a, MI> {
             });
         let result: Vec<_> = {
             let mapped = filtered.iter()
-                .map(|e| Record {
-                    hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
-                    item: self.item.clone(),
-                    repository: self.repository,
-                    path: item_path.join(e.file_name()),
+                .map(|e| {
+                    let path = item_path.join(e.file_name());
+                    Record {
+                        hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
+                        item: self.item.clone(),
+                        repository: self.repository,
+                        path: path.resolve_dir().unwrap_or(path),
+                    }
                 });
             if self.integrity_check {
                 mapped.filter(|r| {
@@ -736,18 +745,14 @@ impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
                 // bail on an entry if the entry is erroneous
                 Some(Err(_)) => continue,
                 Some(Ok(entry)) => {
-                    let file_type = entry.file_type();
-                    // bail on an entry if checking for the file type
-                    // resulted in an error
-                    if file_type.is_err() {
-                        continue;
-                    }
-                    let file_type = file_type.unwrap();
-                    if file_type.is_dir() {
-                        return Some(Item { repository: self.repository, id: entry.file_name(), integrity_check: self.integrity_check });
-                    } else {
-                        continue;
-                    }
+                    let p = self.repository.items_path().join(entry.file_name());
+                    let path = p.resolve_dir().unwrap_or(p);
+                    return Some(Item {
+                        repository: self.repository,
+                        id: entry.file_name(),
+                        integrity_check: self.integrity_check,
+                        path,
+                    });
                 }
             }
         }
@@ -765,10 +770,10 @@ pub struct Record<'a, MI: 'a> {
     path: PathBuf,
 }
 
-impl<'a, MI: 'a> Record<'a, MI> {
+impl<'a, MI: 'a> HasPath for Record<'a, MI> {
 
     /// Returns path to the record
-    pub fn path(&self) -> &Path {
+    fn path(&self) -> &Path {
         self.path.as_path()
     }
 
@@ -858,6 +863,7 @@ mod tests {
     use tempdir::TempDir;
 
     use super::*;
+    use path::HasPath;
 
     #[test]
     fn new_repo() {
@@ -992,6 +998,53 @@ mod tests {
         item.new_record(vec![("test/it", &[1u8][..])].into_iter(), false).unwrap();
         assert!(repo.item("one/it").is_none());
     }
+
+    /// This test ensures that item symlinks expressed as text files (for system
+    /// without symlinks) will be interpreted as symlinks
+    #[test]
+    fn item_path_link() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(&tmp).unwrap();
+        // create an item
+        let item = repo.new_item().unwrap();
+        // move the item
+        fs::rename(item.path(), tmp.join(item.id())).unwrap();
+        // link it
+        let mut f = fs::File::create(repo.items_path().join(item.id())).unwrap();
+        f.write(format!("../{}", item.id()).as_bytes()).unwrap();
+        use dunce;
+        // find it
+        assert_eq!(dunce::canonicalize(repo.item(item.id()).unwrap().path()).unwrap(),
+                   dunce::canonicalize(tmp.join(item.id())).unwrap());
+        // iterate for it
+        let mut item_iter = repo.item_iter().unwrap();
+        assert_eq!(item_iter.next().unwrap().id(), item.id());
+        assert!(item_iter.next().is_none());
+    }
+
+    /// This test ensures that record symlinks expressed as text files (for system
+    /// without symlinks) will be interpreted as symlinks
+    #[test]
+    fn record_path_link() {
+        let mut tmp = TempDir::new("sit").unwrap().into_path();
+        tmp.push(".sit");
+        let repo = Repository::new(&tmp).unwrap();
+        // create an item
+        let item = repo.new_item().unwrap();
+        // create a record
+        let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
+        // move the record
+        fs::rename(record.path(), tmp.join(record.encoded_hash())).unwrap();
+        // link it
+        let mut f = fs::File::create(item.path().join(record.encoded_hash())).unwrap();
+        f.write(format!("../../{}", record.encoded_hash()).as_bytes()).unwrap();
+        // iterate for it
+        let mut record_iter = item.record_iter().unwrap();
+        assert_eq!(record_iter.next().unwrap().get(0).unwrap().encoded_hash(), record.encoded_hash());
+        assert!(record_iter.next().is_none());
+    }
+
 
     #[test]
     fn new_record() {

@@ -87,6 +87,7 @@ pub fn gnupg(matches: &ArgMatches, config: &cfg::Configuration) -> Result<OsStri
 mod module_iter;
 use module_iter::ScriptModule;
 
+use sit_core::path::HasPath;
 
 fn main() {
     exit(main_with_result(true));

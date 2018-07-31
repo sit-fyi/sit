@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::fs;
 use std::ffi::OsString;
 use fs_extra;
-use sit_core::{Repository, Item, Record};
+use sit_core::{Repository, Item, Record, path::HasPath};
 use pbr::ProgressBar;
 use tempdir::TempDir;
 use glob;
