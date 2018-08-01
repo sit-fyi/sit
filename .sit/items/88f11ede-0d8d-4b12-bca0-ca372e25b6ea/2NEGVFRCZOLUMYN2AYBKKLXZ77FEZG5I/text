@@ -1,0 +1,20 @@
+I've noticed that currently used Base32 encoding has padding enabled.
+While this is not harmful per se, the non-alphanumeric character of "="
+might be problematic on some file systems. Besides, there's no
+particular need to pad that I can think of as the size of transported
+data is typically known in SIT's context (RFC 4648 3.2)
+
+Solution: switch to non-padded version of Base32
+
+Explicitly stating this is valid under RFC 4648 3.2:
+
+   Implementations MUST include appropriate pad characters at the end of
+   encoded data *unless* the specification referring to this document
+   explicitly states otherwise.
+
+Luckily for us, we've only used 20-byte long Blake2 and SHA-1 hashing
+algorithms so far so SIT has never produced padded record names (that
+is, unless somebody used SIT with a manually modified config to state
+a different length of the Blake2 algorithm output -- which is highly
+unlikely at this stage of SIT's adoption).
+
