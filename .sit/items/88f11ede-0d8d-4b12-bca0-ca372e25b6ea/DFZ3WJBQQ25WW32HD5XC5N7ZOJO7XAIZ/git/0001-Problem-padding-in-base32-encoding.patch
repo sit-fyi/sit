@@ -1,0 +1,146 @@
+From 27f88f998fc6bad0972c2306ab1cc1740eb10943 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 1 Aug 2018 23:40:48 +0700
+Subject: [PATCH] Problem: padding in base32 encoding
+
+I've noticed that currently used Base32 encoding has padding enabled.
+While this is not harmful per se, the non-alphanumeric character of "="
+might be problematic on some file systems and in URLs.
+
+Solution: switch the padding character to '-'
+
+Luckily for us, we've only used 20-byte long Blake2 and SHA-1 hashing
+algorithms so far so SIT has never produced padded record names (that
+is, unless somebody used SIT with a manually modified config to state
+a different length of the Blake2 algorithm output -- which is highly
+unlikely at this stage of SIT's adoption).
+---
+ Cargo.lock               | 38 ++++++++++++++++++++++++++++++++++++++
+ sit-core/Cargo.toml      |  1 +
+ sit-core/src/encoding.rs |  8 +++++++-
+ sit-core/src/lib.rs      |  1 +
+ 4 files changed, 47 insertions(+), 1 deletion(-)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 533e6c8..6b9f132 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -305,6 +305,26 @@ name = "data-encoding"
+ version = "2.1.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ 
++[[package]]
++name = "data-encoding-macro"
++version = "0.1.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "data-encoding 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
++ "data-encoding-macro-internal 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
++ "proc-macro-hack 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
++]
++
++[[package]]
++name = "data-encoding-macro-internal"
++version = "0.1.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "data-encoding 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
++ "proc-macro-hack 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
++ "syn 0.11.11 (registry+https://github.com/rust-lang/crates.io-index)",
++]
++
+ [[package]]
+ name = "deflate"
+ version = "0.7.18"
+@@ -848,6 +868,19 @@ name = "pkg-config"
+ version = "0.3.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ 
++[[package]]
++name = "proc-macro-hack"
++version = "0.4.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "proc-macro-hack-impl 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
++]
++
++[[package]]
++name = "proc-macro-hack-impl"
++version = "0.4.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
+ [[package]]
+ name = "proc-macro2"
+ version = "0.3.7"
+@@ -1155,6 +1188,7 @@ dependencies = [
+  "cc 1.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
+  "cesu8 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+  "data-encoding 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
++ "data-encoding-macro 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+  "derive-error 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
+  "digest 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+  "dunce 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+@@ -1601,6 +1635,8 @@ dependencies = [
+ "checksum crossbeam-utils 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "2760899e32a1d58d5abb31129f8fae5de75220bc2176e77ff7c627ae45c918d9"
+ "checksum crypto-mac 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "0999b4ff4d3446d4ddb19a63e9e00c1876e75cd7000d20e57a693b4b3f08d958"
+ "checksum data-encoding 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "67df0571a74bf0d97fb8b2ed22abdd9a48475c96bd327db968b7d9cace99655e"
++"checksum data-encoding-macro 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "533fe694b06f6ca89ad1f72c332f36f71e3832a6ad7a8835998ea2520935602f"
++"checksum data-encoding-macro-internal 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "7f2392745a9c39e143cad24c6dae4f95462c8ab37891e9e6feb7525091baf5c4"
+ "checksum deflate 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)" = "32c8120d981901a9970a3a1c97cf8b630e0fa8c3ca31e75b6fd6fd5f9f427b31"
+ "checksum derive-error 0.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "ec098440b29ea3b1ece3e641bac424c19cf996779b623c9e0f2171495425c2c8"
+ "checksum digest 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)" = "00a49051fef47a72c9623101b19bd71924a45cca838826caae3eaa4d00772603"
+@@ -1670,6 +1706,8 @@ dependencies = [
+ "checksum phf_generator 0.7.21 (registry+https://github.com/rust-lang/crates.io-index)" = "6b07ffcc532ccc85e3afc45865469bf5d9e4ef5bfcf9622e3cfe80c2d275ec03"
+ "checksum phf_shared 0.7.21 (registry+https://github.com/rust-lang/crates.io-index)" = "07e24b0ca9643bdecd0632f2b3da6b1b89bbb0030e0b992afc1113b23a7bc2f2"
+ "checksum pkg-config 0.3.11 (registry+https://github.com/rust-lang/crates.io-index)" = "110d5ee3593dbb73f56294327fe5668bcc997897097cbc76b51e7aed3f52452f"
++"checksum proc-macro-hack 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3ba8d4f9257b85eb6cdf13f055cea3190520aab1409ca2ab43493ea4820c25f0"
++"checksum proc-macro-hack-impl 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d5cb6f960ad471404618e9817c0e5d10b1ae74cfdf01fab89ea0641fe7fb2892"
+ "checksum proc-macro2 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)" = "b16749538926f394755373f0dfec0852d79b3bd512a5906ceaeb72ee64a4eaa0"
+ "checksum proptest 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a3ff101e7a7be1104b3d71f194bc10a3fa338e89b3539444cfde6fdb3aae94a1"
+ "checksum question 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d8cd16f7171d3c3d246b994e491d105f0dba9559e9b925c54ad136c49b2f6146"
+diff --git a/sit-core/Cargo.toml b/sit-core/Cargo.toml
+index 1e31b15..f09b1b1 100644
+--- a/sit-core/Cargo.toml
++++ b/sit-core/Cargo.toml
+@@ -16,6 +16,7 @@ serde_json = "1.0"
+ digest = "0.7"
+ tempdir = "0.3"
+ data-encoding = "2.1"
++data-encoding-macro = "0.1"
+ glob = "0.2"
+ lazy_static = "1.0"
+ blake2 = { version = "0.7", optional = true }
+diff --git a/sit-core/src/encoding.rs b/sit-core/src/encoding.rs
+index 165e761..12b351c 100644
+--- a/sit-core/src/encoding.rs
++++ b/sit-core/src/encoding.rs
+@@ -26,7 +26,13 @@ impl Deref for Encoding {
+ 
+     fn deref(&self) -> &Self::Target {
+         match self {
+-            &Encoding::Base32 => &data_encoding::BASE32,
++            &Encoding::Base32 => &BASE32_DASHPAD,
+         }
+     }
+ }
++
++const BASE32_DASHPAD: data_encoding::Encoding = new_encoding!{
++    symbols: "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567",
++    padding: '-',
++};
++
+diff --git a/sit-core/src/lib.rs b/sit-core/src/lib.rs
+index 26d3b91..a53b8e3 100644
+--- a/sit-core/src/lib.rs
++++ b/sit-core/src/lib.rs
+@@ -18,6 +18,7 @@ pub extern crate serde_json;
+ extern crate tempdir;
+ extern crate glob;
+ extern crate data_encoding;
++#[macro_use] extern crate data_encoding_macro;
+ #[macro_use] extern crate lazy_static;
+ 
+ // Hashing
+-- 
+2.16.4
+

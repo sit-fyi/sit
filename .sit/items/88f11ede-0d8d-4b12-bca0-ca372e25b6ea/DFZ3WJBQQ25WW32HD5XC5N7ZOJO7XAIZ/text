@@ -1,0 +1,3 @@
+The previous patch is actually problematic as it might unbalance the depth of
+directories in the upcoming layout v2. This patch replaces = padding character to
+dash.
