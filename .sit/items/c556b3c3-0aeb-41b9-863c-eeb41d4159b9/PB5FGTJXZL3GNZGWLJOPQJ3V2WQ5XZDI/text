@@ -1,0 +1,5 @@
+These fails remained there after the export of the
+original issue tracker to its own module.
+
+Solution: remove them
+

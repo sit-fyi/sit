@@ -1,0 +1,67 @@
+From 4af71aebdcb7d8553f604f1a4a240bb0c0dbc7ba Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 1 Aug 2018 15:01:52 +0700
+Subject: [PATCH] Problem: unnecessary files in sit-web/webapp
+
+These fails remained there after the export of the
+original issue tracker to its own module.
+
+Solution: remove them
+---
+ sit-web/webapp/bower.json    | 29 -----------------------------
+ sit-web/webapp/manifest.json |  7 -------
+ 2 files changed, 36 deletions(-)
+ delete mode 100644 sit-web/webapp/bower.json
+ delete mode 100644 sit-web/webapp/manifest.json
+
+diff --git a/sit-web/webapp/bower.json b/sit-web/webapp/bower.json
+deleted file mode 100644
+index 95d1182..0000000
+--- a/sit-web/webapp/bower.json
++++ /dev/null
+@@ -1,29 +0,0 @@
+-{
+-  "name": "sit",
+-  "description": "SIT's an Issue Tracker",
+-  "main": "index.html",
+-  "dependencies": {
+-    "polymer": "Polymer/polymer#^2.0.0",
+-    "iron-ajax": "^2.1.0",
+-    "app-route": "PolymerElements/app-route#^2.0.3",
+-    "marked-element": "^2.3.3",
+-    "prism-element": "^2.0.1",
+-    "app-layout": "^2.0.5",
+-    "paper-search": "^2.0.9",
+-    "paper-card": "PolymerElements/paper-card#^2.0.0",
+-    "iron-flex-layout": "^2.0.3",
+-    "paper-icon-button": "^2.1.0",
+-    "paper-input": "^2.1.1",
+-    "paper-dropdown-menu": "^2.0.2",
+-    "paper-listbox": "^2.0.0",
+-    "neon-animation": "^2.1.0",
+-    "web-animations-js": "^2.3.1",
+-    "from-now": "jifalops/from-now#^1.0.1",
+-    "font-roboto": "PolymerElements/font-roboto-local#^1.1.0",
+-    "iron-list": "^2.0.12"
+-  },
+-  "devDependencies": {
+-    "web-component-tester": "Polymer/web-component-tester#^6.0.0",
+-    "webcomponentsjs": "webcomponents/webcomponentsjs#^1.0.0"
+-  }
+-}
+diff --git a/sit-web/webapp/manifest.json b/sit-web/webapp/manifest.json
+deleted file mode 100644
+index 63d1c8a..0000000
+--- a/sit-web/webapp/manifest.json
++++ /dev/null
+@@ -1,7 +0,0 @@
+-{
+-  "name": "SIT",
+-  "short_name": "SIT",
+-  "description": "SIT's an Issue Tracker",
+-  "start_url": "/",
+-  "display": "standalone"
+-}
+-- 
+2.16.4
+
