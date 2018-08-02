@@ -5,8 +5,8 @@ use dunce;
 use serde_json;
 use sit_core::cfg::{self, Configuration};
 use sit_core::{
-    record::{BoxedOrderedFiles, OrderedFiles},
-    Item, Record, Repository,
+    record::{BoxedOrderedFiles, OrderedFiles, RecordOwningContainer},
+    Record, Repository
 };
 use std::env;
 use std::ffi::OsString;
@@ -14,17 +14,29 @@ use std::fs;
 use std::io::{self, Cursor, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use walkdir::{self as walk, WalkDir};
+use itertools::Itertools;
+
+#[cfg(feature = "deprecated-items")]
+pub const FILES_ARG: &str = "[Item ID (DEPRECATED)] FILES";
+#[cfg(not(feature = "deprecated-items"))]
+pub const FILES_ARG: &str = "FILES";
+
+#[cfg(feature = "deprecated-items")]
+pub const FILES_ARG_HELP: &str = "Optional item identifier followed by a collection of files or folders the record will be built from";
+#[cfg(not(feature = "deprecated-items"))]
+pub const FILES_ARG_HELP: &str = "Collection of files or folders the record will be built from";
 
 fn record_files(
-    matches: &ArgMatches,
+    matches: &ArgMatches, offset: usize,
     utc: DateTime<Utc>,
     config: &Configuration,
 ) -> Result<BoxedOrderedFiles<'static>, io::Error> {
     let files = matches
-        .values_of("FILES")
+        .values_of(FILES_ARG)
         .unwrap_or(clap::Values::default());
 
     let files: OrderedFiles<_> = files
+        .dropping(offset)
         .into_iter()
         .map(|name| {
             let path = PathBuf::from(&name);
@@ -157,72 +169,112 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: 
         }
     }
 
-    let id = matches.value_of("id").unwrap();
-    match repo.item(id) {
-        None => {
-            eprintln!("Item {} not found", id);
+    #[cfg(feature = "deprecated-items")]
+    let offset = {
+        let item = matches.value_of(FILES_ARG)
+            // file with such a name doesn't exist
+            .and_then(|maybe_id|
+                if Path::new(maybe_id).exists() {
+                    None
+                } else {
+                    Some(maybe_id)
+                })
+            // item with such a name exists
+            .and_then(|id| repo.item(id));
+
+        let first_is_file = matches.value_of(FILES_ARG)
+            .and_then(|name|
+                if Path::new(name).exists() {
+                    Some(name)
+                } else {
+                    None
+                });
+
+        let val = matches.value_of(FILES_ARG).unwrap_or("<unknown>");
+
+        if matches.value_of(FILES_ARG).is_some() && item.is_none() && first_is_file.is_none() {
+            eprintln!("Item or file {} not found", val);
             return 1;
         }
-        Some(item) => {
-            let utc: DateTime<Utc> = Utc::now();
-
-            let signing = matches.is_present("sign") || config.signing.enabled;
-
-            let files = record_files(matches, utc, &config).expect("failed collecting files");
-
-            let files = if signing {
-                use std::ffi::OsString;
-                let program = super::gnupg(matches, &config).expect("can't find GnuPG");
-                let key = match matches.value_of("signing-key").map(String::from).or_else(|| config.signing.key.clone()) {
-                    Some(key) => Some(OsString::from(key)),
-                    None => None,
-                };
-                let mut command = ::std::process::Command::new(program);
-
-                command
-                    .stdin(::std::process::Stdio::piped())
-                    .stdout(::std::process::Stdio::piped())
-                    .arg("--sign")
-                    .arg("--armor")
-                    .arg("--detach-sign")
-                    .arg("-o")
-                    .arg("-");
-
-                if key.is_some() {
-                    let _ = command.arg("--default-key").arg(key.unwrap());
-                }
-
-                let mut child = command.spawn().expect("failed spawning gnupg");
-
-                {
-                    let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
-                    let mut hasher = repo.config().hashing_algorithm().hasher();
-                    files.hash(&mut *hasher).expect("failed hashing files");
-                    let hash = hasher.result_box();
-                    let encoded_hash = repo.config().encoding().encode(&hash);
-                    stdin.write_all(encoded_hash.as_bytes()).expect("Failed to write to stdin");
-                }
-
-                let output = child.wait_with_output().expect("failed to read stdout");
-
-                if !output.status.success() {
-                    eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
-                    return 1;
-                } else {
-                    let files = record_files(matches, utc, &config).expect("failed collecting files");
-                    let signature_file: OrderedFiles<(String, _)> = vec![(String::from(".signature"), Cursor::new(output.stdout))].into();
-                    files + signature_file
-                }
-
-            } else {
-                files
-            };
-
-            let record = item.new_record(files, true).expect("can't create a record");
-
-            println!("{}", record.encoded_hash());
+        if item.is_some() && first_is_file.is_some() {
+            eprintln!("Ambiguity detected: {} is both a file and an item identifier", val);
+            return 1;
         }
-    }
+        if item.is_some() {
+            1
+        } else {
+            0
+        }
+    };
+    #[cfg(not(feature = "deprecated-items"))]
+    let offset = 0;
+
+    let utc: DateTime<Utc> = Utc::now();
+
+    let signing = matches.is_present("sign") || config.signing.enabled;
+
+    let files = record_files(matches, offset, utc, &config).expect("failed collecting files");
+
+    let files = if signing {
+        use std::ffi::OsString;
+        let program = super::gnupg(matches, &config).expect("can't find GnuPG");
+        let key = match matches.value_of("signing-key").map(String::from).or_else(|| config.signing.key.clone()) {
+            Some(key) => Some(OsString::from(key)),
+            None => None,
+        };
+        let mut command = ::std::process::Command::new(program);
+
+        command
+            .stdin(::std::process::Stdio::piped())
+            .stdout(::std::process::Stdio::piped())
+            .arg("--sign")
+            .arg("--armor")
+            .arg("--detach-sign")
+            .arg("-o")
+            .arg("-");
+
+        if key.is_some() {
+            let _ = command.arg("--default-key").arg(key.unwrap());
+        }
+
+        let mut child = command.spawn().expect("failed spawning gnupg");
+
+        {
+            let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
+            let mut hasher = repo.config().hashing_algorithm().hasher();
+            files.hash(&mut *hasher).expect("failed hashing files");
+            let hash = hasher.result_box();
+            let encoded_hash = repo.config().encoding().encode(&hash);
+            stdin.write_all(encoded_hash.as_bytes()).expect("Failed to write to stdin");
+        }
+
+        let output = child.wait_with_output().expect("failed to read stdout");
+
+        if !output.status.success() {
+            eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
+            return 1;
+        } else {
+            let files = record_files(matches, offset, utc, &config).expect("failed collecting files");
+            let signature_file: OrderedFiles<(String, _)> = vec![(String::from(".signature"), Cursor::new(output.stdout))].into();
+            files + signature_file
+        }
+
+    } else {
+        files
+    };
+
+    let record = if offset == 1 { // item
+        let item = matches.value_of(FILES_ARG)
+            .and_then(|id| repo.item(id))
+            .unwrap();
+
+        item.new_record(files, true).expect("can't create a record")
+    } else { // repo
+        repo.new_record(files, true).expect("can't create a record")
+    };
+
+    println!("{}", record.encoded_hash());
+
     return 0;
 }
 

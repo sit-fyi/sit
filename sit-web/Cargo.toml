@@ -34,4 +34,6 @@ include_dir = "0.1"
 fs_extra = "1.1"
 
 [features]
+default = ["deprecated-items"]
 windows7 = ["sit-core/windows7"]
+deprecated-items = ["sit-core/deprecated-item-api"]

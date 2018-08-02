@@ -5,10 +5,33 @@ extern crate chrono;
 extern crate which;
 
 use cli_test_dir::*;
-use sit_core::{Repository, Item, record::RecordExt};
+use sit_core::{Repository, record::RecordContainer, record::RecordExt};
 use std::process;
 
 include!("includes/config.rs");
+
+/// Should allow recording for an item
+#[test]
+#[cfg(feature = "deprecated-items")]
+fn item_record() {
+    use sit_core::path::ResolvePath;
+    let dir = TestDir::new("sit", "item_record");
+    dir.cmd()
+        .arg("init")
+        .expect_success();
+    let id: String = String::from_utf8(dir.cmd()
+        .arg("item")
+        .expect_success().stdout).unwrap().trim().into();
+    user_config(&dir, r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
+    let record: String = String::from_utf8(dir.cmd()
+        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+        .env("USERPROFILE", dir.path(".").to_str().unwrap())
+        .args(&["record", &id, "-t", "Sometype"])
+        .expect_success().stdout).unwrap().trim().into();
+    let rec_file = dir.path(".sit").join("items").join(id).join(record);
+    assert!(rec_file.is_file());
+    assert!(rec_file.resolve_dir().unwrap().is_dir());
+}
 
 /// Should derive authorship from the config file
 #[test]
@@ -17,16 +40,13 @@ fn record_authorship() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     user_config(&dir, r#"{"author": {"name": "Test", "email": "test@test.com"}}"#);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "-t", "Sometype"])
+        .args(&["record", "-t", "Sometype"])
         .expect_success();
-    verify_authors(&dir, &id,"Test <test@test.com>");
+    verify_authors(&dir, "Test <test@test.com>");
 }
 
 
@@ -37,14 +57,11 @@ fn record_no_authorship_no_git() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id = dir.cmd()
-        .arg("item")
-        .expect_success().stdout;
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", ::std::str::from_utf8(&id).unwrap(), "-t","Sometype"])
+        .args(&["record", "-t","Sometype"])
         .expect_failure();
 }
 
@@ -55,18 +72,14 @@ fn record_no_authorship_no_author() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-author", "-t", "Sometype"])
+        .args(&["record", "--no-author", "-t", "Sometype"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     assert!(record.file(".authors").is_none());
 }
@@ -78,18 +91,14 @@ fn record_no_aux() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-aux"])
+        .args(&["record", "--no-aux"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     assert!(record.file(".timestamp").is_none());
     assert!(record.file(".authors").is_none());
@@ -103,17 +112,14 @@ fn record_no_authorship_local_git() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".git/config", "[user]\nname=Test\nemail=test@test.com");
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "-t", "Sometype"])
+        .args(&["record", "-t", "Sometype"])
         .expect_success();
-    verify_authors(&dir, &id,"Test <test@test.com>");
+    verify_authors(&dir, "Test <test@test.com>");
 }
 
 /// Should derive authorship from $HOME/.gitconfig if it is otherwise unavailable
@@ -123,17 +129,14 @@ fn record_no_authorship_user_git() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".gitconfig","[user]\nname=Test\nemail=test@test.com");
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "-t","Sometype"])
+        .args(&["record", "-t","Sometype"])
         .expect_success();
-    verify_authors(&dir, &id,"Test <test@test.com>");
+    verify_authors(&dir, "Test <test@test.com>");
 }
 
 /// Should prefer .git/config over $HOME/.gitconfig if authorship information is unavailable otherwise
@@ -143,18 +146,15 @@ fn record_no_authorship_local_over_user_git() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".gitconfig","[user]\nname=Test\nemail=test@test.com");
     dir.create_file(".git/config","[user]\nname=User\nemail=user@test.com");
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "-t","Sometype"])
+        .args(&["record",  "-t","Sometype"])
         .expect_success();
-    verify_authors(&dir, &id,"User <user@test.com>");
+    verify_authors(&dir, "User <user@test.com>");
 }
 
 /// Should record a timestamp
@@ -164,18 +164,14 @@ fn record_should_record_timestamp() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-author", "-t","Sometype"])
+        .args(&["record", "--no-author", "-t","Sometype"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     let mut s = String::new();
     use std::io::Read;
@@ -193,18 +189,14 @@ fn record_should_not_record_timestamp() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-author", "--no-timestamp", "-t","Sometype"])
+        .args(&["record", "--no-author", "--no-timestamp", "-t","Sometype"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     assert!(record.file(".timestamp").is_none());
 }
@@ -216,15 +208,12 @@ fn record_should_not_record_if_files_are_missing() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     dir.create_file("exists","");
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-author", "-t","Sometype", "exists", "missing"])
+        .args(&["record", "--no-author", "-t","Sometype", "exists", "missing"])
         .expect_failure();
 }
 
@@ -235,15 +224,12 @@ fn record_should_fail_if_no_type() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     dir.create_file("file", "");
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-author", "file"])
+        .args(&["record", "--no-author", "file"])
         .expect_success();
 }
 
@@ -254,19 +240,15 @@ fn record_dot_type_sufficiency() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".type/MyType","");
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-author", ".type/MyType"])
+        .args(&["record", "--no-author", ".type/MyType"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     assert!(record.file(".type/MyType").is_some());
 }
@@ -279,20 +261,16 @@ fn record_should_merge_types() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     dir.create_file(".type/MyType","");
     dir.create_file(".type/OurType","");
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-author", "-t","Sometype,SomeOtherType",".type/MyType", ".type/OurType"])
+        .args(&["record", "--no-author", "-t","Sometype,SomeOtherType",".type/MyType", ".type/OurType"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     assert!(record.file(".type/Sometype").is_some());
     assert!(record.file(".type/SomeOtherType").is_some());
@@ -307,20 +285,16 @@ fn record_should_record_files() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     dir.create_file("file1","file1");
     dir.create_file("files/file2","file2");
     no_user_config(&dir);
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-author", "-t","Sometype","file1", "files/file2"])
+        .args(&["record", "--no-author", "-t","Sometype","file1", "files/file2"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     let mut s = String::new();
     use std::io::Read;
@@ -338,18 +312,14 @@ fn record_should_record_files_and_directories() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
     dir.create_file("file1","file1");
     dir.create_file("files/file2","file2");
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
-        .args(&["record", &id, "--no-author", "-t","Sometype","file1", "files"])
+        .args(&["record", "--no-author", "-t","Sometype","file1", "files"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     let mut s = String::new();
     use std::io::Read;
@@ -398,19 +368,15 @@ fn record_should_sign_if_configured() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
 
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
-        .args(&["record", &id, "--no-author", "-t","Sometype"])
+        .args(&["record", "--no-author", "-t","Sometype"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     assert!(record.file(".signature").is_some());
 }
@@ -450,28 +416,23 @@ fn record_should_sign_if_instructed_cmdline() {
     dir.cmd()
         .arg("init")
         .expect_success();
-    let id: String = String::from_utf8(dir.cmd()
-        .arg("item")
-        .expect_success().stdout).unwrap().trim().into();
 
     dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap()) // to ensure there are right configs
         .env("GNUPGHOME", dir.path(".").to_str().unwrap())
-        .args(&["record", "--sign",  "--signing-key", "test@test.com", &id, "--no-author", "-t","Sometype"])
+        .args(&["record", "--sign",  "--signing-key", "test@test.com", "--no-author", "-t","Sometype"])
         .expect_success();
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     assert!(record.file(".signature").is_some());
 }
 
 
-fn verify_authors<S0: AsRef<str>, S: AsRef<str>>(dir: &TestDir, id: S0, expected: S) {
+fn verify_authors<S: AsRef<str>>(dir: &TestDir, expected: S) {
     let repo = Repository::open(dir.path(".sit")).unwrap();
-    let item = repo.item(id).unwrap();
-    let mut records = item.record_iter().unwrap();
+    let mut records = repo.record_iter().unwrap();
     let record = records.next().unwrap().pop().unwrap();
     let mut s = String::new();
     use std::io::Read;

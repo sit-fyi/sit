@@ -112,6 +112,16 @@ impl HashingAlgorithm {
         }
     }
 
+    /// Returns the output length of the hash
+    pub fn len(&self) -> usize {
+        match self {
+            #[cfg(feature = "blake2")]
+            &HashingAlgorithm::Blake2b { size } => size,
+            #[cfg(feature = "sha-1")]
+            &HashingAlgorithm::SHA1 => 20,
+        }
+    }
+
 }
 
 #[cfg(test)]

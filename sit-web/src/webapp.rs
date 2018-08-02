@@ -64,8 +64,8 @@ use std::path::PathBuf;
 use std::fs;
 use std::net::ToSocketAddrs;
 
-use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles,
-               path::{HasPath, ResolvePath}};
+use sit_core::{Repository, repository, reducers::duktape::{self, DuktapeReducer}, record::OrderedFiles,
+               record::{RecordContainer, RecordContainerReduction, RecordOwningContainer}, path::{HasPath, ResolvePath}};
 use std::io::Cursor;
 
 use mime_guess::get_mime_type_str;
@@ -123,6 +123,141 @@ struct Config {
     readonly: bool,
 }
 
+
+fn new_record<C: RecordOwningContainer, MI>(container: &C, request: &Request, repo: &Repository<MI>, config: &sit_core::cfg::Configuration) -> Result<C::Record, String> {
+    let mut multipart = get_multipart_input(request).expect("multipart request");
+    let mut link = true;
+    let mut used_files = vec![];
+
+    loop {
+        let part = multipart.next();
+        if part.is_none() {
+            break;
+        }
+        let mut field = part.unwrap();
+        loop {
+            let path = {
+                let mut file = field.data.as_file().expect("files only");
+                let saved_file = file.save().temp().into_result().expect("can't save file");
+                saved_file.path
+            };
+            if field.name.starts_with(".prev/") {
+                link = false;
+            }
+            used_files.push((field.name.clone(), path));
+            match field.next_entry_inplace() {
+                Ok(Some(_)) => continue,
+                Ok(None) => break,
+                Err(e) => panic!(e),
+            }
+        }
+    }
+
+    let files: OrderedFiles<_> = used_files.iter().map(|(n, p)| (n.clone(), fs::File::open(p).expect("can't open saved file"))).into();
+    let files_: OrderedFiles<_> = used_files.iter().map(|(n, p)| (n.clone(), fs::File::open(p).expect("can't open saved file"))).into();
+
+    let files: OrderedFiles<_> = if config.signing.enabled {
+        use std::ffi::OsString;
+        use std::io::Write;
+        let program = super::gnupg(&config).unwrap();
+        let key = match config.signing.key.clone() {
+            Some(key) => Some(OsString::from(key)),
+            None => None,
+        };
+
+        let mut command = ::std::process::Command::new(program);
+
+        command
+            .stdin(::std::process::Stdio::piped())
+            .stdout(::std::process::Stdio::piped())
+            .arg("--sign")
+            .arg("--armor")
+            .arg("--detach-sign")
+            .arg("-o")
+            .arg("-");
+
+        if key.is_some() {
+            let _ = command.arg("--default-key").arg(key.unwrap());
+        }
+
+        let mut child = command.spawn().expect("failed spawning gnupg");
+
+        {
+            let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
+            let mut hasher = repo.config().hashing_algorithm().hasher();
+            files_.hash(&mut *hasher).expect("failed hashing files");
+            let hash = hasher.result_box();
+            let encoded_hash = repo.config().encoding().encode(&hash);
+            stdin.write_all(encoded_hash.as_bytes()).expect("Failed to write to stdin");
+        }
+
+        let output = child.wait_with_output().expect("failed to read stdout");
+
+        if !output.status.success() {
+            eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
+            return Err(String::from_utf8_lossy(&output.stderr).into());
+        } else {
+            let sig: OrderedFiles<_> = vec![(String::from(".signature"), Cursor::new(output.stdout))].into();
+            files + sig
+        }
+
+    } else {
+        files.boxed()
+    };
+
+    let record = container.new_record(files, link).expect("can't create record");
+
+    for (_, file) in used_files {
+        fs::remove_file(file).expect("can't remove file");
+    }
+
+    Ok(record)
+}
+
+fn reduce<MI, RCR: RecordContainerReduction<Record = repository::Record>>
+    (repo: &Repository<MI>, container: &RCR, request: &Request, query_expr: String) -> Response
+    where MI: repository::ModuleIterator<PathBuf, repository::Error> {
+    if let Some(vals) = request.get_param("reducers") {
+        let reducers_path = repo.path().join("reducers");
+        let reducers = vals.split(",").map(PathBuf::from)
+            .map(|p| if p.is_file() {
+                p
+            } else if reducers_path.join(&p).resolve_dir().unwrap().is_dir() {
+                let dir = reducers_path.join(&p).resolve_dir().unwrap();
+                dir
+            } else {
+                p
+            });
+        return reduce__(container, request, query_expr, reducers)
+    } else {
+        return reduce__(container, request, query_expr, repo)
+    }
+    // implementation
+    fn reduce__<RCR: RecordContainerReduction<Record = repository::Record>, SF: duktape::SourceFiles>
+        (container: &RCR, request: &Request, query_expr: String, source_files: SF) -> Response {
+            use jmespath;
+            let reducer = sit_core::reducers::duktape::DuktapeReducer::new(source_files).unwrap();
+            let query = match jmespath::compile(&query_expr) {
+                Ok(query) => query,
+                _ => return Response::empty_400(),
+            };
+            fn reduce_<RCR: RecordContainerReduction<Record = repository::Record>>
+                (container: &RCR, query: jmespath::Expression, mut reducer: duktape::DuktapeReducer<repository::Record>, state: serde_json::Value)-> Response {
+                    let state = container.initialize_state(state.as_object().unwrap().to_owned());
+                    let reduced = container.reduce_with_reducer_and_state(&mut reducer, state).unwrap();
+                    let data = jmespath::Variable::from(serde_json::Value::Object(reduced));
+                    let result = query.search(&data).unwrap();
+                    Response::json(&result)
+            }
+            if let Some(state) = request.get_param("state") {
+                reduce_(container, query, reducer, serde_json::from_str(&state).unwrap())
+            } else {
+                reduce_(container, query, reducer, serde_json::Value::Object(Default::default()))
+            }
+    }
+}
+
+
 pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_core::cfg::Configuration, repo: Repository<MI>, readonly: bool, overlays: Vec<&str>)
     where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
     let mut overlays: Vec<_> = overlays.iter().map(|o| PathBuf::from(o)).collect();
@@ -155,12 +290,13 @@ pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_c
         (GET) (/config) => {
            Response::json(&repo_config)
         },
-        (GET) (/api/items/{filter_expr: String}/{query_expr: String}) => {
+        (GET) (/api/items/{filter_expr: String}/{query_expr: String}) => { // DEPRECATED
+        #[cfg(feature = "deprecated-items")] {
             use jmespath;
-            use sit_core::item::ItemReduction;
+            use sit_core::record::RecordContainerReduction;
             let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
             let mut reducer = Arc::new(Mutex::new(sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap()));
-            let tl_reducer: ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record<MI>, MI>>> = ThreadLocal::new();
+            let tl_reducer: ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>>= ThreadLocal::new();
 
             let filter_defined = filter_expr != "";
             let filter = if filter_defined {
@@ -198,10 +334,15 @@ pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_c
                   })
                  .filter(Option::is_some).collect();
             Response::json(&result)
+          }
+        #[cfg(not(feature = "deprecated-items"))] {
+             Response::not_found()
+        }
         },
-        (GET) (/api/item/{id: String}/{query_expr: String}) => {
+        (GET) (/api/item/{id: String}/{query_expr: String}) => { // DEPRECATED 
+        #[cfg(feature = "deprecated-items")] {
             use jmespath;
-            use sit_core::item::ItemReduction;
+            use sit_core::record::RecordContainerReduction;
             use sit_core::Item;
             let mut reducer = sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap();
             let query = match jmespath::compile(&query_expr) {
@@ -216,8 +357,20 @@ pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_c
             let data = jmespath::Variable::from(serde_json::Value::Object(reduced));
             let result = query.search(&data).unwrap();
             Response::json(&result)
+        }
+        #[cfg(not(feature = "deprecated-items"))] {
+             Response::not_found()
+        }
         },
-        (GET) (/api/item/{id: String}/{record: String}/files) => {
+        (GET) (/api/{roots: String}/reduce/{query_expr: String}) => {
+            let container = repo.fixed_roots(roots.split(","));
+            reduce(&repo, &container, &request, query_expr)
+        },
+        (GET) (/api/reduce/{query_expr: String}) => {
+            reduce(&repo, &repo, &request, query_expr)
+        },
+        (GET) (/api/item/{id: String}/{record: String}/files) => { // DEPRECATED
+        #[cfg(feature = "deprecated-items")] {
             use sit_core::{Record, Item};
             let item = match repo.item_iter().unwrap().find(|i| i.id() == id) {
                 Some(item) => item,
@@ -229,14 +382,33 @@ pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_c
             };
             let files: Vec<_> = record.file_iter().map(|(name, _)| name).collect();
             Response::json(&files)
+        }
+        #[cfg(not(feature = "deprecated-items"))] {
+             Response::not_found()
+        }
+        },
+        (GET) (/api/record/{record: String}/files) => {
+            use sit_core::Record;
+            let record = match repo.record(record) {
+               Some(record) => record,
+               None => return Response::empty_404(),
+            };
+            let files: Vec<_> = record.file_iter().map(|(name, _)| name).collect();
+            Response::json(&files)
         },
         (POST) (/api/item) => {
+        #[cfg(feature = "deprecated-items")] { // DEPRECATED
            if readonly { return Response::empty_404(); }
            use sit_core::Item;
            let item = repo.new_item().expect("can't create item");
            Response::json(&item.id())
+        }
+        #[cfg(not(feature = "deprecated-items"))] {
+             Response::not_found()
+        }
         },
-        (POST) (/api/item/{id: String}/records) => {
+        (POST) (/api/item/{id: String}/records) => { // DEPRECATED
+        #[cfg(feature = "deprecated-items")] {
            if readonly { return Response::empty_404(); }
            use sit_core::{Item, Record};
            let mut item = match repo.item_iter().unwrap().find(|i| i.id() == id) {
@@ -244,93 +416,23 @@ pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_c
                 None => return Response::empty_404(),
            };
 
-           let mut multipart = get_multipart_input(&request).expect("multipart request");
-           let mut link = true;
-           let mut used_files = vec![];
-
-           loop {
-              let mut part = multipart.next();
-              if part.is_none() {
-                 break;
-              }
-              let mut field = part.unwrap();
-              loop {
-                 let path = {
-                     let mut file = field.data.as_file().expect("files only");
-                     let saved_file = file.save().temp().into_result().expect("can't save file");
-                     saved_file.path
-                 };
-                 if field.name.starts_with(".prev/") {
-                    link = false;
-                 }
-                 used_files.push((field.name.clone(), path));
-                 match field.next_entry_inplace() {
-                     Ok(Some(_)) => continue,
-                     Ok(None) => break,
-                     Err(e) => panic!(e),
-                 }
-              }
+           match new_record(&item, &request, &repo, &config) {
+               Ok(record) => Response::json(&record.encoded_hash()),
+               Err(_) => Response::text("Error").with_status_code(500),
            }
+        }
+        #[cfg(not(feature = "deprecated-items"))] {
+             Response::not_found()
+        }
+        },
+        (POST) (/api/records) => {
+           if readonly { return Response::empty_404(); }
+           use sit_core::Record;
 
-           let files: OrderedFiles<_> = used_files.iter().map(|(n, p)| (n.clone(), fs::File::open(p).expect("can't open saved file"))).into();
-           let files_: OrderedFiles<_> = used_files.iter().map(|(n, p)| (n.clone(), fs::File::open(p).expect("can't open saved file"))).into();
-
-           let files: OrderedFiles<_> = if config.signing.enabled {
-              use std::ffi::OsString;
-              use std::io::Write;
-              let program = super::gnupg(&config).unwrap();
-              let key = match config.signing.key.clone() {
-                  Some(key) => Some(OsString::from(key)),
-                  None => None,
-              };
-
-              let mut command = ::std::process::Command::new(program);
-
-              command
-                   .stdin(::std::process::Stdio::piped())
-                   .stdout(::std::process::Stdio::piped())
-                   .arg("--sign")
-                   .arg("--armor")
-                   .arg("--detach-sign")
-                   .arg("-o")
-                   .arg("-");
-
-              if key.is_some() {
-                   let _ = command.arg("--default-key").arg(key.unwrap());
-              }
-
-              let mut child = command.spawn().expect("failed spawning gnupg");
-
-              {
-                  let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
-                  let mut hasher = repo.config().hashing_algorithm().hasher();
-                  files_.hash(&mut *hasher).expect("failed hashing files");
-                  let hash = hasher.result_box();
-                  let encoded_hash = repo.config().encoding().encode(&hash);
-                  stdin.write_all(encoded_hash.as_bytes()).expect("Failed to write to stdin");
-              }
-
-              let output = child.wait_with_output().expect("failed to read stdout");
-
-              if !output.status.success() {
-                  eprintln!("Error: {}", String::from_utf8_lossy(&output.stderr));
-                  return Response::text(String::from_utf8_lossy(&output.stderr)).with_status_code(500);
-              } else {
-                 let sig: OrderedFiles<_> = vec![(String::from(".signature"), Cursor::new(output.stdout))].into();
-                 files + sig
-             }
-
-          } else {
-              files.boxed()
-          };
-
-          let record = item.new_record(files, link).expect("can't create record");
-
-          for (_, file) in used_files {
-            fs::remove_file(file).expect("can't remove file");
-          }
-
-          Response::json(&record.encoded_hash())
+           match new_record(&repo, &request, &repo, &config) {
+               Ok(record) => Response::json(&record.encoded_hash()),
+               Err(_) => Response::text("Error").with_status_code(500),
+           }
         },
         _ => {
         // Serve repository content

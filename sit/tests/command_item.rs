@@ -1,11 +1,15 @@
 extern crate cli_test_dir;
 extern crate sit_core;
 
+
+#[cfg(feature = "deprecated-items")]
 use cli_test_dir::*;
+#[cfg(feature = "deprecated-items")]
 use sit_core::{Repository, Item};
 
 /// Should create an item
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item() {
     let dir = TestDir::new("sit", "item");
     dir.cmd()
@@ -21,6 +25,7 @@ fn item() {
 
 /// Should create a named item
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_named() {
     let dir = TestDir::new("sit", "item_named");
     dir.cmd()
@@ -38,6 +43,7 @@ fn item_named() {
 /// Should fail if creating a named item with a duplicate name
 /// (item with such name already exists)
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_existing() {
     let dir = TestDir::new("sit", "existing");
     dir.cmd()
