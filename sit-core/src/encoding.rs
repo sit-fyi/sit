@@ -26,7 +26,13 @@ impl Deref for Encoding {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            &Encoding::Base32 => &data_encoding::BASE32,
+            &Encoding::Base32 => &BASE32_DASHPAD,
         }
     }
 }
+
+const BASE32_DASHPAD: data_encoding::Encoding = new_encoding!{
+    symbols: "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567",
+    padding: '-',
+};
+

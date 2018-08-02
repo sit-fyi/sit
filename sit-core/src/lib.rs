@@ -18,6 +18,7 @@ pub extern crate serde_json;
 extern crate tempdir;
 extern crate glob;
 extern crate data_encoding;
+#[macro_use] extern crate data_encoding_macro;
 #[macro_use] extern crate lazy_static;
 
 // Hashing
