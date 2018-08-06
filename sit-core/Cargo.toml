@@ -1,6 +1,6 @@
 [package]
 name = "sit-core"
-version = "0.4.0"
+version = "0.4.1-pre"
 authors = ["Yurii Rashkovskii <me@yrashk.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/sit-it/sit"

@@ -1,6 +1,6 @@
 [package]
 name = "sit"
-version = "0.4.0"
+version = "0.4.1-pre"
 description = "Serverless Information Tracker"
 authors = ["Yurii Rashkovskii <me@yrashk.com>"]
 license = "MIT/Apache-2.0"
@@ -25,7 +25,7 @@ dunce = "0.1"
 which = "2.0"
 atty = "0.2"
 thread_local = "0.3"
-sit-core = { path = "../sit-core", version = "0.4.0", features = ["git"] }
+sit-core = { path = "../sit-core", version = "0.4.1-pre", features = ["git"] }
 
 [dev-dependencies]
 cli_test_dir = "0.1.5"
