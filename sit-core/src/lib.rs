@@ -42,6 +42,7 @@ extern crate relative_path;
 #[cfg(test)] #[macro_use] extern crate proptest;
 
 
+pub mod path;
 pub mod hash;
 pub mod encoding;
 pub mod id;

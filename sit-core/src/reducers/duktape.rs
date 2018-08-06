@@ -9,6 +9,7 @@ use std::ptr;
 use std::ffi::{CString, CStr, OsStr};
 use std::path::PathBuf;
 use std::fs;
+use path::HasPath;
 
 #[cfg(feature = "duktape-mmap")]
 use memmap;
@@ -511,6 +512,7 @@ mod tests {
     use super::*;
     use ::Repository;
     use item::{Item, ItemReduction};
+    use path::HasPath;
 
     #[test]
     fn undefined_result() {
