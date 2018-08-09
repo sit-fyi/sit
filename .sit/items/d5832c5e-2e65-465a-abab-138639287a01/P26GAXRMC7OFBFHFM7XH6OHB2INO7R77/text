@@ -1,0 +1,15 @@
+Recently, a way to resolve linked paths (`ResolvePath`)
+was introduced. However, it is only helpful if the link
+is contained only in the last component of the path:
+
+```
+$ cat /path/to/link
+../something
+```
+
+This makes resolving paths that *contain* a link much
+more difficult (example: `/path/to/link/some/file`)
+
+Solution: handle this case in `ResolvePath` implementation
+and resolve paths that contain links
+

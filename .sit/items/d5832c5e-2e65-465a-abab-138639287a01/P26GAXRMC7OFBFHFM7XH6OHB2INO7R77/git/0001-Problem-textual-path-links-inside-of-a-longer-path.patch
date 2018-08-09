@@ -1,0 +1,104 @@
+From 0ab9f24f0928de1757517594a52013efada615aa Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 9 Aug 2018 13:07:23 +0700
+Subject: [PATCH] Problem: textual path links inside of a longer path
+
+Recently, a way to resolve linked paths (`ResolvePath`)
+was introduced. However, it is only helpful if the link
+is contained only in the last component of the path:
+
+```
+$ cat /path/to/link
+../something
+```
+
+This makes resolving paths that *contain* a link much
+more difficult (example: `/path/to/link/some/file`)
+
+Solution: handle this case in `ResolvePath` implementation
+and resolve paths that contain links
+---
+ sit-core/src/path.rs  | 29 ++++++++++++++++++++++++++++-
+ sit-web/src/webapp.rs |  6 ++++--
+ 2 files changed, 32 insertions(+), 3 deletions(-)
+
+diff --git a/sit-core/src/path.rs b/sit-core/src/path.rs
+index a7e5731..80d7c66 100644
+--- a/sit-core/src/path.rs
++++ b/sit-core/src/path.rs
+@@ -25,7 +25,7 @@ impl<T> ResolvePath for T where T: AsRef<Path> {
+         let mut path: PathBuf = self.as_ref().into();
+         if path.is_dir() {
+             Ok(path)
+-        } else {
++        } else if path.is_file() {
+             fs::File::open(&path)
+                 .and_then(|mut f| {
+                     use std::io::Read;
+@@ -39,6 +39,19 @@ impl<T> ResolvePath for T where T: AsRef<Path> {
+                     path.pop(); // remove the file name
+                     path.join(PathBuf::from(trimmed_path)).resolve_dir()
+                 })
++        } else {
++            let total_components = path.components().count();
++            let mut components = path.components();
++            let mut rebuilt_path = components.next().unwrap().resolve_dir()?;
++            for (i, component) in components.enumerate() {
++                rebuilt_path.push(component);
++                if rebuilt_path.exists() && i + 2 < total_components {
++                    rebuilt_path = rebuilt_path.resolve_dir()?;
++                } else if !rebuilt_path.exists() {
++                    return Err(io::ErrorKind::NotFound.into())
++                }
++            }
++            Ok(rebuilt_path)
+         }
+     }
+ }
+@@ -83,4 +96,18 @@ mod tests {
+         f.write(b"1").unwrap();
+         assert_eq!(tmp.join("2").resolve_dir().unwrap(), tmp.join("dir"));
+     }
++
++    #[test]
++    fn resolve_path_with_a_link_inside() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        fs::create_dir_all(tmp.join("dir")).unwrap();
++        let mut f = fs::File::create(tmp.join("1")).unwrap();
++        f.write(b"dir").unwrap();
++        let mut f = fs::File::create(tmp.join("dir").join("2")).unwrap();
++        f.write(b"not a link").unwrap();
++        assert_eq!(tmp.join("1").join("2").resolve_dir().unwrap(), tmp.join("dir").join("2"));
++        // this path is not found
++        assert!(tmp.join("1").join("3").resolve_dir().is_err());
++    }
++
+ }
+\ No newline at end of file
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index 0b7c8c3..4df09bb 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -64,7 +64,8 @@ use std::path::PathBuf;
+ use std::fs;
+ use std::net::ToSocketAddrs;
+ 
+-use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles, path::HasPath};
++use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles,
++               path::{HasPath, ResolvePath}};
+ use std::io::Cursor;
+ 
+ use mime_guess::get_mime_type_str;
+@@ -334,7 +335,8 @@ pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_c
+         _ => {
+         // Serve repository content
+         if request.url().starts_with("/repo/") {
+-            let file = repo.path().join(&request.url()[6..]);
++            let mut file = repo.path().join(&request.url()[6..]);
++            file = file.resolve_dir().unwrap_or(file);
+             if file.strip_prefix(repo.path()).is_err() {
+                return Response::empty_404();
+             }
+-- 
+2.16.4
+
