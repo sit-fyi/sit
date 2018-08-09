@@ -25,7 +25,7 @@ impl<T> ResolvePath for T where T: AsRef<Path> {
         let mut path: PathBuf = self.as_ref().into();
         if path.is_dir() {
             Ok(path)
-        } else {
+        } else if path.is_file() {
             fs::File::open(&path)
                 .and_then(|mut f| {
                     use std::io::Read;
@@ -39,6 +39,19 @@ impl<T> ResolvePath for T where T: AsRef<Path> {
                     path.pop(); // remove the file name
                     path.join(PathBuf::from(trimmed_path)).resolve_dir()
                 })
+        } else {
+            let total_components = path.components().count();
+            let mut components = path.components();
+            let mut rebuilt_path = components.next().unwrap().resolve_dir()?;
+            for (i, component) in components.enumerate() {
+                rebuilt_path.push(component);
+                if rebuilt_path.exists() && i + 2 < total_components {
+                    rebuilt_path = rebuilt_path.resolve_dir()?;
+                } else if !rebuilt_path.exists() {
+                    return Err(io::ErrorKind::NotFound.into())
+                }
+            }
+            Ok(rebuilt_path)
         }
     }
 }
@@ -83,4 +96,18 @@ mod tests {
         f.write(b"1").unwrap();
         assert_eq!(tmp.join("2").resolve_dir().unwrap(), tmp.join("dir"));
     }
+
+    #[test]
+    fn resolve_path_with_a_link_inside() {
+        let tmp = TempDir::new("sit").unwrap().into_path();
+        fs::create_dir_all(tmp.join("dir")).unwrap();
+        let mut f = fs::File::create(tmp.join("1")).unwrap();
+        f.write(b"dir").unwrap();
+        let mut f = fs::File::create(tmp.join("dir").join("2")).unwrap();
+        f.write(b"not a link").unwrap();
+        assert_eq!(tmp.join("1").join("2").resolve_dir().unwrap(), tmp.join("dir").join("2"));
+        // this path is not found
+        assert!(tmp.join("1").join("3").resolve_dir().is_err());
+    }
+
 }

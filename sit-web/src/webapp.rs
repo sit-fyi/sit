@@ -64,7 +64,8 @@ use std::path::PathBuf;
 use std::fs;
 use std::net::ToSocketAddrs;
 
-use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles, path::HasPath};
+use sit_core::{Repository, reducers::duktape::DuktapeReducer, record::OrderedFiles,
+               path::{HasPath, ResolvePath}};
 use std::io::Cursor;
 
 use mime_guess::get_mime_type_str;
@@ -320,7 +321,8 @@ pub fn start<A: ToSocketAddrs>(addr: A, config: sit_core::cfg::Configuration, re
         _ => {
         // Serve repository content
         if request.url().starts_with("/repo/") {
-            let file = repo.path().join(&request.url()[6..]);
+            let mut file = repo.path().join(&request.url()[6..]);
+            file = file.resolve_dir().unwrap_or(file);
             if file.strip_prefix(repo.path()).is_err() {
                return Response::empty_404();
             }
