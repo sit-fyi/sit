@@ -1,0 +1,4 @@
+This is especially true on NixOS (at least as of recently)
+
+Solution: add bindgen to the linux build container
+
