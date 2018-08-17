@@ -1,0 +1,26 @@
+From 02b5771e623ae1b9a2e4fd7aa7e69907ad986c3c Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 14 Aug 2018 17:14:20 +0700
+Subject: [PATCH] Problem: setting up bindgen might sometimes be difficult
+
+This is especially true on NixOS (at least as of recently)
+
+Solution: add bindgen to the linux build container
+---
+ build-tools/linux-build-container/Dockerfile | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/build-tools/linux-build-container/Dockerfile b/build-tools/linux-build-container/Dockerfile
+index 75bcea7..fe5e2c7 100644
+--- a/build-tools/linux-build-container/Dockerfile
++++ b/build-tools/linux-build-container/Dockerfile
+@@ -1,3 +1,6 @@
+ FROM rust:1.27.2
+ RUN apt-get update && apt-get install -y cmake libgit2-dev musl-tools
+ RUN rustup target add x86_64-unknown-linux-musl
++RUN apt-get install -y clang libclang-dev
++RUN cargo install bindgen
++RUN rustup component add rustfmt-preview
+-- 
+2.16.4
+
