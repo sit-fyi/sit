@@ -1,4 +1,4 @@
-FROM rust:1.27.2
+FROM rust:1.28
 RUN apt-get update && apt-get install -y clang autotools-dev automake cmake libfuse-dev fuse git
 RUN rustup target add x86_64-apple-darwin
 RUN git clone https://github.com/tpoechtrager/osxcross && cd osxcross && git checkout 1a1733a
