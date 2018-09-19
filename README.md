@@ -35,6 +35,22 @@ or having to rely on services of an external third party, SIT is a self-containe
 binary for Linux, OS X and Windows that typically works on the end-user's computer.
 SIT's medium of record is files. No external database is required.
 
+## What's Up? (Roadmap)
+
+SIT being a new project developed and maintained by a very small number of people,
+can at times be hard to assess in terms of the direction and ongoing work.
+
+For the time being, we'll be updating this section.
+
+---
+
+Currently, the most important thing being worked on (and it's getting close to completion)
+is the deprecation of "items" as a concept and introduction of the global, flat records
+namespace. This will further the initial transition from the original use of SIT as an
+issue tracker to a more generally applicable collaborative tracker as it will no longer
+impose this "item" concept onto end-user modules or applications. This also opens up the
+path to developing ecosystem tooling like a module manager (already in the works as well).
+
 ## Modules
 
 While bare SIT can track any kind of information (*it's all just files, after
