@@ -1,0 +1,34 @@
+From 0e27688ed986ef3bd0e469e446454e3e80204484 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 27 Sep 2018 05:41:44 -0700
+Subject: [PATCH] Problem: rust 1.28 is outdated
+
+Solution: use rust 1.29
+---
+ build-tools/cross-compile-osx/Dockerfile     | 2 +-
+ build-tools/linux-build-container/Dockerfile | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/build-tools/cross-compile-osx/Dockerfile b/build-tools/cross-compile-osx/Dockerfile
+index 6b72fb8..736b67e 100644
+--- a/build-tools/cross-compile-osx/Dockerfile
++++ b/build-tools/cross-compile-osx/Dockerfile
+@@ -1,4 +1,4 @@
+-FROM rust:1.28
++FROM rust:1.29
+ RUN apt-get update && apt-get install -y clang autotools-dev automake cmake libfuse-dev fuse git
+ RUN rustup target add x86_64-apple-darwin
+ RUN git clone https://github.com/tpoechtrager/osxcross && cd osxcross && git checkout 1a1733a
+diff --git a/build-tools/linux-build-container/Dockerfile b/build-tools/linux-build-container/Dockerfile
+index 34264f4..feadceb 100644
+--- a/build-tools/linux-build-container/Dockerfile
++++ b/build-tools/linux-build-container/Dockerfile
+@@ -1,4 +1,4 @@
+-FROM rust:1.28
++FROM rust:1.29
+ RUN apt-get update && apt-get install -y cmake libgit2-dev musl-tools
+ RUN rustup target add x86_64-unknown-linux-musl
+ RUN apt-get install -y clang libclang-dev
+-- 
+2.16.4
+
