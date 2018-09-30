@@ -1,0 +1,72 @@
+From d15ea6be99e921b6603657bc14f2a994b6926d68 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sun, 30 Sep 2018 11:33:43 -0700
+Subject: [PATCH] Problem: migrating items & records
+
+In anticipation of upcoming changes to the layout of
+the repository, where all records will be stored in
+a flat namespace and items as such will be abolished,
+an issue of migration has come up.
+
+When testing with upcoming changes, it appears that
+reduction doesn't work properly.
+
+Solution: ensure file names are resolved
+---
+ sit-core/src/reducers/duktape.rs |  7 ++-----
+ sit-core/src/repository.rs       | 14 +++++++++-----
+ 2 files changed, 11 insertions(+), 10 deletions(-)
+
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index 57f29a1..4e87e8e 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -352,7 +352,7 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
+ }
+ 
+ 
+-impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
++impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> where R: HasPath {
+     type State = Map<String, JsonValue>;
+     type Item = R;
+ 
+@@ -390,10 +390,7 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+                     #[cfg(not(windows))]
+                     let name = name.as_ref();
+ 
+-                    let path = self.repository.items_path()
+-                        .join(item.item_id().as_ref())
+-                        .join(item.encoded_hash().as_ref())
+-                        .join(name);
++                    let path = item.path().join(name);
+ 
+                     if fs::metadata(&path).unwrap().len() == 0 {
+                         // if the file is empty, it can't be mmapped
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index f70e904..3aaff8c 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -541,11 +541,15 @@ impl<'a> Iterator for ItemRecordIter<'a> {
+                 has_all_valid_parents
+             });
+         let result: Vec<_> = filtered.iter()
+-            .map(|e| Record {
+-                hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
+-                item: self.item.clone(),
+-                repository: self.repository,
+-                path: item_path.join(e.file_name()),
++            .map(|e| {
++                let path = item_path.join(e.file_name());
++                let path = path.resolve_dir().unwrap_or(path);
++                Record {
++                    hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
++                    item: self.item.clone(),
++                    repository: self.repository,
++                    path,
++                }
+             })
+             .collect();
+         self.dir = dir;
+-- 
+2.16.4
+

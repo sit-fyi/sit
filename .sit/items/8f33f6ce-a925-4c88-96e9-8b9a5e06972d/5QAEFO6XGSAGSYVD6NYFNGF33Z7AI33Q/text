@@ -1,0 +1,10 @@
+In anticipation of upcoming changes to the layout of
+the repository, where all records will be stored in
+a flat namespace and items as such will be abolished,
+an issue of migration has come up.
+
+When testing with upcoming changes, it appears that
+reduction doesn't work properly.
+
+Solution: ensure file names are resolved
+
