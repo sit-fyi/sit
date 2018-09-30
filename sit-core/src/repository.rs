@@ -541,11 +541,15 @@ impl<'a> Iterator for ItemRecordIter<'a> {
                 has_all_valid_parents
             });
         let result: Vec<_> = filtered.iter()
-            .map(|e| Record {
-                hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
-                item: self.item.clone(),
-                repository: self.repository,
-                path: item_path.join(e.file_name()),
+            .map(|e| {
+                let path = item_path.join(e.file_name());
+                let path = path.resolve_dir().unwrap_or(path);
+                Record {
+                    hash: self.repository.config.encoding.decode(e.file_name().to_str().unwrap().as_bytes()).unwrap(),
+                    item: self.item.clone(),
+                    repository: self.repository,
+                    path,
+                }
             })
             .collect();
         self.dir = dir;

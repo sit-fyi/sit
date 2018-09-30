@@ -352,7 +352,7 @@ impl<'a, R: Record> Clone for DuktapeReducer<'a, R> {
 }
 
 
-impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
+impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> where R: HasPath {
     type State = Map<String, JsonValue>;
     type Item = R;
 
@@ -390,10 +390,7 @@ impl<'a, R: Record> Reducer for DuktapeReducer<'a, R> {
                     #[cfg(not(windows))]
                     let name = name.as_ref();
 
-                    let path = self.repository.items_path()
-                        .join(item.item_id().as_ref())
-                        .join(item.encoded_hash().as_ref())
-                        .join(name);
+                    let path = item.path().join(name);
 
                     if fs::metadata(&path).unwrap().len() == 0 {
                         // if the file is empty, it can't be mmapped
