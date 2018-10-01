@@ -1,0 +1,12 @@
+It originally was a conversion of "issues" into something that
+can be somewhat more generic. However, with further exploration of
+different domains it became rather clear that it doesn't fit many of
+them well and can only be artifically bolted on. That's not great.
+
+Solution: transition into a flat records namespace
+
+In order to avoid this problem, the idea is to move out all records to
+.sit/records into a single flat namespace and make the transition
+(almost) seamless by retaining items for a little while but converting
+records in them into "text link" files to the real records.
+
