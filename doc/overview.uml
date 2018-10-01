@@ -2,11 +2,7 @@
 class Repository {
   hashing_algorithm : Blake2(N) | SHA-1
   encoding: Base32
-  id_generator: UUIDv4
-  version: 1
-}
-class Item {
-  id : repository.id_generator::type
+  version: 2
 }
 class Record {
   hash : repository.hashing_algorithm::type
@@ -15,7 +11,6 @@ class File {
   name : String
   content : Binary
 }
-Repository "1" --> "many" Item: contains
-Item "1" --> "many" Record: contains
+Repository "1" --> "many" Record: contains
 Record "1" --> "many" File: contains
 @enduml

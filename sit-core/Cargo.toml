@@ -19,6 +19,8 @@ data-encoding = "2.1"
 data-encoding-macro = "0.1"
 glob = "0.2"
 lazy_static = "1.0"
+itertools = "0.7"
+walkdir = "2"
 blake2 = { version = "0.7", optional = true }
 sha-1 = { version = "0.7", optional = true }
 uuid = { version = "0.5", features = ["v4"], optional = true }
@@ -37,10 +39,11 @@ cc = "1.0"
 include_dir = "0.1.5"
 
 [features]
-default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap", "duktape-require"]
+default = ["blake2", "sha-1", "uuid", "duktape-reducers", "duktape-mmap", "duktape-require", "deprecated-item-api"]
 duktape-require = []
 duktape-reducers = ["duktape", "cesu8"]
 duktape = []
 duktape-mmap = ["memmap"]
 windows7 = []
 git = ["git2"]
+deprecated-item-api = []

@@ -1,14 +1,17 @@
 extern crate cli_test_dir;
 extern crate sit_core;
 
-use sit_core::{Repository, Item};
-
+#[cfg(feature = "deprecated-items")]
+use sit_core::{Repository, record::RecordOwningContainer};
+#[cfg(feature = "deprecated-items")]
 use cli_test_dir::*;
 
+#[cfg(feature = "deprecated-items")]
 include!("includes/config.rs");
 
 /// Should list no items if there are none
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn no_items() {
     let dir = TestDir::new("sit", "no_items");
     dir.cmd()
@@ -20,6 +23,7 @@ fn no_items() {
 
 /// Should list an item if there's one
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item() {
     let dir = TestDir::new("sit", "item");
     dir.cmd()
@@ -32,6 +36,7 @@ fn item() {
 
 /// Should apply filter
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_filter() {
     let dir = TestDir::new("sit", "filter");
     dir.cmd()
@@ -46,6 +51,7 @@ fn item_filter() {
 
 /// Should apply named filter
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_named_filter() {
     let dir = TestDir::new("sit", "named_filter");
     dir.cmd()
@@ -61,6 +67,7 @@ fn item_named_filter() {
 
 /// Should apply named filter
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_named_user_filter() {
     let dir = TestDir::new("sit", "named_user_filter");
     dir.cmd()
@@ -80,6 +87,7 @@ fn item_named_user_filter() {
 
 /// Should prefer repo named filter over user named filer
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_repo_over_named_user_filter() {
     let dir = TestDir::new("sit", "named_repo_over_user_filter");
     dir.cmd()
@@ -101,6 +109,7 @@ fn item_repo_over_named_user_filter() {
 
 /// Should apply query
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_query() {
     let dir = TestDir::new("sit", "query");
     dir.cmd()
@@ -120,6 +129,7 @@ fn item_query() {
 
 /// Should apply named query
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_named_query() {
     let dir = TestDir::new("sit", "named_query");
     dir.cmd()
@@ -140,6 +150,7 @@ fn item_named_query() {
 
 /// Should apply named user query
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_named_user_query() {
     let dir = TestDir::new("sit", "named_user_query");
     dir.cmd()
@@ -164,6 +175,7 @@ fn item_named_user_query() {
 
 /// Should prefer repo named query over user user named query
 #[test]
+#[cfg(feature = "deprecated-items")]
 fn item_repo_over_named_user_query() {
     let dir = TestDir::new("sit", "repo_over_named_user_query");
     dir.cmd()

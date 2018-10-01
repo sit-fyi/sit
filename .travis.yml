@@ -2,6 +2,7 @@ language: rust
 rust:
 - stable
 - nightly
+build_script: make test
 cache: cargo
 matrix:
   include:

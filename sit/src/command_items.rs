@@ -1,5 +1,5 @@
 use clap::ArgMatches;
-use sit_core::{self, reducers::duktape::DuktapeReducer, Repository, item::ItemReduction, cfg::Configuration};
+use sit_core::{self, reducers::duktape::DuktapeReducer, Repository, record::RecordContainerReduction, cfg::Configuration};
 use serde_json;
 use rayon::prelude::*;
 use super::get_named_expression;
@@ -32,8 +32,8 @@ pub fn command<MI: Send + Sync>(matches: &ArgMatches, repo: &Repository<MI>, con
     let filter = jmespath::compile(&filter_expr).expect("can't compile filter expression");
     let query = jmespath::compile(&query_expr).expect("can't compile query expression");
 
-    let tl_reducer : ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record<MI>, MI>>> = ThreadLocal::new();
-    let reducer = Arc::new(Mutex::new(DuktapeReducer::new(&repo).unwrap()));
+    let tl_reducer : ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>> = ThreadLocal::new();
+    let reducer = Arc::new(Mutex::new(DuktapeReducer::new(repo).unwrap()));
 
     items.into_par_iter()
         .map(|item| {

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::fs;
 use std::ffi::OsString;
 use fs_extra;
-use sit_core::{Repository, Item, Record, path::HasPath};
+use sit_core::{Repository, Item, Record, record::RecordOwningContainer, record::RecordContainer, path::HasPath};
 use pbr::ProgressBar;
 use tempdir::TempDir;
 use glob;
@@ -19,7 +19,7 @@ pub fn rebuild_repository<S: Into<PathBuf>>(src: S, dest: S, on_record: Option<S
     let src = Repository::open(src).expect("can't open source repository");
     let dest = Repository::new_with_config(dest, src.config().clone())
         .expect("can't create destination repository");
-    // Copy all files and directories except for `config` and `items`
+    // Copy all files and directories except for `config`, `items` and `records`
     print!("Copying all supplementary files: ");
     let dir = fs::read_dir(src.path()).expect("can't read source repository record");
     dir.filter(Result::is_ok)
@@ -28,7 +28,8 @@ pub fn rebuild_repository<S: Into<PathBuf>>(src: S, dest: S, on_record: Option<S
             let file_name = f.file_name();
             let name = file_name.to_str().unwrap();
             name != "config.json" &&
-                name != "items"
+            name != "items" &&
+            name != "records"
         })
         .for_each(|f| {
             let file_name = f.file_name();
