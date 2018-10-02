@@ -1,3 +1,8 @@
+# 0.4.1
+
+This is an interim release that should allow users of a released version to access
+sit repositories with a flat records namespace enabled (currently a master-only feature)
+
 # 0.4.0
 
 This is primarily a bug fix release. It fixes a couple of important problems

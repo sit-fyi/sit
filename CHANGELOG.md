@@ -1,3 +1,10 @@
+# 0.4.1
+
+## Improvements
+
+* Support for textual links in items in anticipation of flat records namespace (0.5 feature)
+  (995c2e41-1190-4ba2-bd24-50118f2664c7, d5832c5e-2e65-465a-abab-138639287a01,8f33f6ce-a925-4c88-96e9-8b9a5e06972d)
+
 # 0.4.0
 
 ## Breaking changes
