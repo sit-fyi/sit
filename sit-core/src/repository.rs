@@ -119,7 +119,7 @@ impl Iterator for ModuleDirectoryIterator {
             Some(ref mut modules) => {
                 match modules.next() {
                     None => None,
-                    Some(Ok(f)) => Some(f.path().resolve_dir().map_err(|e| e.into())),
+                    Some(Ok(f)) => Some(f.path().resolve_dir("/").map_err(|e| e.into())),
                     Some(Err(e)) => Some(Err(e.into())),
                 }
             }
@@ -573,7 +573,7 @@ impl<MI> Repository<MI> {
     /// Finds a record by name (if there is one)
     pub fn record<S: AsRef<str>>(&self, name: S) -> Option<Record> {
         let path = self.records_path().join(::record::split_path(name, 2));
-        let path = path.resolve_dir().unwrap_or(path);
+        let path = path.resolve_dir(self.path()).unwrap_or(path);
         if path.is_dir() && path.strip_prefix(self.records_path()).is_ok() {
             let hash = self.config.encoding.decode(path.file_name().unwrap().to_str().unwrap().as_bytes());
             if hash.is_err() {
@@ -604,7 +604,7 @@ impl<MI> Repository<MI> {
             }
             let id = path.file_name().unwrap().to_os_string();
             let p = self.items_path().join(&id);
-            let path = p.resolve_dir().unwrap_or(p);
+            let path = p.resolve_dir(self.path()).unwrap_or(p);
             let item = Item {
                 repository: self,
                 integrity_check: self.integrity_check,
@@ -715,11 +715,12 @@ impl<MI> RecordContainer for Repository<MI> {
     type Iter = RepositoryRecordIterator;
 
     fn record_iter(&self) -> Result<Self::Iter, Self::Error> {
-        let path = self.records_path().resolve_dir().unwrap_or(self.records_path().into());
+        let path = self.records_path().resolve_dir(self.path()).unwrap_or(self.records_path().into());
         let iter = GenericRecordIterator::new(self.config.hashing_algorithm.clone(),
                                               self.config.encoding.clone(),
                                               path,
-                                              None);
+                                              None,
+                                              self.path().into());
         Ok(RepositoryRecordIterator {
             iter,
             integrity_check: self.integrity_check,
@@ -824,11 +825,11 @@ impl<'a, MI: 'a> RecordContainer for Item<'a, MI> {
     type Iter = ItemRecordIterator;
 
     fn record_iter(&self) -> Result<Self::Iter, Self::Error> {
-        let path = self.path().resolve_dir().unwrap_or(self.path().into());
+        let path = self.path().resolve_dir(self.repository.path()).unwrap_or(self.path().into());
         let iter = GenericRecordIterator::new(self.repository.config.hashing_algorithm.clone(),
                                               self.repository.config.encoding.clone(),
                                               path,
-                                              Some(1));
+                                              Some(1), self.repository.path().into());
         Ok(ItemRecordIterator {
             iter,
             item: self.id.clone(),
@@ -904,11 +905,12 @@ struct GenericRecordIterator {
     path: PathBuf,
     dir: Vec<walkdir::DirEntry>,
     parents: Vec<String>,
+    root: PathBuf,
 }
 
 impl GenericRecordIterator {
     fn new(hashing_algorithm: HashingAlgorithm, encoding: Encoding, path: PathBuf,
-           depth: Option<usize>) -> Self {
+           depth: Option<usize>, root: PathBuf) -> Self {
         let depth = depth.or_else(|| {
             let mut depth = hashing_algorithm.len() * 4 / encoding.bit_width();
             if hashing_algorithm.len() * 4 % encoding.bit_width() != 0 {
@@ -924,6 +926,7 @@ impl GenericRecordIterator {
             dir,
             path,
             parents: vec![],
+            root,
         }
     }
 }
@@ -935,7 +938,7 @@ impl Iterator for GenericRecordIterator {
         // TODO: if https://github.com/rust-lang/rust/issues/43244 is finalized, try to use drain_filter instead
         let (filtered, dir): (Vec<_>, Vec<_>) = ::std::mem::replace(&mut self.dir, vec![]).into_iter()
             .partition(|e| {
-                let path = e.path().resolve_dir().unwrap_or(e.path().to_path_buf());
+                let path = e.path().resolve_dir(&self.root).unwrap_or(e.path().to_path_buf());
                 if !path.is_dir() {
                     return false
                 }
@@ -957,13 +960,13 @@ impl Iterator for GenericRecordIterator {
                                 #[cfg(feature ="deprecated-item-api")]
                                 let is_dir = {
                                     let p = self.path.join(l.file_name().to_str().unwrap());
-                                    p.resolve_dir().unwrap_or(p).is_dir()
+                                    p.resolve_dir(&self.root).unwrap_or(p).is_dir()
                                 };
                                 #[cfg(not(feature ="deprecated-item-api"))]
                                 let is_dir = false;
                                 is_dir || {
                                     let p = self.path.join(::record::split_path(l.file_name().to_str().unwrap(), 2));
-                                    p.resolve_dir().unwrap_or(p).is_dir()
+                                    p.resolve_dir(&self.root).unwrap_or(p).is_dir()
                                 }
                             })
                             // has to be already processed
@@ -977,7 +980,7 @@ impl Iterator for GenericRecordIterator {
             .map(|e| {
                 let name = e.file_name().to_str().unwrap();
                 let decoded_name = self.encoding.decode(name.as_bytes()).unwrap();
-                (e.path().resolve_dir().unwrap_or(e.path().to_path_buf()), decoded_name)
+                (e.path().resolve_dir(&self.root).unwrap_or(e.path().to_path_buf()), decoded_name)
             }).collect();
         self.dir = dir;
         if result.len() == 0 {
@@ -1011,7 +1014,7 @@ impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
                 Some(Err(_)) => continue,
                 Some(Ok(entry)) => {
                     let p = self.repository.items_path().join(entry.file_name());
-                    let path = p.resolve_dir().unwrap_or(p);
+                    let path = p.resolve_dir(self.repository.path()).unwrap_or(p);
                     return Some(Item {
                         repository: self.repository,
                         id: entry.file_name(),
@@ -1445,7 +1448,7 @@ mod tests {
         // create a record
         let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
         // tamper with the record
-        let mut file = fs::File::create(repo.items_path().join(item.id()).join(record.encoded_hash()).resolve_dir().unwrap().join("file")).unwrap();
+        let mut file = fs::File::create(repo.items_path().join(item.id()).join(record.encoded_hash()).resolve_dir(repo.path()).unwrap().join("file")).unwrap();
         file.write(b"test").unwrap();
         drop(file);
         // list records
@@ -1464,7 +1467,7 @@ mod tests {
         // create a record
         let record = repo.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
         // tamper with the record
-        let mut file = fs::File::create(repo.records_path().join(record.split_path(2)).resolve_dir().unwrap().join("file")).unwrap();
+        let mut file = fs::File::create(repo.records_path().join(record.split_path(2)).resolve_dir(repo.path()).unwrap().join("file")).unwrap();
         file.write(b"test").unwrap();
         drop(file);
         // list records
