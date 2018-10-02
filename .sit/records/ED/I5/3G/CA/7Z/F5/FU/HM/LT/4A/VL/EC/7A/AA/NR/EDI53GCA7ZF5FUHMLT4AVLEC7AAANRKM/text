@@ -1,0 +1,26 @@
+Currently, directory resolution (`resolve_dir`) will happily resolve to
+any location. However, this might be a privacy/security risk if
+arbitrary files are referred to from within records as their content can
+be read.
+
+Solution: introduce mandatory `root` argument
+
+This argument restricts the prefix allowed for the resolution. So, for
+example, if the root is set to "/path/to/repo" and the link resolves to
+"/another/path", then it'll return a `NotFound` error instead. However,
+if, for example, "/" is passed, then it'll resolve just fine.
+
+Record iteration (and some deprecated items functionality) restricts its
+scope to the repository.
+
+Important note:
+
+I've attempted doing the same for modules, however, after I implemented
+it I realized that there are cases when modules are actually referenced
+outside of the repository (issue-tracking module is a good example of
+it). It's STILL a privacy/security risk but (hopefully) a slightly more
+apparent one (easier to detect... perhaps). In the future, we might
+consider tightening this one up as well if we can eliminate the need to
+refer to modules outside of the scope. This concern is recorded in issue
+c15750f5-f84d-4a55-a0a1-4bf501fd0246
+

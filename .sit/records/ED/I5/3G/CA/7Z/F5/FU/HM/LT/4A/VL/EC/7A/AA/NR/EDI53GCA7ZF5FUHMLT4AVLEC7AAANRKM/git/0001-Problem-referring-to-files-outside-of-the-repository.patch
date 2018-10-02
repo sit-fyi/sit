@@ -1,0 +1,554 @@
+From 814a896d8f1c66812237bb1c37cd983b9e9ac63a Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 2 Oct 2018 10:04:00 -0700
+Subject: [PATCH] Problem: referring to files outside of the repository
+
+Currently, directory resolution (`resolve_dir`) will happily resolve to
+any location. However, this might be a privacy/security risk if
+arbitrary files are referred to from within records as their content can
+be read.
+
+Solution: introduce mandatory `root` argument
+
+This argument restricts the prefix allowed for the resolution. So, for
+example, if the root is set to "/path/to/repo" and the link resolves to
+"/another/path", then it'll return a `NotFound` error instead. However,
+if, for example, "/" is passed, then it'll resolve just fine.
+
+Record iteration (and some deprecated items functionality) restricts its
+scope to the repository.
+
+Important note:
+
+I've attempted doing the same for modules, however, after I implemented
+it I realized that there are cases when modules are actually referenced
+outside of the repository (issue-tracking module is a good example of
+it). It's STILL a privacy/security risk but (hopefully) a slightly more
+apparent one (easier to detect... perhaps). In the future, we might
+consider tightening this one up as well if we can eliminate the need to
+refer to modules outside of the scope. This concern is recorded in issue
+c15750f5-f84d-4a55-a0a1-4bf501fd0246
+---
+ .../K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF               |  1 +
+ .../XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN               |  1 +
+ .../JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.authors   |  1 +
+ .../.prev/XNN7J3RDGYNNLRU5IJYOIO2AD6QLH24B         |  0
+ .../JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.signature | 17 +++++++
+ .../JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.timestamp |  1 +
+ .../.type/DetailsChanged                           |  0
+ .../BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/text |  3 ++
+ .../CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.authors   |  1 +
+ .../.prev/XNN7J3RDGYNNLRU5IJYOIO2AD6QLH24B         |  0
+ .../CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.signature | 17 +++++++
+ .../CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.timestamp |  1 +
+ .../.type/SummaryChanged                           |  0
+ .../FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/text |  1 +
+ sit-core/src/path.rs                               | 55 ++++++++++++++++------
+ sit-core/src/repository.rs                         | 33 +++++++------
+ sit-web/src/webapp.rs                              |  6 +--
+ sit/src/command_reduce.rs                          |  4 +-
+ sit/tests/command_integrity.rs                     |  4 +-
+ sit/tests/command_record.rs                        |  2 +-
+ sit/tests/command_records.rs                       |  4 +-
+ 21 files changed, 113 insertions(+), 39 deletions(-)
+ create mode 100644 .sit/items/c15750f5-f84d-4a55-a0a1-4bf501fd0246/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF
+ create mode 100644 .sit/items/c15750f5-f84d-4a55-a0a1-4bf501fd0246/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN
+ create mode 100644 .sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.authors
+ create mode 100644 .sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.prev/XNN7J3RDGYNNLRU5IJYOIO2AD6QLH24B
+ create mode 100644 .sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.signature
+ create mode 100644 .sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.timestamp
+ create mode 100644 .sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.type/DetailsChanged
+ create mode 100644 .sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/text
+ create mode 100644 .sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.authors
+ create mode 100644 .sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.prev/XNN7J3RDGYNNLRU5IJYOIO2AD6QLH24B
+ create mode 100644 .sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.signature
+ create mode 100644 .sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.timestamp
+ create mode 100644 .sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.type/SummaryChanged
+ create mode 100644 .sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/text
+
+diff --git a/.sit/items/c15750f5-f84d-4a55-a0a1-4bf501fd0246/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF b/.sit/items/c15750f5-f84d-4a55-a0a1-4bf501fd0246/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF
+new file mode 100644
+index 0000000..637adb2
+--- /dev/null
++++ b/.sit/items/c15750f5-f84d-4a55-a0a1-4bf501fd0246/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF
+@@ -0,0 +1 @@
++../../records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF
+\ No newline at end of file
+diff --git a/.sit/items/c15750f5-f84d-4a55-a0a1-4bf501fd0246/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN b/.sit/items/c15750f5-f84d-4a55-a0a1-4bf501fd0246/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN
+new file mode 100644
+index 0000000..777e34c
+--- /dev/null
++++ b/.sit/items/c15750f5-f84d-4a55-a0a1-4bf501fd0246/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN
+@@ -0,0 +1 @@
++../../records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN
+\ No newline at end of file
+diff --git a/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.authors b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.authors
+new file mode 100644
+index 0000000..8022052
+--- /dev/null
++++ b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.authors
+@@ -0,0 +1 @@
++Yurii Rashkovskii <me@yrashk.com>
+\ No newline at end of file
+diff --git a/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.prev/XNN7J3RDGYNNLRU5IJYOIO2AD6QLH24B b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.prev/XNN7J3RDGYNNLRU5IJYOIO2AD6QLH24B
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.signature b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.signature
+new file mode 100644
+index 0000000..ad321d4
+--- /dev/null
++++ b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.signature
+@@ -0,0 +1,17 @@
++-----BEGIN PGP SIGNATURE-----
++
++iQJCBAABCAAsFiEEjmkaFOaskcs7s6g8HWDXz9gIRf8FAluzpu0OHG1lQHlyYXNo
++ay5jb20ACgkQHWDXz9gIRf+7qhAAkH4NI+4JF5sefJXRY7IkdM+Xhj2BOiJZPehj
++JwfPHOWTzJ7c0N5lIKamrVha7RV/KtPseMUMEs7Sw12sHnO5u8HxLhOnV4/djYcw
++xVtz6NGNpDOpR1alTYom9NMQukwq1w8+W5X9IkycIU6edOb94lWLt+QSI2FDmlkN
++A83x6Jxdv14j0blPQIl0wXb/jFNoMxTKJTR2DjqWiiftowVasjGTms17oxADVT9B
++efwSsfoCwoJtH/3vkmveRhXicQ8/1CM49y/fXh0BKqK9cSVy0u0wVeZYl3DY9L0N
++jkCRXPmRDK7Dy9e/+uBZ/hN6buyt5SFcPZSO2io9sCTbVDhFy+l+EmQwxoD38QFU
++nq7Xj3ai3R1jzlddPo715vbhROKQQP1N59ZReyJJQk4xufesyYOBfb0lndxXaWLz
++nuMuM9rCRpie3OufiOrw/LbejW6aa086gb5LTSO5yTnvULJJMt5wda8Pux34XF2o
++phXICIAbXYHCPYLR27tGSl49f44Y4a/bhzxUHw/v4LwuXYR8U3TLPTLFc0B9NKyO
++EBKUTZaQ21fzdxqdK7cGdhhaCoh538dzavlA2maPh852FD1w8bYgIGg9cuC69+hq
++rzE0/nEA7j4RVcqTLw3noR4Cvy4cG2Wd7PckBhGWRgCOMH1TkbpXzqh+B/yA96+/
++0hXHOUE=
++=k5ny
++-----END PGP SIGNATURE-----
+diff --git a/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.timestamp b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.timestamp
+new file mode 100644
+index 0000000..746f19d
+--- /dev/null
++++ b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.timestamp
+@@ -0,0 +1 @@
++2018-10-02T17:12:08.773Z
+\ No newline at end of file
+diff --git a/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.type/DetailsChanged b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/.type/DetailsChanged
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/text b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/text
+new file mode 100644
+index 0000000..c30126e
+--- /dev/null
++++ b/.sit/records/K3/SR/ZX/NH/CG/UE/M6/MT/IQ/5K/O5/6P/BW/RX/JP/K3SRZXNHCGUEM6MTIQ5KO56PBWRXJPBF/text
+@@ -0,0 +1,3 @@
++Currently, resolution of modules is unrestricted (`resolve_dir("/")`) and can refer to any location. This poses a privacy/security risk of a sort (can include modules the user didn't give a consent for), but we have a case when we actually do refer to directories outside of the repository (`issue-tracking` module is the most prominent example).
++
++Proposed solution: find a way to eliminate the need for linking to modules outside of the repository
+\ No newline at end of file
+diff --git a/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.authors b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.authors
+new file mode 100644
+index 0000000..8022052
+--- /dev/null
++++ b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.authors
+@@ -0,0 +1 @@
++Yurii Rashkovskii <me@yrashk.com>
+\ No newline at end of file
+diff --git a/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.prev/XNN7J3RDGYNNLRU5IJYOIO2AD6QLH24B b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.prev/XNN7J3RDGYNNLRU5IJYOIO2AD6QLH24B
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.signature b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.signature
+new file mode 100644
+index 0000000..4bd06c3
+--- /dev/null
++++ b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.signature
+@@ -0,0 +1,17 @@
++-----BEGIN PGP SIGNATURE-----
++
++iQJCBAABCAAsFiEEjmkaFOaskcs7s6g8HWDXz9gIRf8FAluzpu0OHG1lQHlyYXNo
++ay5jb20ACgkQHWDXz9gIRf/f9Q/7BJjOwrkXdeka09hFwbyEAn7fKJiRS02gnncA
++jEeCs1QJ8OIhMQbGUicxLlEVfc127hMm7gfsaDIAAn6XdAdRIWLZSGM2Neq2pu84
++NhGSIaahGjtY/d44EKmozpbVCUjlBJQrxfZrJ1LMKHojpPEvbYZ9xd8LNzDyP/ok
++Kc9jrJcxpW2/84J4BGSO8Sm5bmey5WqynZDq0t8s6BW2LG6Zf5RFJV0oTa2cc08Q
++2sGHyCZ8N2EGK0B0vf0TzGqCe2T+jQIEVaUsDMqSOIIo6+rZ/3KVwSEXUmpAkDLu
++wyYbyFsxGZGzSBCfyw1QBiMyFlRru75JMLnDBJhlZ7aCiSx79Pj0Ls1S8UhX97gq
++s5I+2zQyk9dJroBEFsCa0y3nwMgzdYl7ZLQAJSkSfyN8QsqXgOCC0FfsqjGn3vNf
++1w1ZIdITPIugWi5M5onhYhIMbXUj1+bXOzM6yxBboiASNbzvwKl9Mav9pcwijc11
++3nzA/xslQ1OhhmP+E+iu5rYJPGzNoxd7wOyN6vad/CFqWEeroI1wheDKX8S4qRlR
++F1CDtyJyFmHVT97Vkn+72MGiYvQp359/hO0QfR/2sX+GKTF2shDQwybtnyrB04jv
++O4J4l+HMTkxQgOd9uZK5B8vQPFSNZyBFmlCHHjXihgBcVVJT+whv2vFJuO+0CpuL
++5c/dea0=
++=2Nwu
++-----END PGP SIGNATURE-----
+diff --git a/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.timestamp b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.timestamp
+new file mode 100644
+index 0000000..746f19d
+--- /dev/null
++++ b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.timestamp
+@@ -0,0 +1 @@
++2018-10-02T17:12:08.773Z
+\ No newline at end of file
+diff --git a/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.type/SummaryChanged b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/.type/SummaryChanged
+new file mode 100644
+index 0000000..e69de29
+diff --git a/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/text b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/text
+new file mode 100644
+index 0000000..341701d
+--- /dev/null
++++ b/.sit/records/XB/H2/2X/DX/7U/2B/KV/Q3/GW/IK/CY/2X/FL/2I/CK/XBH22XDX7U2BKVQ3GWIKCY2XFL2ICKCN/text
+@@ -0,0 +1 @@
++Problem: module resolution can lead outside of the repository
+\ No newline at end of file
+diff --git a/sit-core/src/path.rs b/sit-core/src/path.rs
+index 80d7c66..56a5d3c 100644
+--- a/sit-core/src/path.rs
++++ b/sit-core/src/path.rs
+@@ -17,13 +17,17 @@ pub trait ResolvePath {
+     /// It will interpret common conventions for resolving a directory
+     /// (so, for example, a file with a textual link in it will be resolved
+     /// to the directory it points to)
+-    fn resolve_dir(&self) -> Result<PathBuf, io::Error>;
++    ///
++    /// `root` is used to contain resolution within a certain path. Use `"/"`
++    /// to allow [effectively] unrestricted resolution (including Windows. To
++    /// restrict to a specific volume, use that volume's name)
++    fn resolve_dir<P: AsRef<Path>>(&self, root: P) -> Result<PathBuf, io::Error>;
+ }
+ 
+ impl<T> ResolvePath for T where T: AsRef<Path> {
+-    fn resolve_dir(&self) -> Result<PathBuf, io::Error> {
++    fn resolve_dir<P: AsRef<Path>>(&self, root: P) -> Result<PathBuf, io::Error> {
+         let mut path: PathBuf = self.as_ref().into();
+-        if path.is_dir() {
++        let dir = if path.is_dir() {
+             Ok(path)
+         } else if path.is_file() {
+             fs::File::open(&path)
+@@ -37,22 +41,34 @@ impl<T> ResolvePath for T where T: AsRef<Path> {
+                     let s = s.replace("/", "\\");
+                     let trimmed_path = s.trim();
+                     path.pop(); // remove the file name
+-                    path.join(PathBuf::from(trimmed_path)).resolve_dir()
++                    path.join(PathBuf::from(trimmed_path)).resolve_dir(root.as_ref())
+                 })
+         } else {
+             let total_components = path.components().count();
+             let mut components = path.components();
+-            let mut rebuilt_path = components.next().unwrap().resolve_dir()?;
++            let mut rebuilt_path = components.next().unwrap().resolve_dir(root.as_ref())?;
+             for (i, component) in components.enumerate() {
+                 rebuilt_path.push(component);
+                 if rebuilt_path.exists() && i + 2 < total_components {
+-                    rebuilt_path = rebuilt_path.resolve_dir()?;
++                    rebuilt_path = rebuilt_path.resolve_dir(root.as_ref())?;
+                 } else if !rebuilt_path.exists() {
+                     return Err(io::ErrorKind::NotFound.into())
+                 }
+             }
+             Ok(rebuilt_path)
+-        }
++        };
++        dir.and_then(|d| {
++            #[cfg(windows)] {
++                if root.as_ref() == Path::new("/") {
++                    return Ok(d)
++                }
++            }
++            if d.strip_prefix(root.as_ref()).is_ok() {
++                Ok(d)
++            } else {
++                Err(io::ErrorKind::NotFound.into())
++            }
++        })
+     }
+ }
+ 
+@@ -66,7 +82,7 @@ mod tests {
+     #[test]
+     fn resolve_dir() {
+         let tmp = TempDir::new("sit").unwrap().into_path();
+-        assert_eq!(tmp.resolve_dir().unwrap(), tmp);
++        assert_eq!(tmp.resolve_dir("/").unwrap(), tmp);
+     }
+ 
+     #[test]
+@@ -75,7 +91,18 @@ mod tests {
+         fs::create_dir_all(tmp.join("dir")).unwrap();
+         let mut f = fs::File::create(tmp.join("1")).unwrap();
+         f.write(b"dir").unwrap();
+-        assert_eq!(tmp.join("1").resolve_dir().unwrap(), tmp.join("dir"));
++        assert_eq!(tmp.join("1").resolve_dir("/").unwrap(), tmp.join("dir"));
++    }
++
++    #[test]
++    fn resolve_link_outside_of_the_container() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        let tmp1 = TempDir::new("sit").unwrap().into_path();
++        fs::create_dir_all(tmp1.join("dir")).unwrap();
++        let mut f = fs::File::create(tmp.join("1")).unwrap();
++        f.write(tmp1.join("dir").to_str().unwrap().as_bytes()).unwrap();
++        assert_eq!(tmp.join("1").resolve_dir("/").unwrap(), tmp1.join("dir"));
++        assert!(tmp.join("1").resolve_dir(&tmp).is_err());
+     }
+ 
+     #[test]
+@@ -83,7 +110,7 @@ mod tests {
+         let tmp = TempDir::new("sit").unwrap().into_path();
+         let mut f = fs::File::create(tmp.join("1")).unwrap();
+         f.write(b"dir").unwrap();
+-        assert!(tmp.join("1").resolve_dir().is_err());
++        assert!(tmp.join("1").resolve_dir("/").is_err());
+     }
+ 
+     #[test]
+@@ -94,7 +121,7 @@ mod tests {
+         f.write(b"dir").unwrap();
+         let mut f = fs::File::create(tmp.join("2")).unwrap();
+         f.write(b"1").unwrap();
+-        assert_eq!(tmp.join("2").resolve_dir().unwrap(), tmp.join("dir"));
++        assert_eq!(tmp.join("2").resolve_dir("/").unwrap(), tmp.join("dir"));
+     }
+ 
+     #[test]
+@@ -105,9 +132,9 @@ mod tests {
+         f.write(b"dir").unwrap();
+         let mut f = fs::File::create(tmp.join("dir").join("2")).unwrap();
+         f.write(b"not a link").unwrap();
+-        assert_eq!(tmp.join("1").join("2").resolve_dir().unwrap(), tmp.join("dir").join("2"));
++        assert_eq!(tmp.join("1").join("2").resolve_dir("/").unwrap(), tmp.join("dir").join("2"));
+         // this path is not found
+-        assert!(tmp.join("1").join("3").resolve_dir().is_err());
++        assert!(tmp.join("1").join("3").resolve_dir("/").is_err());
+     }
+ 
+-}
+\ No newline at end of file
++}
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 920d883..ee94719 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -119,7 +119,7 @@ impl Iterator for ModuleDirectoryIterator {
+             Some(ref mut modules) => {
+                 match modules.next() {
+                     None => None,
+-                    Some(Ok(f)) => Some(f.path().resolve_dir().map_err(|e| e.into())),
++                    Some(Ok(f)) => Some(f.path().resolve_dir("/").map_err(|e| e.into())),
+                     Some(Err(e)) => Some(Err(e.into())),
+                 }
+             }
+@@ -573,7 +573,7 @@ impl<MI> Repository<MI> {
+     /// Finds a record by name (if there is one)
+     pub fn record<S: AsRef<str>>(&self, name: S) -> Option<Record> {
+         let path = self.records_path().join(::record::split_path(name, 2));
+-        let path = path.resolve_dir().unwrap_or(path);
++        let path = path.resolve_dir(self.path()).unwrap_or(path);
+         if path.is_dir() && path.strip_prefix(self.records_path()).is_ok() {
+             let hash = self.config.encoding.decode(path.file_name().unwrap().to_str().unwrap().as_bytes());
+             if hash.is_err() {
+@@ -604,7 +604,7 @@ impl<MI> Repository<MI> {
+             }
+             let id = path.file_name().unwrap().to_os_string();
+             let p = self.items_path().join(&id);
+-            let path = p.resolve_dir().unwrap_or(p);
++            let path = p.resolve_dir(self.path()).unwrap_or(p);
+             let item = Item {
+                 repository: self,
+                 integrity_check: self.integrity_check,
+@@ -715,11 +715,12 @@ impl<MI> RecordContainer for Repository<MI> {
+     type Iter = RepositoryRecordIterator;
+ 
+     fn record_iter(&self) -> Result<Self::Iter, Self::Error> {
+-        let path = self.records_path().resolve_dir().unwrap_or(self.records_path().into());
++        let path = self.records_path().resolve_dir(self.path()).unwrap_or(self.records_path().into());
+         let iter = GenericRecordIterator::new(self.config.hashing_algorithm.clone(),
+                                               self.config.encoding.clone(),
+                                               path,
+-                                              None);
++                                              None,
++                                              self.path().into());
+         Ok(RepositoryRecordIterator {
+             iter,
+             integrity_check: self.integrity_check,
+@@ -824,11 +825,11 @@ impl<'a, MI: 'a> RecordContainer for Item<'a, MI> {
+     type Iter = ItemRecordIterator;
+ 
+     fn record_iter(&self) -> Result<Self::Iter, Self::Error> {
+-        let path = self.path().resolve_dir().unwrap_or(self.path().into());
++        let path = self.path().resolve_dir(self.repository.path()).unwrap_or(self.path().into());
+         let iter = GenericRecordIterator::new(self.repository.config.hashing_algorithm.clone(),
+                                               self.repository.config.encoding.clone(),
+                                               path,
+-                                              Some(1));
++                                              Some(1), self.repository.path().into());
+         Ok(ItemRecordIterator {
+             iter,
+             item: self.id.clone(),
+@@ -904,11 +905,12 @@ struct GenericRecordIterator {
+     path: PathBuf,
+     dir: Vec<walkdir::DirEntry>,
+     parents: Vec<String>,
++    root: PathBuf,
+ }
+ 
+ impl GenericRecordIterator {
+     fn new(hashing_algorithm: HashingAlgorithm, encoding: Encoding, path: PathBuf,
+-           depth: Option<usize>) -> Self {
++           depth: Option<usize>, root: PathBuf) -> Self {
+         let depth = depth.or_else(|| {
+             let mut depth = hashing_algorithm.len() * 4 / encoding.bit_width();
+             if hashing_algorithm.len() * 4 % encoding.bit_width() != 0 {
+@@ -924,6 +926,7 @@ impl GenericRecordIterator {
+             dir,
+             path,
+             parents: vec![],
++            root,
+         }
+     }
+ }
+@@ -935,7 +938,7 @@ impl Iterator for GenericRecordIterator {
+         // TODO: if https://github.com/rust-lang/rust/issues/43244 is finalized, try to use drain_filter instead
+         let (filtered, dir): (Vec<_>, Vec<_>) = ::std::mem::replace(&mut self.dir, vec![]).into_iter()
+             .partition(|e| {
+-                let path = e.path().resolve_dir().unwrap_or(e.path().to_path_buf());
++                let path = e.path().resolve_dir(&self.root).unwrap_or(e.path().to_path_buf());
+                 if !path.is_dir() {
+                     return false
+                 }
+@@ -957,13 +960,13 @@ impl Iterator for GenericRecordIterator {
+                                 #[cfg(feature ="deprecated-item-api")]
+                                 let is_dir = {
+                                     let p = self.path.join(l.file_name().to_str().unwrap());
+-                                    p.resolve_dir().unwrap_or(p).is_dir()
++                                    p.resolve_dir(&self.root).unwrap_or(p).is_dir()
+                                 };
+                                 #[cfg(not(feature ="deprecated-item-api"))]
+                                 let is_dir = false;
+                                 is_dir || {
+                                     let p = self.path.join(::record::split_path(l.file_name().to_str().unwrap(), 2));
+-                                    p.resolve_dir().unwrap_or(p).is_dir()
++                                    p.resolve_dir(&self.root).unwrap_or(p).is_dir()
+                                 }
+                             })
+                             // has to be already processed
+@@ -977,7 +980,7 @@ impl Iterator for GenericRecordIterator {
+             .map(|e| {
+                 let name = e.file_name().to_str().unwrap();
+                 let decoded_name = self.encoding.decode(name.as_bytes()).unwrap();
+-                (e.path().resolve_dir().unwrap_or(e.path().to_path_buf()), decoded_name)
++                (e.path().resolve_dir(&self.root).unwrap_or(e.path().to_path_buf()), decoded_name)
+             }).collect();
+         self.dir = dir;
+         if result.len() == 0 {
+@@ -1011,7 +1014,7 @@ impl<'a, MI: 'a> Iterator for ItemIter<'a, MI> {
+                 Some(Err(_)) => continue,
+                 Some(Ok(entry)) => {
+                     let p = self.repository.items_path().join(entry.file_name());
+-                    let path = p.resolve_dir().unwrap_or(p);
++                    let path = p.resolve_dir(self.repository.path()).unwrap_or(p);
+                     return Some(Item {
+                         repository: self.repository,
+                         id: entry.file_name(),
+@@ -1445,7 +1448,7 @@ mod tests {
+         // create a record
+         let record = item.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
+         // tamper with the record
+-        let mut file = fs::File::create(repo.items_path().join(item.id()).join(record.encoded_hash()).resolve_dir().unwrap().join("file")).unwrap();
++        let mut file = fs::File::create(repo.items_path().join(item.id()).join(record.encoded_hash()).resolve_dir(repo.path()).unwrap().join("file")).unwrap();
+         file.write(b"test").unwrap();
+         drop(file);
+         // list records
+@@ -1464,7 +1467,7 @@ mod tests {
+         // create a record
+         let record = repo.new_record(vec![("test", &b"hello"[..])].into_iter(), true).unwrap();
+         // tamper with the record
+-        let mut file = fs::File::create(repo.records_path().join(record.split_path(2)).resolve_dir().unwrap().join("file")).unwrap();
++        let mut file = fs::File::create(repo.records_path().join(record.split_path(2)).resolve_dir(repo.path()).unwrap().join("file")).unwrap();
+         file.write(b"test").unwrap();
+         drop(file);
+         // list records
+diff --git a/sit-web/src/webapp.rs b/sit-web/src/webapp.rs
+index b22453c..81df498 100644
+--- a/sit-web/src/webapp.rs
++++ b/sit-web/src/webapp.rs
+@@ -222,8 +222,8 @@ fn reduce<MI, RCR: RecordContainerReduction<Record = repository::Record>>
+         let reducers = vals.split(",").map(PathBuf::from)
+             .map(|p| if p.is_file() {
+                 p
+-            } else if reducers_path.join(&p).resolve_dir().unwrap().is_dir() {
+-                let dir = reducers_path.join(&p).resolve_dir().unwrap();
++            } else if reducers_path.join(&p).resolve_dir("/").unwrap().is_dir() {
++                let dir = reducers_path.join(&p).resolve_dir("/").unwrap();
+                 dir
+             } else {
+                 p
+@@ -438,7 +438,7 @@ pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_c
+         // Serve repository content
+         if request.url().starts_with("/repo/") {
+             let mut file = repo.path().join(&request.url()[6..]);
+-            file = file.resolve_dir().unwrap_or(file);
++            file = file.resolve_dir(repo.path()).unwrap_or(file);
+             if file.strip_prefix(repo.path()).is_err() {
+                return Response::empty_404();
+             }
+diff --git a/sit/src/command_reduce.rs b/sit/src/command_reduce.rs
+index 6bbd1a2..9f88aca 100644
+--- a/sit/src/command_reduce.rs
++++ b/sit/src/command_reduce.rs
+@@ -14,8 +14,8 @@ pub fn command<MI>(matches: &ArgMatches, repo: Repository<MI>, config: Configura
+         let reducers = vals.map(PathBuf::from)
+             .map(|p| if p.is_file() {
+                 p
+-            } else if reducers_path.join(&p).resolve_dir().unwrap().is_dir() {
+-                let dir = reducers_path.join(&p).resolve_dir().unwrap();
++            } else if reducers_path.join(&p).resolve_dir("/").unwrap().is_dir() {
++                let dir = reducers_path.join(&p).resolve_dir("/").unwrap();
+                 dir
+             } else {
+                 p
+diff --git a/sit/tests/command_integrity.rs b/sit/tests/command_integrity.rs
+index af7a75d..ed53ad9 100644
+--- a/sit/tests/command_integrity.rs
++++ b/sit/tests/command_integrity.rs
+@@ -26,7 +26,7 @@ fn integrity_failure_item() {
+     // at this point, integrity check should not fail
+     dir.cmd().arg("integrity").expect_success();
+     // now, lets tamper with the record
+-    dir.create_file(dir.path(".sit/items").join(id.trim()).join(record.trim()).resolve_dir().unwrap().join("tamper"), "");
++    dir.create_file(dir.path(".sit/items").join(id.trim()).join(record.trim()).resolve_dir("/").unwrap().join("tamper"), "");
+     // now, integrity check should fail
+     // (we event set -i/--disable-integrity-check to make sure the command works with integrity check
+     //  suppressed from the command line)
+@@ -78,7 +78,7 @@ fn integrity_check_flag_item() {
+         .args(&["record", id.trim(), "--no-author", "-t", "Sometype"])
+         .expect_success().stdout).unwrap();
+     // now, lets tamper with the record
+-    dir.create_file(dir.path(".sit/items").join(id.trim()).join(record.trim()).resolve_dir().unwrap().join("tamper"), "");
++    dir.create_file(dir.path(".sit/items").join(id.trim()).join(record.trim()).resolve_dir("/").unwrap().join("tamper"), "");
+     // now, the record should not appear
+     let output = String::from_utf8(dir.cmd().args(&["records", id.trim()]).expect_success().stdout).unwrap();
+     assert_eq!(output, "");
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index b6a181c..9b939bd 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -30,7 +30,7 @@ fn item_record() {
+         .expect_success().stdout).unwrap().trim().into();
+     let rec_file = dir.path(".sit").join("items").join(id).join(record);
+     assert!(rec_file.is_file());
+-    assert!(rec_file.resolve_dir().unwrap().is_dir());
++    assert!(rec_file.resolve_dir("/").unwrap().is_dir());
+ }
+ 
+ /// Should derive authorship from the config file
+diff --git a/sit/tests/command_records.rs b/sit/tests/command_records.rs
+index 0925658..e641812 100644
+--- a/sit/tests/command_records.rs
++++ b/sit/tests/command_records.rs
+@@ -291,10 +291,10 @@ fn pgp_signature_wrong_data() {
+ 
+     use std::fs::File;
+     use std::io::{Read, Write};
+-    let mut f = File::open(oldrec_path.resolve_dir().unwrap().join(".signature")).unwrap();
++    let mut f = File::open(oldrec_path.resolve_dir("/").unwrap().join(".signature")).unwrap();
+     let mut s = String::new();
+     f.read_to_string(&mut s).unwrap();
+-    remove_dir_all(oldrec_path.resolve_dir().unwrap()).unwrap();
++    remove_dir_all(oldrec_path.resolve_dir("/").unwrap()).unwrap();
+ 
+     let mut f = File::create(dir.path(".signature")).unwrap();
+     f.write(s.as_bytes()).unwrap();
+-- 
+2.16.4
+
