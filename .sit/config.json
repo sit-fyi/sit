@@ -6,5 +6,8 @@
   },
   "encoding": "base32",
   "id_generator": "uuiv4",
-  "version": "1"
+  "version": "1",
+  "features": [
+    "flat-records"
+  ]
 }
