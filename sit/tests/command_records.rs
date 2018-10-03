@@ -291,10 +291,10 @@ fn pgp_signature_wrong_data() {
 
     use std::fs::File;
     use std::io::{Read, Write};
-    let mut f = File::open(oldrec_path.resolve_dir().unwrap().join(".signature")).unwrap();
+    let mut f = File::open(oldrec_path.resolve_dir("/").unwrap().join(".signature")).unwrap();
     let mut s = String::new();
     f.read_to_string(&mut s).unwrap();
-    remove_dir_all(oldrec_path.resolve_dir().unwrap()).unwrap();
+    remove_dir_all(oldrec_path.resolve_dir("/").unwrap()).unwrap();
 
     let mut f = File::create(dir.path(".signature")).unwrap();
     f.write(s.as_bytes()).unwrap();

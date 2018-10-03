@@ -222,8 +222,8 @@ fn reduce<MI, RCR: RecordContainerReduction<Record = repository::Record>>
         let reducers = vals.split(",").map(PathBuf::from)
             .map(|p| if p.is_file() {
                 p
-            } else if reducers_path.join(&p).resolve_dir().unwrap().is_dir() {
-                let dir = reducers_path.join(&p).resolve_dir().unwrap();
+            } else if reducers_path.join(&p).resolve_dir("/").unwrap().is_dir() {
+                let dir = reducers_path.join(&p).resolve_dir("/").unwrap();
                 dir
             } else {
                 p
@@ -438,7 +438,7 @@ pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_c
         // Serve repository content
         if request.url().starts_with("/repo/") {
             let mut file = repo.path().join(&request.url()[6..]);
-            file = file.resolve_dir().unwrap_or(file);
+            file = file.resolve_dir(repo.path()).unwrap_or(file);
             if file.strip_prefix(repo.path()).is_err() {
                return Response::empty_404();
             }

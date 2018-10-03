@@ -14,8 +14,8 @@ pub fn command<MI>(matches: &ArgMatches, repo: Repository<MI>, config: Configura
         let reducers = vals.map(PathBuf::from)
             .map(|p| if p.is_file() {
                 p
-            } else if reducers_path.join(&p).resolve_dir().unwrap().is_dir() {
-                let dir = reducers_path.join(&p).resolve_dir().unwrap();
+            } else if reducers_path.join(&p).resolve_dir("/").unwrap().is_dir() {
+                let dir = reducers_path.join(&p).resolve_dir("/").unwrap();
                 dir
             } else {
                 p

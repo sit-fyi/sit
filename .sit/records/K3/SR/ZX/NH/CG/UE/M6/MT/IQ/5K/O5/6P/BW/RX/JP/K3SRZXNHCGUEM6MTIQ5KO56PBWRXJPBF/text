@@ -1,0 +1,3 @@
+Currently, resolution of modules is unrestricted (`resolve_dir("/")`) and can refer to any location. This poses a privacy/security risk of a sort (can include modules the user didn't give a consent for), but we have a case when we actually do refer to directories outside of the repository (`issue-tracking` module is the most prominent example).
+
+Proposed solution: find a way to eliminate the need for linking to modules outside of the repository

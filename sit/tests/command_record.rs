@@ -30,7 +30,7 @@ fn item_record() {
         .expect_success().stdout).unwrap().trim().into();
     let rec_file = dir.path(".sit").join("items").join(id).join(record);
     assert!(rec_file.is_file());
-    assert!(rec_file.resolve_dir().unwrap().is_dir());
+    assert!(rec_file.resolve_dir("/").unwrap().is_dir());
 }
 
 /// Should derive authorship from the config file
