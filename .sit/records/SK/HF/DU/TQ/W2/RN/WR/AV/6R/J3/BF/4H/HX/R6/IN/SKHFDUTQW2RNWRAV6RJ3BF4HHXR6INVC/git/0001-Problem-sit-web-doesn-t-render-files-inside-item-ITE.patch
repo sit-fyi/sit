@@ -1,0 +1,71 @@
+From 6e570f35d27763fb900234c048004116a7aca485 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 2 Oct 2018 21:11:03 -0700
+Subject: [PATCH] Problem: sit web doesn't render files inside item/ITEM/RECORD
+
+It can't find the file through directory resolution
+
+Solution: improve `resolve_dir` implementation
+
+Recent change that added mandatory `root` argument to `resolve_dir` has
+a bug: when it needs to go through every component of the path
+(necessary when trying to find links inside of a longer path) it'll
+recurse with the same `root` value as passed.
+
+However, even the very first component is (on UNIX) a root directory
+which clearly violates `root` restriction if it is any narrower than
+root directory, which will return a `NotFound` error.
+
+In case of sit web issue, `resolve_dir` was called with repository's
+path as `root`. Because of the above issue, `NotFound` was returned on
+legitimate paths.
+
+The fix is simple: always use root directory `root` restriction
+internally and rely on prefix stripping at the end of the process.
+---
+ sit-core/src/path.rs | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/sit-core/src/path.rs b/sit-core/src/path.rs
+index 56a5d3c5..1d4ec77d 100644
+--- a/sit-core/src/path.rs
++++ b/sit-core/src/path.rs
+@@ -41,16 +41,16 @@ impl<T> ResolvePath for T where T: AsRef<Path> {
+                     let s = s.replace("/", "\\");
+                     let trimmed_path = s.trim();
+                     path.pop(); // remove the file name
+-                    path.join(PathBuf::from(trimmed_path)).resolve_dir(root.as_ref())
++                    path.join(PathBuf::from(trimmed_path)).resolve_dir("/")
+                 })
+         } else {
+             let total_components = path.components().count();
+             let mut components = path.components();
+-            let mut rebuilt_path = components.next().unwrap().resolve_dir(root.as_ref())?;
++            let mut rebuilt_path = components.next().unwrap().resolve_dir("/")?;
+             for (i, component) in components.enumerate() {
+                 rebuilt_path.push(component);
+                 if rebuilt_path.exists() && i + 2 < total_components {
+-                    rebuilt_path = rebuilt_path.resolve_dir(root.as_ref())?;
++                    rebuilt_path = rebuilt_path.resolve_dir("/")?;
+                 } else if !rebuilt_path.exists() {
+                     return Err(io::ErrorKind::NotFound.into())
+                 }
+@@ -137,4 +137,15 @@ mod tests {
+         assert!(tmp.join("1").join("3").resolve_dir("/").is_err());
+     }
+ 
++    #[test]
++    fn resolve_inside_link_outside_of_the_container() {
++        let tmp = TempDir::new("sit").unwrap().into_path();
++        let _f = fs::File::create(tmp.join("2")).unwrap();
++        let mut f = fs::File::create(tmp.join("1")).unwrap();
++        f.write(tmp.to_str().unwrap().as_bytes()).unwrap();
++
++        assert_eq!(tmp.join("1").join("2").resolve_dir("/").unwrap(), tmp.join("2"));
++        assert_eq!(tmp.join("1").join("2").resolve_dir(&tmp).unwrap(), tmp.join("2"));
++    }
++
+ }
+-- 
+2.16.4
+
