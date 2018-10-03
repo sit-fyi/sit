@@ -41,16 +41,16 @@ impl<T> ResolvePath for T where T: AsRef<Path> {
                     let s = s.replace("/", "\\");
                     let trimmed_path = s.trim();
                     path.pop(); // remove the file name
-                    path.join(PathBuf::from(trimmed_path)).resolve_dir(root.as_ref())
+                    path.join(PathBuf::from(trimmed_path)).resolve_dir("/")
                 })
         } else {
             let total_components = path.components().count();
             let mut components = path.components();
-            let mut rebuilt_path = components.next().unwrap().resolve_dir(root.as_ref())?;
+            let mut rebuilt_path = components.next().unwrap().resolve_dir("/")?;
             for (i, component) in components.enumerate() {
                 rebuilt_path.push(component);
                 if rebuilt_path.exists() && i + 2 < total_components {
-                    rebuilt_path = rebuilt_path.resolve_dir(root.as_ref())?;
+                    rebuilt_path = rebuilt_path.resolve_dir("/")?;
                 } else if !rebuilt_path.exists() {
                     return Err(io::ErrorKind::NotFound.into())
                 }
@@ -135,6 +135,17 @@ mod tests {
         assert_eq!(tmp.join("1").join("2").resolve_dir("/").unwrap(), tmp.join("dir").join("2"));
         // this path is not found
         assert!(tmp.join("1").join("3").resolve_dir("/").is_err());
+    }
+
+    #[test]
+    fn resolve_inside_link_outside_of_the_container() {
+        let tmp = TempDir::new("sit").unwrap().into_path();
+        let _f = fs::File::create(tmp.join("2")).unwrap();
+        let mut f = fs::File::create(tmp.join("1")).unwrap();
+        f.write(tmp.to_str().unwrap().as_bytes()).unwrap();
+
+        assert_eq!(tmp.join("1").join("2").resolve_dir("/").unwrap(), tmp.join("2"));
+        assert_eq!(tmp.join("1").join("2").resolve_dir(&tmp).unwrap(), tmp.join("2"));
     }
 
 }
