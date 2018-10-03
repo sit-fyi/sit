@@ -32,6 +32,8 @@ mod command_records;
 mod command_external;
 mod command_jmespath;
 mod command_integrity;
+#[cfg(feature="web")]
+mod command_web;
 
 mod cli;
 
@@ -58,6 +60,24 @@ extern crate thread_local;
 #[macro_use] extern crate derive_error;
 extern crate directories;
 extern crate itertools;
+
+#[cfg(feature="web")]
+#[macro_use]
+extern crate rouille;
+#[cfg(feature="web")]
+extern crate mime_guess;
+#[cfg(feature="web")]
+extern crate digest;
+#[cfg(feature="web")]
+extern crate blake2;
+#[cfg(feature="web")]
+extern crate hex;
+#[cfg(feature="web")]
+#[macro_use]
+extern crate lazy_static;
+#[cfg(feature="web")]
+#[macro_use]
+extern crate serde_derive;
 
 use std::collections::HashMap;
 pub fn get_named_expression<S: AsRef<str>, MI>(name: S, repo: &sit_core::Repository<MI>,
@@ -116,8 +136,8 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
         .arg(Arg::with_name("working_directory")
             .short("d")
-            .default_value(cwd.to_str().unwrap())
-            .help("Working directory"))
+            .takes_value(true)
+            .help("Working directory (defaults to current directory)"))
         .arg(Arg::with_name("repository")
             .short("r")
             .long("repository")
@@ -376,7 +396,24 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                 .multiple(true)
                 .conflicts_with("help")
                 .help("Arguments to parse"))
-            .about("Parses arguments against a specification given on stdin"));
+            .about("Parses arguments against a specification given on stdin"))
+        .conditionally(cfg!(feature = "web"), |app|
+        app.subcommand(SubCommand::with_name("web")
+            .settings(&[clap::AppSettings::ColoredHelp, clap::AppSettings::ColorAuto])
+            .about("HTTP API server providing access to the repository")
+            .arg(Arg::with_name("readonly")
+                 .long("readonly")
+                 .help("Read-only instance of sit-web (no new items or records can be created)"))
+            .arg(Arg::with_name("overlay")
+                 .short("o")
+                 .long("overlay")
+                 .takes_value(true)
+                 .multiple(true)
+                 .help("Path to an additional [besides standard ones] web overlay"))
+            .arg(Arg::with_name("listen")
+                 .default_value("127.0.0.1:8080")
+                 .help("Listen on IP:PORT"))));
+
 
     if allow_external_subcommands {
         app = app.setting(clap::AppSettings::AllowExternalSubcommands);
@@ -404,7 +441,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         return 1;
     }
 
-    let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
+    let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap_or(cwd.to_str().unwrap()));
     let dot_sit = working_dir.join(".sit");
 
     if let Some(matches) = matches.subcommand_matches("config") {
@@ -455,14 +492,14 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
         return match repo.config().clone().extra().get("external_module_manager") {
             Some(serde_json::Value::String(name)) => {
                 let original_repo = repo.clone();
-                do_matches(matches.clone(), repo.with_module_iterator(ScriptModule(original_repo, &cwd, name.to_string())), cwd.clone(), config, config_path)
+                do_matches(matches.clone(), repo.with_module_iterator(ScriptModule(original_repo, cwd.clone(), name.to_string())), cwd.clone(), config, config_path)
             }
             _ => do_matches(matches.clone(), repo, cwd.clone(), config, config_path),
         };
 
-        fn do_matches<MI: Send + Sync>(matches: ArgMatches, repo: sit_core::Repository<MI>, cwd: PathBuf, config: cfg::Configuration, config_path: &str) -> i32
+        fn do_matches<MI: 'static + Send + Sync>(matches: ArgMatches<'static>, repo: sit_core::Repository<MI>, cwd: PathBuf, config: cfg::Configuration, config_path: &str) -> i32
             where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
-            let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap());
+            let working_dir = PathBuf::from(matches.value_of("working_directory").unwrap_or(cwd.to_str().unwrap()));
             let canonical_working_dir = dunce::canonicalize(&working_dir).expect("can't canonicalize working directory");
             if let Some(_) = matches.subcommand_matches("modules") {
                 match repo.module_iter() {
@@ -532,6 +569,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
 
             if let Some(_) = matches.subcommand_matches("integrity") {
                 return command_integrity::command(repo);
+            }
+
+            if let Some(web_matches) = matches.subcommand_matches("web") {
+                return command_web::command(repo, web_matches, matches.clone(), config);
             }
 
             match command_external::command(&matches, repo, &cwd) {
