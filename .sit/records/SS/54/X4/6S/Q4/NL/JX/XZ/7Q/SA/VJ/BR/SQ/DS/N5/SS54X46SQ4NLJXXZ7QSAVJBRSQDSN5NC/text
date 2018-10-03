@@ -1,0 +1,10 @@
+Currently, `sit web` is distributed as a separate program. It has a few
+downsides:
+
+1. It is confusing in terms of distribution. Which tool does the user
+need?
+2. It has a bunch of business logic copied nearly verbatim from `sit`
+(figuring out where a repository should be, etc.)
+
+Solution: integrate it into the main program
+
