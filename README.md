@@ -146,7 +146,7 @@ Simply run `sit-web` in this repository's clone and open it in the browser.
 
 This project exists thanks to all the people who contribute. [[Contribute](CONTRIBUTING.md)].
 
-<a href="graphs/contributors"><img src="https://opencollective.com/sit/contributors.svg?width=890&button=false" /></a>
+<a href="https://github.com/sit-fyi/sit/graphs/contributors"><img src="https://opencollective.com/sit/contributors.svg?width=890&button=false" /></a>
 
 ### Backers
 
