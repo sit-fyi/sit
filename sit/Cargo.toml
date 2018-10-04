@@ -28,6 +28,13 @@ thread_local = "0.3"
 derive-error = "0.0"
 directories = "1.0"
 itertools = "0.7"
+rouille = { version = "2.2.0", optional = true }
+mime_guess = { version = "1.8", optional = true }
+digest = { version = "0.7", optional = true }
+blake2 = { version = "0.7", optional = true }
+hex = { version = "0.3", optional = true }
+lazy_static = { version = "1.0", optional = true }
+serde_derive = { version = "1.0", optional = true }
 sit-core = { path = "../sit-core", version = "0.5.0-pre", features = ["git"] }
 
 [dev-dependencies]
@@ -35,7 +42,12 @@ cli_test_dir = "0.1.5"
 git2 = { version = "0.7", default-features = false }
 remove_dir_all = "0.5"
 
+[build-dependencies]
+include_dir = "0.1"
+fs_extra = "1.1"
+
 [features]
-default = ["deprecated-items"]
+default = ["deprecated-items", "web"]
 windows7 = ["sit-core/windows7"]
 deprecated-items = ["sit-core/deprecated-item-api"]
+web = ["rouille", "mime_guess", "digest", "blake2", "hex", "lazy_static", "serde_derive" ]
