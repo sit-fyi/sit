@@ -455,7 +455,6 @@ mod webapp {
                                      if request.url().starts_with("/repo/") {
                                          let mut file = repo.path().join(&request.url()[6..]);
                                          file = file.resolve_dir(repo.path()).unwrap_or(file);
-                                         println!("{:?} {:?}", repo.path(), file);
                                          if file.strip_prefix(repo.path()).is_err() {
                                              return Response::empty_404();
                                          }
