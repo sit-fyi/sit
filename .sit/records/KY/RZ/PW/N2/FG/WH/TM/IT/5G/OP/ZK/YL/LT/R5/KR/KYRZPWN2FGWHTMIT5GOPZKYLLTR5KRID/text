@@ -1,0 +1,5 @@
+The current README mentions `sit-web`, which apparently became a subcommand under `sit`. It also doesn't mention that zlib is needed for building, and omits a few steps to use the issue tracker (it's a git submodule that needs to be initialized. This isn't done by default).
+
+Proposed solution: change all `sit-web` references to `sit web`, update the build instructions to mention zlib, expand the instructions for using the issue tracker to include initializing git submodules.
+
+Ps: I intend to contribute those changes. Currently only creating this issue to figure out the entire contribution workflow.
