@@ -1,5 +1,6 @@
 use clap::{self, ArgMatches};
-use sit_core::{Repository, cfg::Configuration, repository};
+use sit_core::{Repository, repository};
+use cfg::Configuration;
 use std::path::PathBuf;
 
 pub fn command<MI: 'static + Send + Sync >(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, config: Configuration) -> i32 
@@ -13,6 +14,7 @@ pub fn command<MI: 'static + Send + Sync >(repo: Repository<MI>, matches: &ArgMa
 }
 
 mod webapp {
+    use cfg;
     #[allow(dead_code)]
     mod assets {
         include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
@@ -140,7 +142,7 @@ mod webapp {
     }
 
 
-    fn new_record<C: RecordOwningContainer, MI>(container: &C, request: &Request, repo: &Repository<MI>, config: &sit_core::cfg::Configuration, matches: &ArgMatches) -> Result<C::Record, String> {
+    fn new_record<C: RecordOwningContainer, MI>(container: &C, request: &Request, repo: &Repository<MI>, config: &cfg::Configuration, matches: &ArgMatches) -> Result<C::Record, String> {
         let mut multipart = get_multipart_input(request).expect("multipart request");
         let mut link = true;
         let mut used_files = vec![];
@@ -274,7 +276,7 @@ mod webapp {
             }
 
 
-    pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: sit_core::cfg::Configuration, repo: Repository<MI>, readonly: bool, overlays: Vec<&str>, matches: ArgMatches<'static>)
+    pub fn start<A: ToSocketAddrs, MI: 'static + Send + Sync>(addr: A, config: cfg::Configuration, repo: Repository<MI>, readonly: bool, overlays: Vec<&str>, matches: ArgMatches<'static>)
         where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
             let mut overlays: Vec<_> = overlays.iter().map(|o| PathBuf::from(o)).collect();
             let assets: PathBuf = repo.path().join("web").into();

@@ -1,3 +1,6 @@
 [workspace]
 
 members = ["sit-core", "sit"]
+
+[profile.release]
+lto = true

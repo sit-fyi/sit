@@ -1,4 +1,5 @@
 //! Client configuration
+#[cfg(feature = "git")]
 use std::path::PathBuf;
 
 #[derive(Clone, Serialize, Deserialize)]

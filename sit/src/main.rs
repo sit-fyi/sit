@@ -17,8 +17,8 @@ extern crate walkdir;
 extern crate yaml_rust;
 
 extern crate config;
-use sit_core::cfg;
 
+mod cfg;
 mod rebuild;
 use rebuild::rebuild_repository;
 mod command_config;
@@ -75,9 +75,9 @@ extern crate hex;
 #[cfg(feature="web")]
 #[macro_use]
 extern crate lazy_static;
-#[cfg(feature="web")]
-#[macro_use]
-extern crate serde_derive;
+
+#[cfg(feature = "git")] extern crate git2;
+#[macro_use] extern crate serde_derive;
 
 use std::collections::HashMap;
 pub fn get_named_expression<S: AsRef<str>, MI>(name: S, repo: &sit_core::Repository<MI>,
