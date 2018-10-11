@@ -46,12 +46,8 @@ For the time being, we'll be updating this section.
 
 ---
 
-Currently, the most important thing being worked on (and it's getting close to completion)
-is the deprecation of "items" as a concept and introduction of the global, flat records
-namespace. This will further the initial transition from the original use of SIT as an
-issue tracker to a more generally applicable collaborative tracker as it will no longer
-impose this "item" concept onto end-user modules or applications. This also opens up the
-path to developing ecosystem tooling like a module manager (already in the works as well).
+Currently, the most important thing being worked on is improvement of module management
+and their capabilities.
 
 ## Modules
 
