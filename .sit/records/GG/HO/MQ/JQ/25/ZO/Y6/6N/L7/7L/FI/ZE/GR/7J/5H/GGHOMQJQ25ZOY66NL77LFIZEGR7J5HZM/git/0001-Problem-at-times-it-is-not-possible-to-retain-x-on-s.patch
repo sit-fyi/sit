@@ -1,0 +1,154 @@
+From fbdf1205524574677fed754ed4c1133d248e9e40 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Tue, 16 Oct 2018 12:31:25 -0700
+Subject: [PATCH] Problem: at times it is not possible to retain +x on script
+
+In some cases (for example, filesystems-in-transit that have no UNIX
+attributes, remote copying) it is not possible to retain +x on scripts
+in CLI.
+
+This also currently holds true to scripts recorded inside of SIT records
+(using `sit record`) as it `sit` doesn't currently copy these
+attributes.
+
+Until some measures are taken (for example, implementing something like
+https://wiki.sit.fyi/#SPAT%2F1) it is impossible to call any CLI scripts
+that don't have an executable attribute on UNIX systems.
+
+Solution: if an executable can't be found, try .sh extension
+
+It poses a small problem going forward, though. If we do integrate a Lua
+interpreter with sit (there's some work on this going on right now),
+then it would be tempting to do the same for .lua files. But what if
+both .sh and .lua present? What if we have more languages (JavaScript,
+etc.) available for CLIs -- how do we prioritize this?
+---
+ sit/src/cli.rs                | 44 ++++++++++++++++++++++++++++++++++++++++---
+ sit/tests/command_external.rs | 42 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 83 insertions(+), 3 deletions(-)
+
+diff --git a/sit/src/cli.rs b/sit/src/cli.rs
+index 2d761c66..0cffa13d 100644
+--- a/sit/src/cli.rs
++++ b/sit/src/cli.rs
+@@ -25,7 +25,8 @@ pub fn execute_cli<MI, E, K, V>(repo: &Repository<MI>, cwd: &Path, subcommand: &
+     #[cfg(windows)]
+     let path_sep = ";";
+ 
+-    let mut path: String = repo.path().join("cli").to_str().unwrap().into();
++    let cli_path = repo.path().join("cli");
++    let mut path: String = cli_path.to_str().unwrap().into();
+     for module_name in repo.module_iter().expect("can't iterate over modules") {
+         path += path_sep;
+         let module_name = module_name.expect("can't get module path");
+@@ -35,8 +36,45 @@ pub fn execute_cli<MI, E, K, V>(repo: &Repository<MI>, cwd: &Path, subcommand: &
+     path += path_sep;
+     path += &env::var("PATH").unwrap();
+ 
+-    let path = which::which_in(format!("sit-{}", subcommand), Some(path), &cwd)?;
+-    let mut command = ::std::process::Command::new(path);
++    let cmd = format!("sit-{}", subcommand);
++    let path = which::which_in(&cmd, Some(path), &cwd)
++               .or_else(|err| match err.kind() {
++                   #[cfg(unix)]
++                   which::ErrorKind::CannotFindBinaryPath => {
++                       let sh_cmd = format!("{}.sh", &cmd);
++                       let sh_path = cli_path.join(&sh_cmd);
++                       if sh_path.is_file() {
++                           return Ok(sh_path)
++                       }
++                       for module_name in repo.module_iter().map_err(|_| {
++                           let err: which::Error = which::ErrorKind::CannotGetCurrentDir.into();
++                           err
++                       })? {
++                           if let Ok(name) = module_name {
++                               let sh_path = repo.modules_path().join(name).join("cli").join(&sh_cmd);
++                               if sh_path.is_file() {
++                                   return Ok(sh_path)
++                               }
++                           }
++                       }
++                       Err(err)
++                   },
++                   _ => Err(err),
++               })?;
++
++    #[cfg(unix)]
++    let exact = path.file_name().unwrap() == cmd.as_str();
++    #[cfg(not(unix))]
++    let exact = true;
++
++    let mut command = if exact {
++        ::std::process::Command::new(path)
++    } else {
++        let env = which::which("env")?;
++        let mut cmd = ::std::process::Command::new(env);
++        cmd.args(&["sh", path.to_str().unwrap()]);
++        cmd
++    };
+     command.env("SIT_DIR", repo.path().to_str().unwrap());
+     command.env("SIT", env::current_exe().unwrap_or("sit".into()).to_str().unwrap());
+     command.args(args);
+diff --git a/sit/tests/command_external.rs b/sit/tests/command_external.rs
+index bdf090e5..c79682f3 100644
+--- a/sit/tests/command_external.rs
++++ b/sit/tests/command_external.rs
+@@ -61,6 +61,27 @@ fn ext_cli() {
+     assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
+ }
+ 
++/// Should execute a shell script available in .sit/cli (even without +x)
++#[cfg(unix)]
++#[test]
++fn ext_cli_sh() {
++    let dir = TestDir::new("sit", "ext_cli_sh");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    dir.create_file(".sit/cli/sit-exists.sh", r#"#! /usr/bin/env bash
++        echo SIT_DIR=${SIT_DIR}
++    "#);
++
++    let result = String::from_utf8(dir.cmd()
++        .arg("exists")
++        .expect_success().stdout).unwrap().replace("\r","");
++
++    assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
++}
++
++
+ /// Should execute an external command available in .sit/modules/*/cli
+ #[test]
+ fn ext_modules_cli() {
+@@ -83,6 +104,27 @@ fn ext_modules_cli() {
+     assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
+ }
+ 
++/// Should execute an external shell command available in .sit/modules/*/cli (even without +x)
++#[test]
++fn ext_modules_cli_sh() {
++    let dir = TestDir::new("sit", "ext_modules_cli_sh");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++
++    dir.create_file(".sit/modules/test/cli/sit-exists.sh", r#"#! /usr/bin/env bash
++    echo SIT_DIR=${SIT_DIR}
++    "#);
++
++    let result = String::from_utf8(dir.cmd()
++        .arg("exists")
++        .expect_success().stdout).unwrap().replace("\r","");
++
++    assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
++}
++
++
++
+ /// Should execute an external command available in PATH
+ #[test]
+ fn ext_modules_path() {
+-- 
+2.16.5
+

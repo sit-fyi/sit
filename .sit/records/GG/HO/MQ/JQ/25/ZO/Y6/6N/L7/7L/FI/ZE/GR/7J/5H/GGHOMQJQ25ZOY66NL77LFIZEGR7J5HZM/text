@@ -1,0 +1,20 @@
+In some cases (for example, filesystems-in-transit that have no UNIX
+attributes, remote copying) it is not possible to retain +x on scripts
+in CLI.
+
+This also currently holds true to scripts recorded inside of SIT records
+(using `sit record`) as it `sit` doesn't currently copy these
+attributes.
+
+Until some measures are taken (for example, implementing something like
+https://wiki.sit.fyi/#SPAT%2F1) it is impossible to call any CLI scripts
+that don't have an executable attribute on UNIX systems.
+
+Solution: if an executable can't be found, try .sh extension
+
+It poses a small problem going forward, though. If we do integrate a Lua
+interpreter with sit (there's some work on this going on right now),
+then it would be tempting to do the same for .lua files. But what if
+both .sh and .lua present? What if we have more languages (JavaScript,
+etc.) available for CLIs -- how do we prioritize this?
+
