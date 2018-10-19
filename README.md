@@ -186,6 +186,10 @@ SIT is distributed under the terms of both the MIT license and the Apache Licens
 
 See LICENSE-APACHE and LICENSE-MIT for details.
 
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion, as defined in the Apache-2.0 license, shall be dual licensed as
+above, without any additional terms or conditions.
+
 ## Credits
 
 Shout-out to [Ura Design](https://ura.design/) for designing the previous version of our logo, hope we wore it well! They help with [design magic](https://ura.design/request/) for open source projects.
