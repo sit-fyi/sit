@@ -61,6 +61,27 @@ fn ext_cli() {
     assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
 }
 
+/// Should execute a shell script available in .sit/cli (even without +x)
+#[cfg(unix)]
+#[test]
+fn ext_cli_sh() {
+    let dir = TestDir::new("sit", "ext_cli_sh");
+    dir.cmd()
+        .arg("init")
+        .expect_success();
+
+    dir.create_file(".sit/cli/sit-exists.sh", r#"#! /usr/bin/env bash
+        echo SIT_DIR=${SIT_DIR}
+    "#);
+
+    let result = String::from_utf8(dir.cmd()
+        .arg("exists")
+        .expect_success().stdout).unwrap().replace("\r","");
+
+    assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
+}
+
+
 /// Should execute an external command available in .sit/modules/*/cli
 #[test]
 fn ext_modules_cli() {
@@ -82,6 +103,27 @@ fn ext_modules_cli() {
 
     assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
 }
+
+/// Should execute an external shell command available in .sit/modules/*/cli (even without +x)
+#[test]
+fn ext_modules_cli_sh() {
+    let dir = TestDir::new("sit", "ext_modules_cli_sh");
+    dir.cmd()
+        .arg("init")
+        .expect_success();
+
+    dir.create_file(".sit/modules/test/cli/sit-exists.sh", r#"#! /usr/bin/env bash
+    echo SIT_DIR=${SIT_DIR}
+    "#);
+
+    let result = String::from_utf8(dir.cmd()
+        .arg("exists")
+        .expect_success().stdout).unwrap().replace("\r","");
+
+    assert_eq!(result, format!("SIT_DIR={}\n", dir.path(".sit").to_str().unwrap()))
+}
+
+
 
 /// Should execute an external command available in PATH
 #[test]
