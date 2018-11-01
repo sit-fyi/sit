@@ -1,0 +1,48 @@
+From de8cb1fce8ca08693e530a699f95d1eb469d2bd3 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Thu, 1 Nov 2018 15:33:02 -0700
+Subject: [PATCH] Problem: make linux fails
+
+It fails because within the container, when cargo is trying to download
+crates, it gets permission denied. This is happening because we're
+passing UID/GID of the current user and cargo is trying to write
+globally.
+
+Solution: make this command build in a designated directory
+that we later allow anybody to overwrite
+---
+ Makefile | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 6fc587b4..aae50f63 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,18 +1,18 @@
+ .PHONY: test
+ 
+-osx: target/x86_64-apple-darwin/release/sit target/x86_64-apple-darwin/release/sit-web
+-linux: target/x86_64-unknown-linux-musl/release/sit target/x86_64-unknown-linux-musl/release/sit-web
++osx: target/builds/x86_64-apple-darwin/release/sit
++linux: target/builds/x86_64-unknown-linux-musl/release/sit
+ 
+-target/x86_64-apple-darwin/release/sit target/x86_64-apple-darwin/release/sit-web: build-tools/cross-compile-osx/Dockerfile sit-core sit-web sit
++target/builds/x86_64-apple-darwin/release/sit: build-tools/cross-compile-osx/Dockerfile sit-core sit Makefile
+ 	docker build --iidfile ._docker_osx build-tools/cross-compile-osx
+ 	sed -i s/sha256://g ._docker_osx
+-	docker run -u `id -u`:`id -g` -v `pwd`:/sit -w /sit -t `cat ._docker_osx` sh -c "cargo build --release --target=x86_64-apple-darwin"
++	docker run -u `id -u`:`id -g` -v `pwd`:/sit -w /sit -e CARGO_TARGET_DIR=/sit/target/builds -t `cat ._docker_osx` sh -c "cargo build --release --target=x86_64-apple-darwin && chmod -R o+w /sit/target/builds"
+ 	rm -f ._docker_osx
+ 
+-target/x86_64-unknown-linux-musl/release/sit target/x86_64-unknown-linux-musl/release/sit-web: build-tools/linux-build-container/Dockerfile sit-core sit-web sit
++target/builds/x86_64-unknown-linux-musl/release/sit: build-tools/linux-build-container/Dockerfile sit-core sit Makefile
+ 	docker build --iidfile ._docker_linux build-tools/linux-build-container
+ 	sed -i s/sha256://g ._docker_linux
+-	docker run -u `id -u`:`id -g` -v `pwd`:/sit -w /sit -t `cat ._docker_linux` sh -c "cargo build --release --target=x86_64-unknown-linux-musl && strip target/x86_64-unknown-linux-musl/release/sit target/x86_64-unknown-linux-musl/release/sit-web"
++	docker run -v `pwd`:/sit -w /sit -e CARGO_TARGET_DIR=/sit/target/builds -t `cat ._docker_linux` sh -c "cargo build --release --target=x86_64-unknown-linux-musl && chmod -R o+w /sit/target/builds && strip target/builds/x86_64-unknown-linux-musl/release/sit"
+ 	rm -f ._docker_linux
+ 
+ test:
+-- 
+2.18.1
+

@@ -1,0 +1,8 @@
+It fails because within the container, when cargo is trying to download
+crates, it gets permission denied. This is happening because we're
+passing UID/GID of the current user and cargo is trying to write
+globally.
+
+Solution: make this command build in a designated directory
+that we later allow anybody to overwrite
+
