@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+x86_64-apple-darwin15-cc $*
