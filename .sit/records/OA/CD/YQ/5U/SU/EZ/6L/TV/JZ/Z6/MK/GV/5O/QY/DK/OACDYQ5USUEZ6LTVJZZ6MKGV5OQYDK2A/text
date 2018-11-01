@@ -1,0 +1,5 @@
+The problems are around cross-compiling libbacktrace and other
+libraries.
+
+Solution: make sure cross-compilation uses the right compiler
+
