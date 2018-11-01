@@ -7,7 +7,9 @@ RUN cd osxcross && UNATTENDED=1 OSX_VERSION_MIN=10.7 ./build.sh
 ENV PATH="/osxcross/target/bin:$PATH"
 ENV CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER x86_64-apple-darwin15-clang
 ENV CC_X86_64_APPLE_DARWIN_LINKER x86_64-apple-darwin15-clang
-ENV CC x86_64-apple-darwin15-cc
 ENV CMAKE_C_LINK_EXECUTABLE x86_64-apple-darwin15-ld
 ENV CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN x86_64-apple-darwin15-cc
 ENV CMAKE_C_COMPILER x86_64-apple-darwin15-cc
+ENV CROSS_COMPILE x86_64-apple-darwin15-
+COPY x86_64-apple-darwin15-gcc /osxcross/target/bin/x86_64-apple-darwin15-gcc
+RUN chmod +x /osxcross/target/bin/x86_64-apple-darwin15-gcc
