@@ -97,7 +97,7 @@ impl<P: AsRef<Path>> ModuleIterator<PathBuf, Error> for ModuleDirectory<P> {
 
 impl<T1, T2, P, E> ModuleIterator<P, E> for (T1, T2)
     where T1: ModuleIterator<P, E>, T2: ModuleIterator<P, E> {
-    type Iter = ::std::iter::Chain<T1::Iter, T2::Iter>;
+    type Iter = std::iter::Chain<T1::Iter, T2::Iter>;
 
     fn iter(&self) -> Result<Self::Iter, E> {
         let t1 = self.0.iter()?;
@@ -108,7 +108,7 @@ impl<T1, T2, P, E> ModuleIterator<P, E> for (T1, T2)
 
 pub struct ModuleDirectoryIterator(Option<fs::ReadDir>);
 
-use path::ResolvePath;
+use crate::path::ResolvePath;
 
 impl Iterator for ModuleDirectoryIterator {
     type Item = Result<PathBuf, Error>;
@@ -208,7 +208,7 @@ pub enum Error {
         got: String,
     },
     /// I/O error
-    IoError(::std::io::Error),
+    IoError(std::io::Error),
     /// JSON (de)serialization error
     SerializationError(serde_json::Error),
     /// Base decoding error
@@ -220,7 +220,7 @@ pub enum Error {
 
 impl From<glob::PatternError> for Error {
     fn from(err: glob::PatternError) -> Self {
-        use ::std::error::Error as StandardError;
+        use std::error::Error as StandardError;
         Error::OtherError(format!("glob pattern error: {}", err.description()))
     }
 }
@@ -251,7 +251,7 @@ mod default_files {
 
 }
 
-use path::HasPath;
+use crate::path::HasPath;
 
 impl Repository<ModuleDirectory<PathBuf>> {
     /// Attempts creating a new repository. Fails with `Error::AlreadyExists`
@@ -355,7 +355,7 @@ impl Repository<ModuleDirectory<PathBuf>> {
                 for path in glob.filter_map(Result::ok).filter(|p| p.is_dir()) {
                     let mut components = path.components();
                     let record = components.next_back().unwrap();
-                    let split_path = ::record::split_path(record.as_os_str().to_str().unwrap(), 2);
+                    let split_path = crate::record::split_path(record.as_os_str().to_str().unwrap(), 2);
                     let mut split_path_ = split_path.clone();
                     split_path_.pop();
                     fs::create_dir_all(records_path.join(split_path_))?;
@@ -572,7 +572,7 @@ impl<MI> Repository<MI> {
 
     /// Finds a record by name (if there is one)
     pub fn record<S: AsRef<str>>(&self, name: S) -> Option<Record> {
-        let path = self.records_path().join(::record::split_path(name, 2));
+        let path = self.records_path().join(crate::record::split_path(name, 2));
         let path = path.resolve_dir(self.path()).unwrap_or(path);
         if path.is_dir() && path.strip_prefix(self.records_path()).is_ok() {
             let hash = self.config.encoding.decode(path.file_name().unwrap().to_str().unwrap().as_bytes());
@@ -656,7 +656,7 @@ impl<MI> Repository<MI> {
 
 
         let hash = hasher.result_box();
-        let path = path.as_ref().join(::record::split_path(self.config.encoding.encode(&hash), 2));
+        let path = path.as_ref().join(crate::record::split_path(self.config.encoding.encode(&hash), 2));
         if path.exists() {
             fs::remove_dir_all(tempdir.into_path())?;
         } else {
@@ -705,7 +705,7 @@ impl<MI> Repository<MI> where MI: ModuleIterator<PathBuf, Error>
     }
 }
 
-use record::RecordContainerReduction;
+use crate::record::RecordContainerReduction;
 impl<MI> RecordContainerReduction for Repository<MI> { }
 
 impl<MI> RecordContainer for Repository<MI> {
@@ -774,7 +774,7 @@ pub struct Item<'a, MI: 'a> {
     path: PathBuf,
 }
 
-use record::{File, OrderedFiles};
+use crate::record::{File, OrderedFiles};
 use relative_path::{RelativePath, Component as RelativeComponent};
 
 #[cfg(feature = "deprecated-item-api")]
@@ -815,7 +815,7 @@ impl<'a, MI: 'a> Item<'a, MI> {
 
 }
 
-use record::RecordContainer;
+use crate::record::RecordContainer;
 
 #[cfg(feature = "deprecated-item-api")]
 impl<'a, MI: 'a> RecordContainer for Item<'a, MI> {
@@ -839,7 +839,7 @@ impl<'a, MI: 'a> RecordContainer for Item<'a, MI> {
 
 }
 
-use record::RecordOwningContainer;
+use crate::record::RecordOwningContainer;
 #[cfg(feature = "deprecated-item-api")]
 impl<'a, MI: 'a> RecordOwningContainer for Item<'a, MI> {
 
@@ -848,7 +848,7 @@ impl<'a, MI: 'a> RecordOwningContainer for Item<'a, MI> {
         // TODO: should we remove the record if creating a link file failed?
         let path = self.repository.items_path.join(self.id());
         fs::create_dir_all(&path)?;
-        let record_path = ::record::split_path(record.encoded_hash(), 2);
+        let record_path = crate::record::split_path(record.encoded_hash(), 2);
         let record_path_s = record_path.to_str().unwrap();
         #[cfg(windows)] // replace backslashes with slashes
         let record_path_s = record_path_s.replace("\\", "/");
@@ -936,7 +936,7 @@ impl Iterator for GenericRecordIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         // TODO: if https://github.com/rust-lang/rust/issues/43244 is finalized, try to use drain_filter instead
-        let (filtered, dir): (Vec<_>, Vec<_>) = ::std::mem::replace(&mut self.dir, vec![]).into_iter()
+        let (filtered, dir): (Vec<_>, Vec<_>) = std::mem::replace(&mut self.dir, vec![]).into_iter()
             .partition(|e| {
                 let path = e.path().resolve_dir(&self.root).unwrap_or(e.path().to_path_buf());
                 if !path.is_dir() {
@@ -965,7 +965,7 @@ impl Iterator for GenericRecordIterator {
                                 #[cfg(not(feature ="deprecated-item-api"))]
                                 let is_dir = false;
                                 is_dir || {
-                                    let p = self.path.join(::record::split_path(l.file_name().to_str().unwrap(), 2));
+                                    let p = self.path.join(crate::record::split_path(l.file_name().to_str().unwrap(), 2));
                                     p.resolve_dir(&self.root).unwrap_or(p).is_dir()
                                 }
                             })
@@ -1053,7 +1053,7 @@ use serde::{Serialize, Serializer};
 
 impl Serialize for Record {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
-        use record::RecordExt;
+        use crate::record::RecordExt;
         self.serde_serialize(serializer)
     }
 }
@@ -1066,7 +1066,7 @@ impl PartialEq for Record {
 }
 
 impl RecordTrait for Record {
-    type Read = ::std::fs::File;
+    type Read = std::fs::File;
     type Str = String;
     type Hash = Vec<u8>;
     type Iter = RecordFileIterator;
@@ -1131,7 +1131,7 @@ mod tests {
     use tempdir::TempDir;
 
     use super::*;
-    use path::HasPath;
+    use crate::path::HasPath;
 
     #[test]
     fn new_repo() {
@@ -1700,7 +1700,7 @@ mod tests {
         assert_eq!(repo.item_iter().unwrap().count(), 1);
 
 
-        ::std::fs::rename(repo.items_path(), repo.path().join("issues")).unwrap();
+        std::fs::rename(repo.items_path(), repo.path().join("issues")).unwrap();
         let repo = Repository::open(&tmp);
         assert!(repo.is_err());
         assert_matches!(repo.unwrap_err(), Error::UpgradeRequired(Upgrade::IssuesToItems));
@@ -1719,8 +1719,8 @@ mod tests {
         repo.save().unwrap();
 
         let item = repo.new_item().unwrap();
-        ::std::fs::create_dir_all(repo.path().join("issues")).unwrap();
-        ::std::fs::rename(repo.items_path().join(item.id()), repo.path().join("issues").join(item.id())).unwrap();
+        std::fs::create_dir_all(repo.path().join("issues")).unwrap();
+        std::fs::rename(repo.items_path().join(item.id()), repo.path().join("issues").join(item.id())).unwrap();
 
 
         let repo = Repository::open(&tmp);
@@ -1766,7 +1766,7 @@ mod tests {
         let record1 = item.record_iter().unwrap().next().unwrap().pop().unwrap();
         // Record is back where it belongs
         use dunce;
-        assert_eq!(dunce::canonicalize(record1.path()).unwrap(), dunce::canonicalize(repo.records_path().join(::record::split_path(record1.encoded_hash(), 2))).unwrap());
+        assert_eq!(dunce::canonicalize(record1.path()).unwrap(), dunce::canonicalize(repo.records_path().join(crate::record::split_path(record1.encoded_hash(), 2))).unwrap());
 
         // In a decentralized scenarios, some v1 updates might come at a point past the upgrade,
         // meaning v1 items will be injected into v2 repositories (because of delays or somebody

@@ -3,14 +3,15 @@ use std::io::Read;
 use super::Reducer;
 use serde_json::{Map, Value as JsonValue};
 use std::marker::PhantomData;
-use ::Record;
-use duktape;
+use crate::Record;
+use crate::duktape;
 use std::ptr;
 use std::ffi::{CString, CStr, OsStr};
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::io;
-use path::HasPath;
+use crate::path::HasPath;
+use crate::RepositoryError;
 
 #[cfg(feature = "duktape-mmap")]
 use memmap;
@@ -32,9 +33,9 @@ impl<T> SourceFiles for T where T: IntoIterator<Item = PathBuf> {
     }
 }
 
-impl<'a, MI> SourceFiles for &'a ::Repository<MI> where MI: ::repository::ModuleIterator<PathBuf, ::repository::Error> {
+impl<'a, MI> SourceFiles for &'a crate::Repository<MI> where MI: crate::repository::ModuleIterator<PathBuf, crate::repository::Error> {
 
-    type Iter = ::std::vec::IntoIter<PathBuf>;
+    type Iter = std::vec::IntoIter<PathBuf>;
 
     fn source_files(self) -> Result<Self::Iter, Error> {
         let mut files = vec![];
@@ -69,8 +70,8 @@ unsafe impl<R: Record> Send for DuktapeReducer<R> {}
 
 #[derive(Debug, Error)]
 pub enum Error {
-    IoError(::std::io::Error),
-    RepositoryError(::repository::Error),
+    IoError(std::io::Error),
+    RepositoryError(RepositoryError),
     #[error(no_from, non_std)]
     ExecutionError {
         error: String,
@@ -89,9 +90,9 @@ impl<R: Record> Drop for DuktapeReducer<R> {
         }
     }
 }
-unsafe extern "C" fn fatal_handler(_udata: *mut ::std::os::raw::c_void, msg: *const ::std::os::raw::c_char) {
-    eprintln!("duktape aborted: {}", ::std::ffi::CStr::from_ptr(msg).to_str().unwrap());
-    ::std::process::exit(1);
+unsafe extern "C" fn fatal_handler(_udata: *mut std::os::raw::c_void, msg: *const std::os::raw::c_char) {
+    eprintln!("duktape aborted: {}", std::ffi::CStr::from_ptr(msg).to_str().unwrap());
+    std::process::exit(1);
 }
 
 impl<R: Record> DuktapeReducer<R> {
@@ -317,7 +318,7 @@ impl<R: Record> DuktapeReducer<R> {
         duktape::DUK_COMPILE_FUNCTION | duktape::DUK_COMPILE_STRLEN);
 
         if res as u32 == duktape::DUK_EXEC_ERROR {
-            let err = ::std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(context, -1, ptr::null_mut())).to_str().unwrap();
+            let err = std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(context, -1, ptr::null_mut())).to_str().unwrap();
             return Err(Error::CompileError { file, error: err.into() })
         } else {
             // clean up safe compilation results
@@ -500,7 +501,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
 
                // now, check for error
                 if res as u32 == duktape::DUK_EXEC_ERROR {
-                    let err = ::std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut()));
+                    let err = std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut()));
                     {
                         let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
                         let mut error = Map::new();
@@ -520,7 +521,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
                     // restore previous state
                     duktape::duk_copy(ctx, -2, -1);
                 } else {
-                    let err = format!("TypeError: invalid return value {}, expected an object", ::std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut())).to_string_lossy());
+                    let err = format!("TypeError: invalid return value {}, expected an object", std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut())).to_string_lossy());
                     {
                         let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
                         let mut error = Map::new();
@@ -541,7 +542,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
             duktape::duk_json_encode(ctx, -1);
             let json = duktape::duk_get_string(ctx, -1);
 
-            let json = ::std::ffi::CStr::from_ptr(json);
+            let json = std::ffi::CStr::from_ptr(json);
             #[cfg(feature = "cesu8")]
             let map: Map<String, JsonValue> = match cesu8::from_cesu8(json.to_bytes()) {
                 Ok(s) => serde_json::from_str(&s),
@@ -562,9 +563,9 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
 mod tests {
     use tempdir::TempDir;
     use super::*;
-    use ::Repository;
-    use record::{RecordOwningContainer, RecordContainerReduction};
-    use path::HasPath;
+    use crate::Repository;
+    use crate::record::{RecordOwningContainer, RecordContainerReduction};
+    use crate::path::HasPath;
 
     #[test]
     fn undefined_result() {
@@ -742,7 +743,7 @@ mod tests {
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"module.exports = 'hello'").unwrap();
-        let res: Result<DuktapeReducer<::repository::Record>, _> = DuktapeReducer::new(&repo);
+        let res: Result<DuktapeReducer<crate::repository::Record>, _> = DuktapeReducer::new(&repo);
         assert!(res.is_err());
         let reducer_file = repo.path().join("reducers/reducer.js");
         let err = res.unwrap_err();
@@ -804,7 +805,7 @@ mod tests {
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"function(state) { return state }").unwrap();
-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
+        let res = DuktapeReducer::<crate::repository::Record>::new(&repo);
         assert!(res.is_err());
         let reducer_file = repo.path().join("reducers/reducer.js");
         let err = res.unwrap_err();
@@ -829,7 +830,7 @@ mod tests {
         fs::create_dir_all(repo.path().join("reducers")).unwrap();
         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
         f.write(b"module.exports = function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
+        let res = DuktapeReducer::<crate::repository::Record>::new(&repo);
         assert!(res.is_err());
         let reducer_file = repo.path().join("reducers/reducer.js");
         let err = res.unwrap_err();
@@ -1047,7 +1048,7 @@ mod tests {
 
         let err_str = "Error: module not found: \"index.js\"";
 
-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        assert_matches!(DuktapeReducer::<crate::repository::Record>::new(&repo),
         Err(Error::ExecutionError { ref error }) if error == err_str);
     }
 
@@ -1065,7 +1066,7 @@ mod tests {
         f.write(b"module.exports = require(\"reducer/index.js\");").unwrap();
 
         let err_str = "Error: module not found: \"reducer/index.js\"";
-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        assert_matches!(DuktapeReducer::<crate::repository::Record>::new(&repo),
         Err(Error::ExecutionError { ref error }) if error == err_str);
     }
 
@@ -1088,7 +1089,7 @@ mod tests {
         let err_str = "TypeError: cannot resolve module id: ../reducer.js";
 
 
-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        assert_matches!(DuktapeReducer::<crate::repository::Record>::new(&repo),
         Err(Error::ExecutionError { ref error }) if error == err_str);
     }
 
@@ -1106,7 +1107,7 @@ mod tests {
 
         let err_str = "TypeError: cannot resolve module id: /reducer.js";
 
-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
+        assert_matches!(DuktapeReducer::<crate::repository::Record>::new(&repo),
         Err(Error::ExecutionError { ref error }) if error == err_str);
     }
 
@@ -1146,7 +1147,7 @@ mod tests {
         f.write(b"module.exports = function(state, record) { return {\"hello\": record.hash}; }").unwrap();
 
         repo.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
-        let result: Result<DuktapeReducer<::repository::Record>, _> = DuktapeReducer::new(&repo);
+        let result: Result<DuktapeReducer<crate::repository::Record>, _> = DuktapeReducer::new(&repo);
         assert!(result.is_err());
         let err = result.unwrap_err();
         let err_str = "Error: module not found: \"reducer/index.js\"";

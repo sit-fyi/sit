@@ -1,7 +1,7 @@
 //! Record is an immutable collection of files
 
 use std::io::{self, Read};
-use hash::{Hasher, HashingAlgorithm};
+use crate::hash::{Hasher, HashingAlgorithm};
 use std::path::PathBuf;
 
 /// Record's file
@@ -212,7 +212,7 @@ mod ordered_files_tests {
         let ordered_files1_ = OrderedFiles::from(i1.clone().into_iter().map(|v| (v, &[][..])));
         let ordered_files2 = OrderedFiles::from(i2.clone().into_iter().map(|v| (v, &[][..])));
         let ordered_files2_ = OrderedFiles::from(i2.clone().into_iter().map(|v| (v, &[][..])));
-        let ordered_files = ordered_files1 + ::std::iter::once(ordered_files2);
+        let ordered_files = ordered_files1 + std::iter::once(ordered_files2);
         for i in ordered_files1_.0 {
            assert!(ordered_files.0.iter().find(|f| f.name() == i.name()).is_some());
         }
@@ -254,7 +254,7 @@ pub(crate) fn split_path<S: AsRef<str>>(s: S, length: usize) -> PathBuf {
 /// Record is an immutable collection of files
 pub trait Record {
    /// Implementation's type for reading files
-   type Read : ::std::io::Read;
+   type Read : std::io::Read;
    /// Implementation's type for non-encoded hash
    type Hash : AsRef<[u8]>;
    /// Implementation's type for file names
@@ -302,7 +302,7 @@ pub trait Record {
 
 pub trait RecordContainer {
     /// Error type used by the implementation
-    type Error: ::std::error::Error + ::std::fmt::Debug;
+    type Error: std::error::Error + std::fmt::Debug;
     /// Record type used by the implementation
     type Record : super::Record;
     /// Type used to list records that can be referenced as a slice of records
@@ -410,7 +410,7 @@ pub trait RecordExt: Record {
            let name = name.as_ref().into();
            match reader.read_to_end(&mut buf) {
                Ok(_) => {
-                   match ::std::str::from_utf8(&buf) {
+                   match std::str::from_utf8(&buf) {
                        Err(_) => {
                            let mut typ = JsonMap::new();
                            typ.insert("type".into(), JsonValue::String("binary".into()));
@@ -438,9 +438,9 @@ pub trait RecordExt: Record {
 
 impl<T> RecordExt for T where T: Record {}
 
-use reducers::Reducer;
+use crate::reducers::Reducer;
 #[derive(Debug, Error)]
-pub enum ReductionError<Err: ::std::error::Error + ::std::fmt::Debug> {
+pub enum ReductionError<Err: std::error::Error + std::fmt::Debug> {
     ImplementationError(Err)
 }
 

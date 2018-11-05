@@ -1,6 +1,6 @@
 use clap::{self, ArgMatches};
 use sit_core::{Repository, repository};
-use cfg::Configuration;
+use crate::cfg::Configuration;
 use std::path::PathBuf;
 
 pub fn command<MI: 'static + Send + Sync >(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, config: Configuration) -> i32 
@@ -14,7 +14,7 @@ pub fn command<MI: 'static + Send + Sync >(repo: Repository<MI>, matches: &ArgMa
 }
 
 mod webapp {
-    use cfg;
+    use crate::cfg;
     #[allow(dead_code)]
     mod assets {
         include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));

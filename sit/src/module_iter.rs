@@ -1,4 +1,4 @@
-use cli;
+use crate::cli;
 use std::path::{Path, PathBuf};
 use sit_core;
 
