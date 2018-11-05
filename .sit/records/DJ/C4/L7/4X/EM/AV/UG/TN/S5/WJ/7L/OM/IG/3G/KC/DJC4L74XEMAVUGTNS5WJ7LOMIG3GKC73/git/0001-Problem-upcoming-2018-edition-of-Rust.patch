@@ -1,0 +1,1834 @@
+From faf0bd97ef471fd766181085cb9044fa571962aa Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Sun, 4 Nov 2018 16:50:51 -0800
+Subject: [PATCH] Problem: upcoming 2018 edition of Rust
+
+It's changing quite a bit of things and I don't want to be left alone
+with a codebase on an aging edition. SIT is too young for that.
+
+Solution: fix the code to make it compilable on both 2015 and 2018
+editions, but don't commit to 2018 just yet.
+---
+ sit-core/src/duktape/bindings.rs | 372 +++++++++++++++----------------
+ sit-core/src/item.rs             |   2 +-
+ sit-core/src/lib.rs              |   8 +-
+ sit-core/src/record.rs           |  14 +-
+ sit-core/src/reducers/duktape.rs |  51 ++---
+ sit-core/src/repository.rs       |  44 ++--
+ sit/src/cli.rs                   |   2 +-
+ sit/src/command_external.rs      |   2 +-
+ sit/src/command_items.rs         |   2 +-
+ sit/src/command_record.rs        |   2 +-
+ sit/src/command_records.rs       |   2 +-
+ sit/src/command_reduce.rs        |   2 +-
+ sit/src/command_web.rs           |   4 +-
+ sit/src/lib.rs                   |   2 +-
+ sit/src/main.rs                  |   4 +-
+ sit/src/module_iter.rs           |   2 +-
+ sit/tests/command_external.rs    |   2 +-
+ sit/tests/command_modules.rs     |   2 +-
+ 18 files changed, 260 insertions(+), 259 deletions(-)
+
+diff --git a/sit-core/src/duktape/bindings.rs b/sit-core/src/duktape/bindings.rs
+index 0c605d3b..8dde268b 100644
+--- a/sit-core/src/duktape/bindings.rs
++++ b/sit-core/src/duktape/bindings.rs
+@@ -273,10 +273,10 @@ pub type duk_uint16_t = u16;
+ pub type duk_uint32_t = u32;
+ pub type duk_int32_t = i32;
+ pub type duk_size_t = usize;
+-pub type duk_int_t = ::std::os::raw::c_int;
+-pub type duk_uint_t = ::std::os::raw::c_uint;
+-pub type duk_small_int_t = ::std::os::raw::c_int;
+-pub type duk_small_uint_t = ::std::os::raw::c_uint;
++pub type duk_int_t = std::os::raw::c_int;
++pub type duk_uint_t = std::os::raw::c_uint;
++pub type duk_small_int_t = std::os::raw::c_int;
++pub type duk_small_uint_t = std::os::raw::c_uint;
+ pub type duk_bool_t = duk_small_uint_t;
+ pub type duk_idx_t = duk_int_t;
+ pub type duk_uarridx_t = duk_uint_t;
+@@ -291,83 +291,83 @@ pub struct duk_hthread {
+ }
+ pub type duk_context = duk_hthread;
+ pub type duk_c_function =
+-    ::std::option::Option<unsafe extern "C" fn(ctx: *mut duk_context) -> duk_ret_t>;
+-pub type duk_alloc_function = ::std::option::Option<
+-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, size: duk_size_t)
+-        -> *mut ::std::os::raw::c_void,
++    std::option::Option<unsafe extern "C" fn(ctx: *mut duk_context) -> duk_ret_t>;
++pub type duk_alloc_function = std::option::Option<
++    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, size: duk_size_t)
++        -> *mut std::os::raw::c_void,
+ >;
+-pub type duk_realloc_function = ::std::option::Option<
++pub type duk_realloc_function = std::option::Option<
+     unsafe extern "C" fn(
+-        udata: *mut ::std::os::raw::c_void,
+-        ptr: *mut ::std::os::raw::c_void,
++        udata: *mut std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+         size: duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void,
++    ) -> *mut std::os::raw::c_void,
+ >;
+-pub type duk_free_function = ::std::option::Option<
+-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, ptr: *mut ::std::os::raw::c_void),
++pub type duk_free_function = std::option::Option<
++    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, ptr: *mut std::os::raw::c_void),
+ >;
+-pub type duk_fatal_function = ::std::option::Option<
+-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, msg: *const ::std::os::raw::c_char),
++pub type duk_fatal_function = std::option::Option<
++    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, msg: *const std::os::raw::c_char),
+ >;
+-pub type duk_decode_char_function = ::std::option::Option<
+-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, codepoint: duk_codepoint_t),
++pub type duk_decode_char_function = std::option::Option<
++    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, codepoint: duk_codepoint_t),
+ >;
+-pub type duk_map_char_function = ::std::option::Option<
+-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, codepoint: duk_codepoint_t)
++pub type duk_map_char_function = std::option::Option<
++    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, codepoint: duk_codepoint_t)
+         -> duk_codepoint_t,
+ >;
+-pub type duk_safe_call_function = ::std::option::Option<
+-    unsafe extern "C" fn(ctx: *mut duk_context, udata: *mut ::std::os::raw::c_void) -> duk_ret_t,
++pub type duk_safe_call_function = std::option::Option<
++    unsafe extern "C" fn(ctx: *mut duk_context, udata: *mut std::os::raw::c_void) -> duk_ret_t,
+ >;
+-pub type duk_debug_read_function = ::std::option::Option<
++pub type duk_debug_read_function = std::option::Option<
+     unsafe extern "C" fn(
+-        udata: *mut ::std::os::raw::c_void,
+-        buffer: *mut ::std::os::raw::c_char,
++        udata: *mut std::os::raw::c_void,
++        buffer: *mut std::os::raw::c_char,
+         length: duk_size_t,
+     ) -> duk_size_t,
+ >;
+-pub type duk_debug_write_function = ::std::option::Option<
++pub type duk_debug_write_function = std::option::Option<
+     unsafe extern "C" fn(
+-        udata: *mut ::std::os::raw::c_void,
+-        buffer: *const ::std::os::raw::c_char,
++        udata: *mut std::os::raw::c_void,
++        buffer: *const std::os::raw::c_char,
+         length: duk_size_t,
+     ) -> duk_size_t,
+ >;
+ pub type duk_debug_peek_function =
+-    ::std::option::Option<unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void) -> duk_size_t>;
++    std::option::Option<unsafe extern "C" fn(udata: *mut std::os::raw::c_void) -> duk_size_t>;
+ pub type duk_debug_read_flush_function =
+-    ::std::option::Option<unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void)>;
++    std::option::Option<unsafe extern "C" fn(udata: *mut std::os::raw::c_void)>;
+ pub type duk_debug_write_flush_function =
+-    ::std::option::Option<unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void)>;
+-pub type duk_debug_request_function = ::std::option::Option<
++    std::option::Option<unsafe extern "C" fn(udata: *mut std::os::raw::c_void)>;
++pub type duk_debug_request_function = std::option::Option<
+     unsafe extern "C" fn(
+         ctx: *mut duk_context,
+-        udata: *mut ::std::os::raw::c_void,
++        udata: *mut std::os::raw::c_void,
+         nvalues: duk_idx_t,
+     ) -> duk_idx_t,
+ >;
+-pub type duk_debug_detached_function = ::std::option::Option<
+-    unsafe extern "C" fn(ctx: *mut duk_context, udata: *mut ::std::os::raw::c_void),
++pub type duk_debug_detached_function = std::option::Option<
++    unsafe extern "C" fn(ctx: *mut duk_context, udata: *mut std::os::raw::c_void),
+ >;
+ #[repr(C)]
+ #[derive(Copy, Clone)]
+ pub struct duk_thread_state {
+-    pub data: [::std::os::raw::c_char; 128usize],
++    pub data: [std::os::raw::c_char; 128usize],
+ }
+ #[test]
+ fn bindgen_test_layout_duk_thread_state() {
+     assert_eq!(
+-        ::std::mem::size_of::<duk_thread_state>(),
++        std::mem::size_of::<duk_thread_state>(),
+         128usize,
+         concat!("Size of: ", stringify!(duk_thread_state))
+     );
+     assert_eq!(
+-        ::std::mem::align_of::<duk_thread_state>(),
++        std::mem::align_of::<duk_thread_state>(),
+         1usize,
+         concat!("Alignment of ", stringify!(duk_thread_state))
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_thread_state>())).data as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_thread_state>())).data as *const _ as usize },
+         0usize,
+         concat!(
+             "Offset of field: ",
+@@ -383,22 +383,22 @@ pub struct duk_memory_functions {
+     pub alloc_func: duk_alloc_function,
+     pub realloc_func: duk_realloc_function,
+     pub free_func: duk_free_function,
+-    pub udata: *mut ::std::os::raw::c_void,
++    pub udata: *mut std::os::raw::c_void,
+ }
+ #[test]
+ fn bindgen_test_layout_duk_memory_functions() {
+     assert_eq!(
+-        ::std::mem::size_of::<duk_memory_functions>(),
++        std::mem::size_of::<duk_memory_functions>(),
+         32usize,
+         concat!("Size of: ", stringify!(duk_memory_functions))
+     );
+     assert_eq!(
+-        ::std::mem::align_of::<duk_memory_functions>(),
++        std::mem::align_of::<duk_memory_functions>(),
+         8usize,
+         concat!("Alignment of ", stringify!(duk_memory_functions))
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_memory_functions>())).alloc_func as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_memory_functions>())).alloc_func as *const _ as usize },
+         0usize,
+         concat!(
+             "Offset of field: ",
+@@ -409,7 +409,7 @@ fn bindgen_test_layout_duk_memory_functions() {
+     );
+     assert_eq!(
+         unsafe {
+-            &(*(::std::ptr::null::<duk_memory_functions>())).realloc_func as *const _ as usize
++            &(*(std::ptr::null::<duk_memory_functions>())).realloc_func as *const _ as usize
+         },
+         8usize,
+         concat!(
+@@ -420,7 +420,7 @@ fn bindgen_test_layout_duk_memory_functions() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_memory_functions>())).free_func as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_memory_functions>())).free_func as *const _ as usize },
+         16usize,
+         concat!(
+             "Offset of field: ",
+@@ -430,7 +430,7 @@ fn bindgen_test_layout_duk_memory_functions() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_memory_functions>())).udata as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_memory_functions>())).udata as *const _ as usize },
+         24usize,
+         concat!(
+             "Offset of field: ",
+@@ -443,24 +443,24 @@ fn bindgen_test_layout_duk_memory_functions() {
+ #[repr(C)]
+ #[derive(Debug, Copy, Clone)]
+ pub struct duk_function_list_entry {
+-    pub key: *const ::std::os::raw::c_char,
++    pub key: *const std::os::raw::c_char,
+     pub value: duk_c_function,
+     pub nargs: duk_idx_t,
+ }
+ #[test]
+ fn bindgen_test_layout_duk_function_list_entry() {
+     assert_eq!(
+-        ::std::mem::size_of::<duk_function_list_entry>(),
++        std::mem::size_of::<duk_function_list_entry>(),
+         24usize,
+         concat!("Size of: ", stringify!(duk_function_list_entry))
+     );
+     assert_eq!(
+-        ::std::mem::align_of::<duk_function_list_entry>(),
++        std::mem::align_of::<duk_function_list_entry>(),
+         8usize,
+         concat!("Alignment of ", stringify!(duk_function_list_entry))
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_function_list_entry>())).key as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_function_list_entry>())).key as *const _ as usize },
+         0usize,
+         concat!(
+             "Offset of field: ",
+@@ -470,7 +470,7 @@ fn bindgen_test_layout_duk_function_list_entry() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_function_list_entry>())).value as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_function_list_entry>())).value as *const _ as usize },
+         8usize,
+         concat!(
+             "Offset of field: ",
+@@ -480,7 +480,7 @@ fn bindgen_test_layout_duk_function_list_entry() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_function_list_entry>())).nargs as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_function_list_entry>())).nargs as *const _ as usize },
+         16usize,
+         concat!(
+             "Offset of field: ",
+@@ -493,23 +493,23 @@ fn bindgen_test_layout_duk_function_list_entry() {
+ #[repr(C)]
+ #[derive(Debug, Copy, Clone)]
+ pub struct duk_number_list_entry {
+-    pub key: *const ::std::os::raw::c_char,
++    pub key: *const std::os::raw::c_char,
+     pub value: duk_double_t,
+ }
+ #[test]
+ fn bindgen_test_layout_duk_number_list_entry() {
+     assert_eq!(
+-        ::std::mem::size_of::<duk_number_list_entry>(),
++        std::mem::size_of::<duk_number_list_entry>(),
+         16usize,
+         concat!("Size of: ", stringify!(duk_number_list_entry))
+     );
+     assert_eq!(
+-        ::std::mem::align_of::<duk_number_list_entry>(),
++        std::mem::align_of::<duk_number_list_entry>(),
+         8usize,
+         concat!("Alignment of ", stringify!(duk_number_list_entry))
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_number_list_entry>())).key as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_number_list_entry>())).key as *const _ as usize },
+         0usize,
+         concat!(
+             "Offset of field: ",
+@@ -519,7 +519,7 @@ fn bindgen_test_layout_duk_number_list_entry() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_number_list_entry>())).value as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_number_list_entry>())).value as *const _ as usize },
+         8usize,
+         concat!(
+             "Offset of field: ",
+@@ -544,17 +544,17 @@ pub struct duk_time_components {
+ #[test]
+ fn bindgen_test_layout_duk_time_components() {
+     assert_eq!(
+-        ::std::mem::size_of::<duk_time_components>(),
++        std::mem::size_of::<duk_time_components>(),
+         64usize,
+         concat!("Size of: ", stringify!(duk_time_components))
+     );
+     assert_eq!(
+-        ::std::mem::align_of::<duk_time_components>(),
++        std::mem::align_of::<duk_time_components>(),
+         8usize,
+         concat!("Alignment of ", stringify!(duk_time_components))
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).year as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_time_components>())).year as *const _ as usize },
+         0usize,
+         concat!(
+             "Offset of field: ",
+@@ -564,7 +564,7 @@ fn bindgen_test_layout_duk_time_components() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).month as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_time_components>())).month as *const _ as usize },
+         8usize,
+         concat!(
+             "Offset of field: ",
+@@ -574,7 +574,7 @@ fn bindgen_test_layout_duk_time_components() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).day as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_time_components>())).day as *const _ as usize },
+         16usize,
+         concat!(
+             "Offset of field: ",
+@@ -584,7 +584,7 @@ fn bindgen_test_layout_duk_time_components() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).hours as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_time_components>())).hours as *const _ as usize },
+         24usize,
+         concat!(
+             "Offset of field: ",
+@@ -594,7 +594,7 @@ fn bindgen_test_layout_duk_time_components() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).minutes as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_time_components>())).minutes as *const _ as usize },
+         32usize,
+         concat!(
+             "Offset of field: ",
+@@ -604,7 +604,7 @@ fn bindgen_test_layout_duk_time_components() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).seconds as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_time_components>())).seconds as *const _ as usize },
+         40usize,
+         concat!(
+             "Offset of field: ",
+@@ -615,7 +615,7 @@ fn bindgen_test_layout_duk_time_components() {
+     );
+     assert_eq!(
+         unsafe {
+-            &(*(::std::ptr::null::<duk_time_components>())).milliseconds as *const _ as usize
++            &(*(std::ptr::null::<duk_time_components>())).milliseconds as *const _ as usize
+         },
+         48usize,
+         concat!(
+@@ -626,7 +626,7 @@ fn bindgen_test_layout_duk_time_components() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).weekday as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<duk_time_components>())).weekday as *const _ as usize },
+         56usize,
+         concat!(
+             "Offset of field: ",
+@@ -641,7 +641,7 @@ extern "C" {
+         alloc_func: duk_alloc_function,
+         realloc_func: duk_realloc_function,
+         free_func: duk_free_function,
+-        heap_udata: *mut ::std::os::raw::c_void,
++        heap_udata: *mut std::os::raw::c_void,
+         fatal_handler: duk_fatal_function,
+     ) -> *mut duk_context;
+ }
+@@ -655,30 +655,30 @@ extern "C" {
+     pub fn duk_resume(ctx: *mut duk_context, state: *const duk_thread_state);
+ }
+ extern "C" {
+-    pub fn duk_alloc_raw(ctx: *mut duk_context, size: duk_size_t) -> *mut ::std::os::raw::c_void;
++    pub fn duk_alloc_raw(ctx: *mut duk_context, size: duk_size_t) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+-    pub fn duk_free_raw(ctx: *mut duk_context, ptr: *mut ::std::os::raw::c_void);
++    pub fn duk_free_raw(ctx: *mut duk_context, ptr: *mut std::os::raw::c_void);
+ }
+ extern "C" {
+     pub fn duk_realloc_raw(
+         ctx: *mut duk_context,
+-        ptr: *mut ::std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+         size: duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+-    pub fn duk_alloc(ctx: *mut duk_context, size: duk_size_t) -> *mut ::std::os::raw::c_void;
++    pub fn duk_alloc(ctx: *mut duk_context, size: duk_size_t) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+-    pub fn duk_free(ctx: *mut duk_context, ptr: *mut ::std::os::raw::c_void);
++    pub fn duk_free(ctx: *mut duk_context, ptr: *mut std::os::raw::c_void);
+ }
+ extern "C" {
+     pub fn duk_realloc(
+         ctx: *mut duk_context,
+-        ptr: *mut ::std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+         size: duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_get_memory_functions(ctx: *mut duk_context, out_funcs: *mut duk_memory_functions);
+@@ -690,15 +690,15 @@ extern "C" {
+     pub fn duk_throw_raw(ctx: *mut duk_context);
+ }
+ extern "C" {
+-    pub fn duk_fatal_raw(ctx: *mut duk_context, err_msg: *const ::std::os::raw::c_char);
++    pub fn duk_fatal_raw(ctx: *mut duk_context, err_msg: *const std::os::raw::c_char);
+ }
+ extern "C" {
+     pub fn duk_error_raw(
+         ctx: *mut duk_context,
+         err_code: duk_errcode_t,
+-        filename: *const ::std::os::raw::c_char,
++        filename: *const std::os::raw::c_char,
+         line: duk_int_t,
+-        fmt: *const ::std::os::raw::c_char,
++        fmt: *const std::os::raw::c_char,
+         ...
+     );
+ }
+@@ -706,9 +706,9 @@ extern "C" {
+     pub fn duk_error_va_raw(
+         ctx: *mut duk_context,
+         err_code: duk_errcode_t,
+-        filename: *const ::std::os::raw::c_char,
++        filename: *const std::os::raw::c_char,
+         line: duk_int_t,
+-        fmt: *const ::std::os::raw::c_char,
++        fmt: *const std::os::raw::c_char,
+         ap: *mut __va_list_tag,
+     );
+ }
+@@ -816,39 +816,39 @@ extern "C" {
+ extern "C" {
+     pub fn duk_push_string(
+         ctx: *mut duk_context,
+-        str: *const ::std::os::raw::c_char,
+-    ) -> *const ::std::os::raw::c_char;
++        str: *const std::os::raw::c_char,
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_push_lstring(
+         ctx: *mut duk_context,
+-        str: *const ::std::os::raw::c_char,
++        str: *const std::os::raw::c_char,
+         len: duk_size_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+-    pub fn duk_push_pointer(ctx: *mut duk_context, p: *mut ::std::os::raw::c_void);
++    pub fn duk_push_pointer(ctx: *mut duk_context, p: *mut std::os::raw::c_void);
+ }
+ extern "C" {
+     pub fn duk_push_sprintf(
+         ctx: *mut duk_context,
+-        fmt: *const ::std::os::raw::c_char,
++        fmt: *const std::os::raw::c_char,
+         ...
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_push_vsprintf(
+         ctx: *mut duk_context,
+-        fmt: *const ::std::os::raw::c_char,
++        fmt: *const std::os::raw::c_char,
+         ap: *mut __va_list_tag,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_push_literal_raw(
+         ctx: *mut duk_context,
+-        str: *const ::std::os::raw::c_char,
++        str: *const std::os::raw::c_char,
+         len: duk_size_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_push_this(ctx: *mut duk_context);
+@@ -909,9 +909,9 @@ extern "C" {
+     pub fn duk_push_error_object_raw(
+         ctx: *mut duk_context,
+         err_code: duk_errcode_t,
+-        filename: *const ::std::os::raw::c_char,
++        filename: *const std::os::raw::c_char,
+         line: duk_int_t,
+-        fmt: *const ::std::os::raw::c_char,
++        fmt: *const std::os::raw::c_char,
+         ...
+     ) -> duk_idx_t;
+ }
+@@ -919,9 +919,9 @@ extern "C" {
+     pub fn duk_push_error_object_va_raw(
+         ctx: *mut duk_context,
+         err_code: duk_errcode_t,
+-        filename: *const ::std::os::raw::c_char,
++        filename: *const std::os::raw::c_char,
+         line: duk_int_t,
+-        fmt: *const ::std::os::raw::c_char,
++        fmt: *const std::os::raw::c_char,
+         ap: *mut __va_list_tag,
+     ) -> duk_idx_t;
+ }
+@@ -930,7 +930,7 @@ extern "C" {
+         ctx: *mut duk_context,
+         size: duk_size_t,
+         flags: duk_small_uint_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_push_buffer_object(
+@@ -942,7 +942,7 @@ extern "C" {
+     );
+ }
+ extern "C" {
+-    pub fn duk_push_heapptr(ctx: *mut duk_context, ptr: *mut ::std::os::raw::c_void) -> duk_idx_t;
++    pub fn duk_push_heapptr(ctx: *mut duk_context, ptr: *mut std::os::raw::c_void) -> duk_idx_t;
+ }
+ extern "C" {
+     pub fn duk_pop(ctx: *mut duk_context);
+@@ -1054,31 +1054,31 @@ extern "C" {
+     pub fn duk_get_uint(ctx: *mut duk_context, idx: duk_idx_t) -> duk_uint_t;
+ }
+ extern "C" {
+-    pub fn duk_get_string(ctx: *mut duk_context, idx: duk_idx_t) -> *const ::std::os::raw::c_char;
++    pub fn duk_get_string(ctx: *mut duk_context, idx: duk_idx_t) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_get_lstring(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_len: *mut duk_size_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_get_buffer(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_get_buffer_data(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+-    pub fn duk_get_pointer(ctx: *mut duk_context, idx: duk_idx_t) -> *mut ::std::os::raw::c_void;
++    pub fn duk_get_pointer(ctx: *mut duk_context, idx: duk_idx_t) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_get_c_function(ctx: *mut duk_context, idx: duk_idx_t) -> duk_c_function;
+@@ -1087,7 +1087,7 @@ extern "C" {
+     pub fn duk_get_context(ctx: *mut duk_context, idx: duk_idx_t) -> *mut duk_context;
+ }
+ extern "C" {
+-    pub fn duk_get_heapptr(ctx: *mut duk_context, idx: duk_idx_t) -> *mut ::std::os::raw::c_void;
++    pub fn duk_get_heapptr(ctx: *mut duk_context, idx: duk_idx_t) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_get_boolean_default(
+@@ -1121,42 +1121,42 @@ extern "C" {
+     pub fn duk_get_string_default(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-        def_value: *const ::std::os::raw::c_char,
+-    ) -> *const ::std::os::raw::c_char;
++        def_value: *const std::os::raw::c_char,
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_get_lstring_default(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_len: *mut duk_size_t,
+-        def_ptr: *const ::std::os::raw::c_char,
++        def_ptr: *const std::os::raw::c_char,
+         def_len: duk_size_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_get_buffer_default(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+-        def_ptr: *mut ::std::os::raw::c_void,
++        def_ptr: *mut std::os::raw::c_void,
+         def_len: duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_get_buffer_data_default(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+-        def_ptr: *mut ::std::os::raw::c_void,
++        def_ptr: *mut std::os::raw::c_void,
+         def_len: duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_get_pointer_default(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-        def_value: *mut ::std::os::raw::c_void,
+-    ) -> *mut ::std::os::raw::c_void;
++        def_value: *mut std::os::raw::c_void,
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_get_c_function_default(
+@@ -1176,8 +1176,8 @@ extern "C" {
+     pub fn duk_get_heapptr_default(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-        def_value: *mut ::std::os::raw::c_void,
+-    ) -> *mut ::std::os::raw::c_void;
++        def_value: *mut std::os::raw::c_void,
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_opt_boolean(
+@@ -1204,42 +1204,42 @@ extern "C" {
+     pub fn duk_opt_string(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-        def_ptr: *const ::std::os::raw::c_char,
+-    ) -> *const ::std::os::raw::c_char;
++        def_ptr: *const std::os::raw::c_char,
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_opt_lstring(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_len: *mut duk_size_t,
+-        def_ptr: *const ::std::os::raw::c_char,
++        def_ptr: *const std::os::raw::c_char,
+         def_len: duk_size_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_opt_buffer(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+-        def_ptr: *mut ::std::os::raw::c_void,
++        def_ptr: *mut std::os::raw::c_void,
+         def_size: duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_opt_buffer_data(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+-        def_ptr: *mut ::std::os::raw::c_void,
++        def_ptr: *mut std::os::raw::c_void,
+         def_size: duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_opt_pointer(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-        def_value: *mut ::std::os::raw::c_void,
+-    ) -> *mut ::std::os::raw::c_void;
++        def_value: *mut std::os::raw::c_void,
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_opt_c_function(
+@@ -1259,8 +1259,8 @@ extern "C" {
+     pub fn duk_opt_heapptr(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-        def_value: *mut ::std::os::raw::c_void,
+-    ) -> *mut ::std::os::raw::c_void;
++        def_value: *mut std::os::raw::c_void,
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_require_undefined(ctx: *mut duk_context, idx: duk_idx_t);
+@@ -1284,14 +1284,14 @@ extern "C" {
+     pub fn duk_require_string(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_require_lstring(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_len: *mut duk_size_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_require_object(ctx: *mut duk_context, idx: duk_idx_t);
+@@ -1301,20 +1301,20 @@ extern "C" {
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_require_buffer_data(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_require_pointer(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_require_c_function(ctx: *mut duk_context, idx: duk_idx_t) -> duk_c_function;
+@@ -1329,7 +1329,7 @@ extern "C" {
+     pub fn duk_require_heapptr(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_to_undefined(ctx: *mut duk_context, idx: duk_idx_t);
+@@ -1359,14 +1359,14 @@ extern "C" {
+     pub fn duk_to_uint16(ctx: *mut duk_context, idx: duk_idx_t) -> duk_uint16_t;
+ }
+ extern "C" {
+-    pub fn duk_to_string(ctx: *mut duk_context, idx: duk_idx_t) -> *const ::std::os::raw::c_char;
++    pub fn duk_to_string(ctx: *mut duk_context, idx: duk_idx_t) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_to_lstring(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_len: *mut duk_size_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_to_buffer_raw(
+@@ -1374,10 +1374,10 @@ extern "C" {
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+         flags: duk_uint_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+-    pub fn duk_to_pointer(ctx: *mut duk_context, idx: duk_idx_t) -> *mut ::std::os::raw::c_void;
++    pub fn duk_to_pointer(ctx: *mut duk_context, idx: duk_idx_t) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_to_object(ctx: *mut duk_context, idx: duk_idx_t);
+@@ -1390,7 +1390,7 @@ extern "C" {
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_len: *mut duk_size_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_get_length(ctx: *mut duk_context, idx: duk_idx_t) -> duk_size_t;
+@@ -1402,19 +1402,19 @@ extern "C" {
+     pub fn duk_base64_encode(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_base64_decode(ctx: *mut duk_context, idx: duk_idx_t);
+ }
+ extern "C" {
+-    pub fn duk_hex_encode(ctx: *mut duk_context, idx: duk_idx_t) -> *const ::std::os::raw::c_char;
++    pub fn duk_hex_encode(ctx: *mut duk_context, idx: duk_idx_t) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_hex_decode(ctx: *mut duk_context, idx: duk_idx_t);
+ }
+ extern "C" {
+-    pub fn duk_json_encode(ctx: *mut duk_context, idx: duk_idx_t) -> *const ::std::os::raw::c_char;
++    pub fn duk_json_encode(ctx: *mut duk_context, idx: duk_idx_t) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_json_decode(ctx: *mut duk_context, idx: duk_idx_t);
+@@ -1423,27 +1423,27 @@ extern "C" {
+     pub fn duk_buffer_to_string(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-    ) -> *const ::std::os::raw::c_char;
++    ) -> *const std::os::raw::c_char;
+ }
+ extern "C" {
+     pub fn duk_resize_buffer(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         new_size: duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_steal_buffer(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         out_size: *mut duk_size_t,
+-    ) -> *mut ::std::os::raw::c_void;
++    ) -> *mut std::os::raw::c_void;
+ }
+ extern "C" {
+     pub fn duk_config_buffer(
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+-        ptr: *mut ::std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+         len: duk_size_t,
+     );
+ }
+@@ -1454,14 +1454,14 @@ extern "C" {
+     pub fn duk_get_prop_string(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_get_prop_lstring(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+@@ -1469,7 +1469,7 @@ extern "C" {
+     pub fn duk_get_prop_literal_raw(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+@@ -1484,7 +1484,7 @@ extern "C" {
+     pub fn duk_get_prop_heapptr(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        ptr: *mut ::std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+@@ -1494,14 +1494,14 @@ extern "C" {
+     pub fn duk_put_prop_string(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_put_prop_lstring(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+@@ -1509,7 +1509,7 @@ extern "C" {
+     pub fn duk_put_prop_literal_raw(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+@@ -1524,7 +1524,7 @@ extern "C" {
+     pub fn duk_put_prop_heapptr(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        ptr: *mut ::std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+@@ -1534,14 +1534,14 @@ extern "C" {
+     pub fn duk_del_prop_string(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_del_prop_lstring(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+@@ -1549,7 +1549,7 @@ extern "C" {
+     pub fn duk_del_prop_literal_raw(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+@@ -1564,7 +1564,7 @@ extern "C" {
+     pub fn duk_del_prop_heapptr(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        ptr: *mut ::std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+@@ -1574,14 +1574,14 @@ extern "C" {
+     pub fn duk_has_prop_string(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_has_prop_lstring(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+@@ -1589,7 +1589,7 @@ extern "C" {
+     pub fn duk_has_prop_literal_raw(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+@@ -1604,7 +1604,7 @@ extern "C" {
+     pub fn duk_has_prop_heapptr(
+         ctx: *mut duk_context,
+         obj_idx: duk_idx_t,
+-        ptr: *mut ::std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+@@ -1616,53 +1616,53 @@ extern "C" {
+ extern "C" {
+     pub fn duk_get_global_string(
+         ctx: *mut duk_context,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_get_global_lstring(
+         ctx: *mut duk_context,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_get_global_literal_raw(
+         ctx: *mut duk_context,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_get_global_heapptr(
+         ctx: *mut duk_context,
+-        ptr: *mut ::std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_put_global_string(
+         ctx: *mut duk_context,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_put_global_lstring(
+         ctx: *mut duk_context,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_put_global_literal_raw(
+         ctx: *mut duk_context,
+-        key: *const ::std::os::raw::c_char,
++        key: *const std::os::raw::c_char,
+         key_len: duk_size_t,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+     pub fn duk_put_global_heapptr(
+         ctx: *mut duk_context,
+-        ptr: *mut ::std::os::raw::c_void,
++        ptr: *mut std::os::raw::c_void,
+     ) -> duk_bool_t;
+ }
+ extern "C" {
+@@ -1739,7 +1739,7 @@ extern "C" {
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         callback: duk_decode_char_function,
+-        udata: *mut ::std::os::raw::c_void,
++        udata: *mut std::os::raw::c_void,
+     );
+ }
+ extern "C" {
+@@ -1747,7 +1747,7 @@ extern "C" {
+         ctx: *mut duk_context,
+         idx: duk_idx_t,
+         callback: duk_map_char_function,
+-        udata: *mut ::std::os::raw::c_void,
++        udata: *mut std::os::raw::c_void,
+     );
+ }
+ extern "C" {
+@@ -1813,7 +1813,7 @@ extern "C" {
+     pub fn duk_safe_call(
+         ctx: *mut duk_context,
+         func: duk_safe_call_function,
+-        udata: *mut ::std::os::raw::c_void,
++        udata: *mut std::os::raw::c_void,
+         nargs: duk_idx_t,
+         nrets: duk_idx_t,
+     ) -> duk_int_t;
+@@ -1821,7 +1821,7 @@ extern "C" {
+ extern "C" {
+     pub fn duk_eval_raw(
+         ctx: *mut duk_context,
+-        src_buffer: *const ::std::os::raw::c_char,
++        src_buffer: *const std::os::raw::c_char,
+         src_length: duk_size_t,
+         flags: duk_uint_t,
+     ) -> duk_int_t;
+@@ -1829,7 +1829,7 @@ extern "C" {
+ extern "C" {
+     pub fn duk_compile_raw(
+         ctx: *mut duk_context,
+-        src_buffer: *const ::std::os::raw::c_char,
++        src_buffer: *const std::os::raw::c_char,
+         src_length: duk_size_t,
+         flags: duk_uint_t,
+     ) -> duk_int_t;
+@@ -1853,7 +1853,7 @@ extern "C" {
+         write_flush_cb: duk_debug_write_flush_function,
+         request_cb: duk_debug_request_function,
+         detached_cb: duk_debug_detached_function,
+-        udata: *mut ::std::os::raw::c_void,
++        udata: *mut std::os::raw::c_void,
+     );
+ }
+ extern "C" {
+@@ -1888,25 +1888,25 @@ pub type __builtin_va_list = [__va_list_tag; 1usize];
+ #[repr(C)]
+ #[derive(Debug, Copy, Clone)]
+ pub struct __va_list_tag {
+-    pub gp_offset: ::std::os::raw::c_uint,
+-    pub fp_offset: ::std::os::raw::c_uint,
+-    pub overflow_arg_area: *mut ::std::os::raw::c_void,
+-    pub reg_save_area: *mut ::std::os::raw::c_void,
++    pub gp_offset: std::os::raw::c_uint,
++    pub fp_offset: std::os::raw::c_uint,
++    pub overflow_arg_area: *mut std::os::raw::c_void,
++    pub reg_save_area: *mut std::os::raw::c_void,
+ }
+ #[test]
+ fn bindgen_test_layout___va_list_tag() {
+     assert_eq!(
+-        ::std::mem::size_of::<__va_list_tag>(),
++        std::mem::size_of::<__va_list_tag>(),
+         24usize,
+         concat!("Size of: ", stringify!(__va_list_tag))
+     );
+     assert_eq!(
+-        ::std::mem::align_of::<__va_list_tag>(),
++        std::mem::align_of::<__va_list_tag>(),
+         8usize,
+         concat!("Alignment of ", stringify!(__va_list_tag))
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<__va_list_tag>())).gp_offset as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<__va_list_tag>())).gp_offset as *const _ as usize },
+         0usize,
+         concat!(
+             "Offset of field: ",
+@@ -1916,7 +1916,7 @@ fn bindgen_test_layout___va_list_tag() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<__va_list_tag>())).fp_offset as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<__va_list_tag>())).fp_offset as *const _ as usize },
+         4usize,
+         concat!(
+             "Offset of field: ",
+@@ -1926,7 +1926,7 @@ fn bindgen_test_layout___va_list_tag() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<__va_list_tag>())).overflow_arg_area as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<__va_list_tag>())).overflow_arg_area as *const _ as usize },
+         8usize,
+         concat!(
+             "Offset of field: ",
+@@ -1936,7 +1936,7 @@ fn bindgen_test_layout___va_list_tag() {
+         )
+     );
+     assert_eq!(
+-        unsafe { &(*(::std::ptr::null::<__va_list_tag>())).reg_save_area as *const _ as usize },
++        unsafe { &(*(std::ptr::null::<__va_list_tag>())).reg_save_area as *const _ as usize },
+         16usize,
+         concat!(
+             "Offset of field: ",
+diff --git a/sit-core/src/item.rs b/sit-core/src/item.rs
+index a30151f4..7d242075 100644
+--- a/sit-core/src/item.rs
++++ b/sit-core/src/item.rs
+@@ -2,7 +2,7 @@
+ 
+ use serde_json::{Map, Value};
+ 
+-use record::{RecordOwningContainer, RecordContainerReduction};
++use crate::record::{RecordOwningContainer, RecordContainerReduction};
+ 
+ /// Because of SIT's extensible nature, item can
+ /// be used to represent a wild variety of entities, such
+diff --git a/sit-core/src/lib.rs b/sit-core/src/lib.rs
+index cf0532ad..b4c064ba 100644
+--- a/sit-core/src/lib.rs
++++ b/sit-core/src/lib.rs
+@@ -55,11 +55,11 @@ pub mod repository;
+ #[cfg(feature = "deprecated-item-api")]
+ pub mod item;
+ #[cfg(feature = "deprecated-item-api")]
+-pub use item::Item;
++pub use crate::item::Item;
+ pub mod record;
+-pub use record::Record;
+-pub use repository::{Repository, Error as RepositoryError};
++pub use crate::record::Record;
++pub use crate::repository::{Repository, Error as RepositoryError};
+ pub mod reducers;
+-pub use reducers::Reducer;
++pub use crate::reducers::Reducer;
+ #[cfg(feature = "duktape")]
+ pub mod duktape;
+diff --git a/sit-core/src/record.rs b/sit-core/src/record.rs
+index e8e43ec0..6b34fb08 100644
+--- a/sit-core/src/record.rs
++++ b/sit-core/src/record.rs
+@@ -1,7 +1,7 @@
+ //! Record is an immutable collection of files
+ 
+ use std::io::{self, Read};
+-use hash::{Hasher, HashingAlgorithm};
++use crate::hash::{Hasher, HashingAlgorithm};
+ use std::path::PathBuf;
+ 
+ /// Record's file
+@@ -212,7 +212,7 @@ mod ordered_files_tests {
+         let ordered_files1_ = OrderedFiles::from(i1.clone().into_iter().map(|v| (v, &[][..])));
+         let ordered_files2 = OrderedFiles::from(i2.clone().into_iter().map(|v| (v, &[][..])));
+         let ordered_files2_ = OrderedFiles::from(i2.clone().into_iter().map(|v| (v, &[][..])));
+-        let ordered_files = ordered_files1 + ::std::iter::once(ordered_files2);
++        let ordered_files = ordered_files1 + std::iter::once(ordered_files2);
+         for i in ordered_files1_.0 {
+            assert!(ordered_files.0.iter().find(|f| f.name() == i.name()).is_some());
+         }
+@@ -254,7 +254,7 @@ pub(crate) fn split_path<S: AsRef<str>>(s: S, length: usize) -> PathBuf {
+ /// Record is an immutable collection of files
+ pub trait Record {
+    /// Implementation's type for reading files
+-   type Read : ::std::io::Read;
++   type Read : std::io::Read;
+    /// Implementation's type for non-encoded hash
+    type Hash : AsRef<[u8]>;
+    /// Implementation's type for file names
+@@ -302,7 +302,7 @@ pub trait Record {
+ 
+ pub trait RecordContainer {
+     /// Error type used by the implementation
+-    type Error: ::std::error::Error + ::std::fmt::Debug;
++    type Error: std::error::Error + std::fmt::Debug;
+     /// Record type used by the implementation
+     type Record : super::Record;
+     /// Type used to list records that can be referenced as a slice of records
+@@ -410,7 +410,7 @@ pub trait RecordExt: Record {
+            let name = name.as_ref().into();
+            match reader.read_to_end(&mut buf) {
+                Ok(_) => {
+-                   match ::std::str::from_utf8(&buf) {
++                   match std::str::from_utf8(&buf) {
+                        Err(_) => {
+                            let mut typ = JsonMap::new();
+                            typ.insert("type".into(), JsonValue::String("binary".into()));
+@@ -438,9 +438,9 @@ pub trait RecordExt: Record {
+ 
+ impl<T> RecordExt for T where T: Record {}
+ 
+-use reducers::Reducer;
++use crate::reducers::Reducer;
+ #[derive(Debug, Error)]
+-pub enum ReductionError<Err: ::std::error::Error + ::std::fmt::Debug> {
++pub enum ReductionError<Err: std::error::Error + std::fmt::Debug> {
+     ImplementationError(Err)
+ }
+ 
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index dda89a79..6e535b5c 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -3,14 +3,15 @@ use std::io::Read;
+ use super::Reducer;
+ use serde_json::{Map, Value as JsonValue};
+ use std::marker::PhantomData;
+-use ::Record;
+-use duktape;
++use crate::Record;
++use crate::duktape;
+ use std::ptr;
+ use std::ffi::{CString, CStr, OsStr};
+ use std::path::{Path, PathBuf};
+ use std::fs;
+ use std::io;
+-use path::HasPath;
++use crate::path::HasPath;
++use crate::RepositoryError;
+ 
+ #[cfg(feature = "duktape-mmap")]
+ use memmap;
+@@ -32,9 +33,9 @@ impl<T> SourceFiles for T where T: IntoIterator<Item = PathBuf> {
+     }
+ }
+ 
+-impl<'a, MI> SourceFiles for &'a ::Repository<MI> where MI: ::repository::ModuleIterator<PathBuf, ::repository::Error> {
++impl<'a, MI> SourceFiles for &'a crate::Repository<MI> where MI: crate::repository::ModuleIterator<PathBuf, crate::repository::Error> {
+ 
+-    type Iter = ::std::vec::IntoIter<PathBuf>;
++    type Iter = std::vec::IntoIter<PathBuf>;
+ 
+     fn source_files(self) -> Result<Self::Iter, Error> {
+         let mut files = vec![];
+@@ -69,8 +70,8 @@ unsafe impl<R: Record> Send for DuktapeReducer<R> {}
+ 
+ #[derive(Debug, Error)]
+ pub enum Error {
+-    IoError(::std::io::Error),
+-    RepositoryError(::repository::Error),
++    IoError(std::io::Error),
++    RepositoryError(RepositoryError),
+     #[error(no_from, non_std)]
+     ExecutionError {
+         error: String,
+@@ -89,9 +90,9 @@ impl<R: Record> Drop for DuktapeReducer<R> {
+         }
+     }
+ }
+-unsafe extern "C" fn fatal_handler(_udata: *mut ::std::os::raw::c_void, msg: *const ::std::os::raw::c_char) {
+-    eprintln!("duktape aborted: {}", ::std::ffi::CStr::from_ptr(msg).to_str().unwrap());
+-    ::std::process::exit(1);
++unsafe extern "C" fn fatal_handler(_udata: *mut std::os::raw::c_void, msg: *const std::os::raw::c_char) {
++    eprintln!("duktape aborted: {}", std::ffi::CStr::from_ptr(msg).to_str().unwrap());
++    std::process::exit(1);
+ }
+ 
+ impl<R: Record> DuktapeReducer<R> {
+@@ -317,7 +318,7 @@ impl<R: Record> DuktapeReducer<R> {
+         duktape::DUK_COMPILE_FUNCTION | duktape::DUK_COMPILE_STRLEN);
+ 
+         if res as u32 == duktape::DUK_EXEC_ERROR {
+-            let err = ::std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(context, -1, ptr::null_mut())).to_str().unwrap();
++            let err = std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(context, -1, ptr::null_mut())).to_str().unwrap();
+             return Err(Error::CompileError { file, error: err.into() })
+         } else {
+             // clean up safe compilation results
+@@ -500,7 +501,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
+ 
+                // now, check for error
+                 if res as u32 == duktape::DUK_EXEC_ERROR {
+-                    let err = ::std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut()));
++                    let err = std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut()));
+                     {
+                         let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
+                         let mut error = Map::new();
+@@ -520,7 +521,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
+                     // restore previous state
+                     duktape::duk_copy(ctx, -2, -1);
+                 } else {
+-                    let err = format!("TypeError: invalid return value {}, expected an object", ::std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut())).to_string_lossy());
++                    let err = format!("TypeError: invalid return value {}, expected an object", std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut())).to_string_lossy());
+                     {
+                         let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
+                         let mut error = Map::new();
+@@ -541,7 +542,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
+             duktape::duk_json_encode(ctx, -1);
+             let json = duktape::duk_get_string(ctx, -1);
+ 
+-            let json = ::std::ffi::CStr::from_ptr(json);
++            let json = std::ffi::CStr::from_ptr(json);
+             #[cfg(feature = "cesu8")]
+             let map: Map<String, JsonValue> = match cesu8::from_cesu8(json.to_bytes()) {
+                 Ok(s) => serde_json::from_str(&s),
+@@ -562,9 +563,9 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
+ mod tests {
+     use tempdir::TempDir;
+     use super::*;
+-    use ::Repository;
+-    use record::{RecordOwningContainer, RecordContainerReduction};
+-    use path::HasPath;
++    use crate::Repository;
++    use crate::record::{RecordOwningContainer, RecordContainerReduction};
++    use crate::path::HasPath;
+ 
+     #[test]
+     fn undefined_result() {
+@@ -742,7 +743,7 @@ mod tests {
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"module.exports = 'hello'").unwrap();
+-        let res: Result<DuktapeReducer<::repository::Record>, _> = DuktapeReducer::new(&repo);
++        let res: Result<DuktapeReducer<crate::repository::Record>, _> = DuktapeReducer::new(&repo);
+         assert!(res.is_err());
+         let reducer_file = repo.path().join("reducers/reducer.js");
+         let err = res.unwrap_err();
+@@ -804,7 +805,7 @@ mod tests {
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"function(state) { return state }").unwrap();
+-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
++        let res = DuktapeReducer::<crate::repository::Record>::new(&repo);
+         assert!(res.is_err());
+         let reducer_file = repo.path().join("reducers/reducer.js");
+         let err = res.unwrap_err();
+@@ -829,7 +830,7 @@ mod tests {
+         fs::create_dir_all(repo.path().join("reducers")).unwrap();
+         let mut f = fs::File::create(repo.path().join("reducers/reducer.js")).unwrap();
+         f.write(b"module.exports = function(state) { return Object.assign{\"hello\": 1}, state); }").unwrap();
+-        let res = DuktapeReducer::<::repository::Record>::new(&repo);
++        let res = DuktapeReducer::<crate::repository::Record>::new(&repo);
+         assert!(res.is_err());
+         let reducer_file = repo.path().join("reducers/reducer.js");
+         let err = res.unwrap_err();
+@@ -1047,7 +1048,7 @@ mod tests {
+ 
+         let err_str = "Error: module not found: \"index.js\"";
+ 
+-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++        assert_matches!(DuktapeReducer::<crate::repository::Record>::new(&repo),
+         Err(Error::ExecutionError { ref error }) if error == err_str);
+     }
+ 
+@@ -1065,7 +1066,7 @@ mod tests {
+         f.write(b"module.exports = require(\"reducer/index.js\");").unwrap();
+ 
+         let err_str = "Error: module not found: \"reducer/index.js\"";
+-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++        assert_matches!(DuktapeReducer::<crate::repository::Record>::new(&repo),
+         Err(Error::ExecutionError { ref error }) if error == err_str);
+     }
+ 
+@@ -1088,7 +1089,7 @@ mod tests {
+         let err_str = "TypeError: cannot resolve module id: ../reducer.js";
+ 
+ 
+-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++        assert_matches!(DuktapeReducer::<crate::repository::Record>::new(&repo),
+         Err(Error::ExecutionError { ref error }) if error == err_str);
+     }
+ 
+@@ -1106,7 +1107,7 @@ mod tests {
+ 
+         let err_str = "TypeError: cannot resolve module id: /reducer.js";
+ 
+-        assert_matches!(DuktapeReducer::<::repository::Record>::new(&repo),
++        assert_matches!(DuktapeReducer::<crate::repository::Record>::new(&repo),
+         Err(Error::ExecutionError { ref error }) if error == err_str);
+     }
+ 
+@@ -1146,7 +1147,7 @@ mod tests {
+         f.write(b"module.exports = function(state, record) { return {\"hello\": record.hash}; }").unwrap();
+ 
+         repo.new_record(vec![(".type/SummaryChanged", &b""[..]), ("text", &b"Title"[..])].into_iter(), true).unwrap();
+-        let result: Result<DuktapeReducer<::repository::Record>, _> = DuktapeReducer::new(&repo);
++        let result: Result<DuktapeReducer<crate::repository::Record>, _> = DuktapeReducer::new(&repo);
+         assert!(result.is_err());
+         let err = result.unwrap_err();
+         let err_str = "Error: module not found: \"reducer/index.js\"";
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index ee94719f..72ed07c8 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -97,7 +97,7 @@ impl<P: AsRef<Path>> ModuleIterator<PathBuf, Error> for ModuleDirectory<P> {
+ 
+ impl<T1, T2, P, E> ModuleIterator<P, E> for (T1, T2)
+     where T1: ModuleIterator<P, E>, T2: ModuleIterator<P, E> {
+-    type Iter = ::std::iter::Chain<T1::Iter, T2::Iter>;
++    type Iter = std::iter::Chain<T1::Iter, T2::Iter>;
+ 
+     fn iter(&self) -> Result<Self::Iter, E> {
+         let t1 = self.0.iter()?;
+@@ -108,7 +108,7 @@ impl<T1, T2, P, E> ModuleIterator<P, E> for (T1, T2)
+ 
+ pub struct ModuleDirectoryIterator(Option<fs::ReadDir>);
+ 
+-use path::ResolvePath;
++use crate::path::ResolvePath;
+ 
+ impl Iterator for ModuleDirectoryIterator {
+     type Item = Result<PathBuf, Error>;
+@@ -208,7 +208,7 @@ pub enum Error {
+         got: String,
+     },
+     /// I/O error
+-    IoError(::std::io::Error),
++    IoError(std::io::Error),
+     /// JSON (de)serialization error
+     SerializationError(serde_json::Error),
+     /// Base decoding error
+@@ -220,7 +220,7 @@ pub enum Error {
+ 
+ impl From<glob::PatternError> for Error {
+     fn from(err: glob::PatternError) -> Self {
+-        use ::std::error::Error as StandardError;
++        use std::error::Error as StandardError;
+         Error::OtherError(format!("glob pattern error: {}", err.description()))
+     }
+ }
+@@ -251,7 +251,7 @@ mod default_files {
+ 
+ }
+ 
+-use path::HasPath;
++use crate::path::HasPath;
+ 
+ impl Repository<ModuleDirectory<PathBuf>> {
+     /// Attempts creating a new repository. Fails with `Error::AlreadyExists`
+@@ -355,7 +355,7 @@ impl Repository<ModuleDirectory<PathBuf>> {
+                 for path in glob.filter_map(Result::ok).filter(|p| p.is_dir()) {
+                     let mut components = path.components();
+                     let record = components.next_back().unwrap();
+-                    let split_path = ::record::split_path(record.as_os_str().to_str().unwrap(), 2);
++                    let split_path = crate::record::split_path(record.as_os_str().to_str().unwrap(), 2);
+                     let mut split_path_ = split_path.clone();
+                     split_path_.pop();
+                     fs::create_dir_all(records_path.join(split_path_))?;
+@@ -572,7 +572,7 @@ impl<MI> Repository<MI> {
+ 
+     /// Finds a record by name (if there is one)
+     pub fn record<S: AsRef<str>>(&self, name: S) -> Option<Record> {
+-        let path = self.records_path().join(::record::split_path(name, 2));
++        let path = self.records_path().join(crate::record::split_path(name, 2));
+         let path = path.resolve_dir(self.path()).unwrap_or(path);
+         if path.is_dir() && path.strip_prefix(self.records_path()).is_ok() {
+             let hash = self.config.encoding.decode(path.file_name().unwrap().to_str().unwrap().as_bytes());
+@@ -656,7 +656,7 @@ impl<MI> Repository<MI> {
+ 
+ 
+         let hash = hasher.result_box();
+-        let path = path.as_ref().join(::record::split_path(self.config.encoding.encode(&hash), 2));
++        let path = path.as_ref().join(crate::record::split_path(self.config.encoding.encode(&hash), 2));
+         if path.exists() {
+             fs::remove_dir_all(tempdir.into_path())?;
+         } else {
+@@ -705,7 +705,7 @@ impl<MI> Repository<MI> where MI: ModuleIterator<PathBuf, Error>
+     }
+ }
+ 
+-use record::RecordContainerReduction;
++use crate::record::RecordContainerReduction;
+ impl<MI> RecordContainerReduction for Repository<MI> { }
+ 
+ impl<MI> RecordContainer for Repository<MI> {
+@@ -774,7 +774,7 @@ pub struct Item<'a, MI: 'a> {
+     path: PathBuf,
+ }
+ 
+-use record::{File, OrderedFiles};
++use crate::record::{File, OrderedFiles};
+ use relative_path::{RelativePath, Component as RelativeComponent};
+ 
+ #[cfg(feature = "deprecated-item-api")]
+@@ -815,7 +815,7 @@ impl<'a, MI: 'a> Item<'a, MI> {
+ 
+ }
+ 
+-use record::RecordContainer;
++use crate::record::RecordContainer;
+ 
+ #[cfg(feature = "deprecated-item-api")]
+ impl<'a, MI: 'a> RecordContainer for Item<'a, MI> {
+@@ -839,7 +839,7 @@ impl<'a, MI: 'a> RecordContainer for Item<'a, MI> {
+ 
+ }
+ 
+-use record::RecordOwningContainer;
++use crate::record::RecordOwningContainer;
+ #[cfg(feature = "deprecated-item-api")]
+ impl<'a, MI: 'a> RecordOwningContainer for Item<'a, MI> {
+ 
+@@ -848,7 +848,7 @@ impl<'a, MI: 'a> RecordOwningContainer for Item<'a, MI> {
+         // TODO: should we remove the record if creating a link file failed?
+         let path = self.repository.items_path.join(self.id());
+         fs::create_dir_all(&path)?;
+-        let record_path = ::record::split_path(record.encoded_hash(), 2);
++        let record_path = crate::record::split_path(record.encoded_hash(), 2);
+         let record_path_s = record_path.to_str().unwrap();
+         #[cfg(windows)] // replace backslashes with slashes
+         let record_path_s = record_path_s.replace("\\", "/");
+@@ -936,7 +936,7 @@ impl Iterator for GenericRecordIterator {
+ 
+     fn next(&mut self) -> Option<Self::Item> {
+         // TODO: if https://github.com/rust-lang/rust/issues/43244 is finalized, try to use drain_filter instead
+-        let (filtered, dir): (Vec<_>, Vec<_>) = ::std::mem::replace(&mut self.dir, vec![]).into_iter()
++        let (filtered, dir): (Vec<_>, Vec<_>) = std::mem::replace(&mut self.dir, vec![]).into_iter()
+             .partition(|e| {
+                 let path = e.path().resolve_dir(&self.root).unwrap_or(e.path().to_path_buf());
+                 if !path.is_dir() {
+@@ -965,7 +965,7 @@ impl Iterator for GenericRecordIterator {
+                                 #[cfg(not(feature ="deprecated-item-api"))]
+                                 let is_dir = false;
+                                 is_dir || {
+-                                    let p = self.path.join(::record::split_path(l.file_name().to_str().unwrap(), 2));
++                                    let p = self.path.join(crate::record::split_path(l.file_name().to_str().unwrap(), 2));
+                                     p.resolve_dir(&self.root).unwrap_or(p).is_dir()
+                                 }
+                             })
+@@ -1053,7 +1053,7 @@ use serde::{Serialize, Serializer};
+ 
+ impl Serialize for Record {
+     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+-        use record::RecordExt;
++        use crate::record::RecordExt;
+         self.serde_serialize(serializer)
+     }
+ }
+@@ -1066,7 +1066,7 @@ impl PartialEq for Record {
+ }
+ 
+ impl RecordTrait for Record {
+-    type Read = ::std::fs::File;
++    type Read = std::fs::File;
+     type Str = String;
+     type Hash = Vec<u8>;
+     type Iter = RecordFileIterator;
+@@ -1131,7 +1131,7 @@ mod tests {
+     use tempdir::TempDir;
+ 
+     use super::*;
+-    use path::HasPath;
++    use crate::path::HasPath;
+ 
+     #[test]
+     fn new_repo() {
+@@ -1700,7 +1700,7 @@ mod tests {
+         assert_eq!(repo.item_iter().unwrap().count(), 1);
+ 
+ 
+-        ::std::fs::rename(repo.items_path(), repo.path().join("issues")).unwrap();
++        std::fs::rename(repo.items_path(), repo.path().join("issues")).unwrap();
+         let repo = Repository::open(&tmp);
+         assert!(repo.is_err());
+         assert_matches!(repo.unwrap_err(), Error::UpgradeRequired(Upgrade::IssuesToItems));
+@@ -1719,8 +1719,8 @@ mod tests {
+         repo.save().unwrap();
+ 
+         let item = repo.new_item().unwrap();
+-        ::std::fs::create_dir_all(repo.path().join("issues")).unwrap();
+-        ::std::fs::rename(repo.items_path().join(item.id()), repo.path().join("issues").join(item.id())).unwrap();
++        std::fs::create_dir_all(repo.path().join("issues")).unwrap();
++        std::fs::rename(repo.items_path().join(item.id()), repo.path().join("issues").join(item.id())).unwrap();
+ 
+ 
+         let repo = Repository::open(&tmp);
+@@ -1766,7 +1766,7 @@ mod tests {
+         let record1 = item.record_iter().unwrap().next().unwrap().pop().unwrap();
+         // Record is back where it belongs
+         use dunce;
+-        assert_eq!(dunce::canonicalize(record1.path()).unwrap(), dunce::canonicalize(repo.records_path().join(::record::split_path(record1.encoded_hash(), 2))).unwrap());
++        assert_eq!(dunce::canonicalize(record1.path()).unwrap(), dunce::canonicalize(repo.records_path().join(crate::record::split_path(record1.encoded_hash(), 2))).unwrap());
+ 
+         // In a decentralized scenarios, some v1 updates might come at a point past the upgrade,
+         // meaning v1 items will be injected into v2 repositories (because of delays or somebody
+diff --git a/sit/src/cli.rs b/sit/src/cli.rs
+index 0cffa13d..72a3c068 100644
+--- a/sit/src/cli.rs
++++ b/sit/src/cli.rs
+@@ -2,7 +2,7 @@ use std::env;
+ use std::path::{Path, PathBuf};
+ use std::ffi::OsStr;
+ use sit_core::{self, Repository, path::HasPath};
+-use which;
++use crate::which;
+ 
+ #[derive(Error, Debug)]
+ pub enum Error {
+diff --git a/sit/src/command_external.rs b/sit/src/command_external.rs
+index 9f6b6b8f..914c8c2f 100644
+--- a/sit/src/command_external.rs
++++ b/sit/src/command_external.rs
+@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
+ use clap::ArgMatches;
+ use sit_core::{self, Repository};
+ 
+-use cli::{execute_cli, Error};
++use crate::cli::{execute_cli, Error};
+ 
+ pub fn command<MI>(matches: &ArgMatches, repo: Repository<MI>, cwd: &Path) -> Result<i32, Error>
+     where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {
+diff --git a/sit/src/command_items.rs b/sit/src/command_items.rs
+index 11b53640..deb1cd28 100644
+--- a/sit/src/command_items.rs
++++ b/sit/src/command_items.rs
+@@ -1,6 +1,6 @@
+ use clap::ArgMatches;
+ use sit_core::{self, reducers::duktape::DuktapeReducer, Repository, record::RecordContainerReduction};
+-use cfg::Configuration;
++use crate::cfg::Configuration;
+ use serde_json;
+ use rayon::prelude::*;
+ use super::get_named_expression;
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+index 4096dab9..b3ababb7 100644
+--- a/sit/src/command_record.rs
++++ b/sit/src/command_record.rs
+@@ -3,7 +3,7 @@ use chrono::prelude::*;
+ use clap::{self, ArgMatches};
+ use dunce;
+ use serde_json;
+-use cfg::{self, Configuration};
++use crate::cfg::{self, Configuration};
+ use sit_core::{
+     record::{BoxedOrderedFiles, OrderedFiles, RecordOwningContainer},
+     Record, Repository
+diff --git a/sit/src/command_records.rs b/sit/src/command_records.rs
+index ef3780eb..d6550503 100644
+--- a/sit/src/command_records.rs
++++ b/sit/src/command_records.rs
+@@ -1,6 +1,6 @@
+ use clap::ArgMatches;
+ use sit_core::{Repository, Record, record::RecordContainer, record::OrderedFiles, path::HasPath};
+-use cfg::Configuration;
++use crate::cfg::Configuration;
+ use serde_json;
+ use super::get_named_expression;
+ use jmespath;
+diff --git a/sit/src/command_reduce.rs b/sit/src/command_reduce.rs
+index 9eb7bdc2..2ac7bf86 100644
+--- a/sit/src/command_reduce.rs
++++ b/sit/src/command_reduce.rs
+@@ -1,7 +1,7 @@
+ use clap::{ArgMatches, Values};
+ use sit_core::{self, Repository, record::RecordContainerReduction, repository, 
+                reducers::duktape, path::{HasPath, ResolvePath}};
+-use cfg::Configuration;
++use crate::cfg::Configuration;
+ use serde_json;
+ use super::get_named_expression;
+ use jmespath;
+diff --git a/sit/src/command_web.rs b/sit/src/command_web.rs
+index 452485e6..860030e4 100644
+--- a/sit/src/command_web.rs
++++ b/sit/src/command_web.rs
+@@ -1,6 +1,6 @@
+ use clap::{self, ArgMatches};
+ use sit_core::{Repository, repository};
+-use cfg::Configuration;
++use crate::cfg::Configuration;
+ use std::path::PathBuf;
+ 
+ pub fn command<MI: 'static + Send + Sync >(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, config: Configuration) -> i32 
+@@ -14,7 +14,7 @@ pub fn command<MI: 'static + Send + Sync >(repo: Repository<MI>, matches: &ArgMa
+ }
+ 
+ mod webapp {
+-    use cfg;
++    use crate::cfg;
+     #[allow(dead_code)]
+     mod assets {
+         include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
+diff --git a/sit/src/lib.rs b/sit/src/lib.rs
+index 0efc9b21..9aa7e6d0 100644
+--- a/sit/src/lib.rs
++++ b/sit/src/lib.rs
+@@ -7,4 +7,4 @@ extern crate serde_json;
+ mod cli;
+ mod module_iter;
+ pub mod cfg;
+-pub use module_iter::{ScriptModuleIterator, ScriptModule};
++pub use crate::module_iter::{ScriptModuleIterator, ScriptModule};
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index e4c277ce..24b94089 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -20,7 +20,7 @@ extern crate config;
+ 
+ mod cfg;
+ mod rebuild;
+-use rebuild::rebuild_repository;
++use crate::rebuild::rebuild_repository;
+ mod command_config;
+ mod command_args;
+ mod command_init;
+@@ -106,7 +106,7 @@ pub fn gnupg(matches: &ArgMatches, config: &cfg::Configuration) -> Result<OsStri
+ }
+ 
+ mod module_iter;
+-use module_iter::ScriptModule;
++use crate::module_iter::ScriptModule;
+ 
+ use sit_core::path::HasPath;
+ 
+diff --git a/sit/src/module_iter.rs b/sit/src/module_iter.rs
+index 587ac122..36154111 100644
+--- a/sit/src/module_iter.rs
++++ b/sit/src/module_iter.rs
+@@ -1,4 +1,4 @@
+-use cli;
++use crate::cli;
+ use std::path::{Path, PathBuf};
+ use sit_core;
+ 
+diff --git a/sit/tests/command_external.rs b/sit/tests/command_external.rs
+index c79682f3..85b00d9f 100644
+--- a/sit/tests/command_external.rs
++++ b/sit/tests/command_external.rs
+@@ -3,7 +3,7 @@ extern crate cli_test_dir;
+ use cli_test_dir::*;
+ 
+ mod helpers;
+-use helpers::*;
++use crate::helpers::*;
+ use std::env;
+ 
+ /// Should fail on an unavailable command
+diff --git a/sit/tests/command_modules.rs b/sit/tests/command_modules.rs
+index 674f528d..b2b2d2c6 100644
+--- a/sit/tests/command_modules.rs
++++ b/sit/tests/command_modules.rs
+@@ -8,7 +8,7 @@ use std::fs;
+ use sit_core::Repository;
+ 
+ mod helpers;
+-use helpers::*;
++use crate::helpers::*;
+ 
+ /// Tests that modules defined via <repo>/modules/<directory> convention are listed by `sit modules`
+ #[test]
+-- 
+2.18.1
+

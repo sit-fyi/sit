@@ -1,0 +1,6 @@
+It's changing quite a bit of things and I don't want to be left alone
+with a codebase on an aging edition. SIT is too young for that.
+
+Solution: fix the code to make it compilable on both 2015 and 2018
+editions, but don't commit to 2018 just yet.
+
