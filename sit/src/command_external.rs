@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use clap::ArgMatches;
 use sit_core::{self, Repository};
 
-use cli::{execute_cli, Error};
+use crate::cli::{execute_cli, Error};
 
 pub fn command<MI>(matches: &ArgMatches, repo: Repository<MI>, cwd: &Path) -> Result<i32, Error>
     where MI: sit_core::repository::ModuleIterator<PathBuf, sit_core::repository::Error> {

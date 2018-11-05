@@ -3,7 +3,7 @@ use chrono::prelude::*;
 use clap::{self, ArgMatches};
 use dunce;
 use serde_json;
-use cfg::{self, Configuration};
+use crate::cfg::{self, Configuration};
 use sit_core::{
     record::{BoxedOrderedFiles, OrderedFiles, RecordOwningContainer},
     Record, Repository

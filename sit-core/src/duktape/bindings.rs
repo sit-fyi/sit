@@ -273,10 +273,10 @@ pub type duk_uint16_t = u16;
 pub type duk_uint32_t = u32;
 pub type duk_int32_t = i32;
 pub type duk_size_t = usize;
-pub type duk_int_t = ::std::os::raw::c_int;
-pub type duk_uint_t = ::std::os::raw::c_uint;
-pub type duk_small_int_t = ::std::os::raw::c_int;
-pub type duk_small_uint_t = ::std::os::raw::c_uint;
+pub type duk_int_t = std::os::raw::c_int;
+pub type duk_uint_t = std::os::raw::c_uint;
+pub type duk_small_int_t = std::os::raw::c_int;
+pub type duk_small_uint_t = std::os::raw::c_uint;
 pub type duk_bool_t = duk_small_uint_t;
 pub type duk_idx_t = duk_int_t;
 pub type duk_uarridx_t = duk_uint_t;
@@ -291,83 +291,83 @@ pub struct duk_hthread {
 }
 pub type duk_context = duk_hthread;
 pub type duk_c_function =
-    ::std::option::Option<unsafe extern "C" fn(ctx: *mut duk_context) -> duk_ret_t>;
-pub type duk_alloc_function = ::std::option::Option<
-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, size: duk_size_t)
-        -> *mut ::std::os::raw::c_void,
+    std::option::Option<unsafe extern "C" fn(ctx: *mut duk_context) -> duk_ret_t>;
+pub type duk_alloc_function = std::option::Option<
+    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, size: duk_size_t)
+        -> *mut std::os::raw::c_void,
 >;
-pub type duk_realloc_function = ::std::option::Option<
+pub type duk_realloc_function = std::option::Option<
     unsafe extern "C" fn(
-        udata: *mut ::std::os::raw::c_void,
-        ptr: *mut ::std::os::raw::c_void,
+        udata: *mut std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
         size: duk_size_t,
-    ) -> *mut ::std::os::raw::c_void,
+    ) -> *mut std::os::raw::c_void,
 >;
-pub type duk_free_function = ::std::option::Option<
-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, ptr: *mut ::std::os::raw::c_void),
+pub type duk_free_function = std::option::Option<
+    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, ptr: *mut std::os::raw::c_void),
 >;
-pub type duk_fatal_function = ::std::option::Option<
-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, msg: *const ::std::os::raw::c_char),
+pub type duk_fatal_function = std::option::Option<
+    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, msg: *const std::os::raw::c_char),
 >;
-pub type duk_decode_char_function = ::std::option::Option<
-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, codepoint: duk_codepoint_t),
+pub type duk_decode_char_function = std::option::Option<
+    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, codepoint: duk_codepoint_t),
 >;
-pub type duk_map_char_function = ::std::option::Option<
-    unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void, codepoint: duk_codepoint_t)
+pub type duk_map_char_function = std::option::Option<
+    unsafe extern "C" fn(udata: *mut std::os::raw::c_void, codepoint: duk_codepoint_t)
         -> duk_codepoint_t,
 >;
-pub type duk_safe_call_function = ::std::option::Option<
-    unsafe extern "C" fn(ctx: *mut duk_context, udata: *mut ::std::os::raw::c_void) -> duk_ret_t,
+pub type duk_safe_call_function = std::option::Option<
+    unsafe extern "C" fn(ctx: *mut duk_context, udata: *mut std::os::raw::c_void) -> duk_ret_t,
 >;
-pub type duk_debug_read_function = ::std::option::Option<
+pub type duk_debug_read_function = std::option::Option<
     unsafe extern "C" fn(
-        udata: *mut ::std::os::raw::c_void,
-        buffer: *mut ::std::os::raw::c_char,
+        udata: *mut std::os::raw::c_void,
+        buffer: *mut std::os::raw::c_char,
         length: duk_size_t,
     ) -> duk_size_t,
 >;
-pub type duk_debug_write_function = ::std::option::Option<
+pub type duk_debug_write_function = std::option::Option<
     unsafe extern "C" fn(
-        udata: *mut ::std::os::raw::c_void,
-        buffer: *const ::std::os::raw::c_char,
+        udata: *mut std::os::raw::c_void,
+        buffer: *const std::os::raw::c_char,
         length: duk_size_t,
     ) -> duk_size_t,
 >;
 pub type duk_debug_peek_function =
-    ::std::option::Option<unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void) -> duk_size_t>;
+    std::option::Option<unsafe extern "C" fn(udata: *mut std::os::raw::c_void) -> duk_size_t>;
 pub type duk_debug_read_flush_function =
-    ::std::option::Option<unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void)>;
+    std::option::Option<unsafe extern "C" fn(udata: *mut std::os::raw::c_void)>;
 pub type duk_debug_write_flush_function =
-    ::std::option::Option<unsafe extern "C" fn(udata: *mut ::std::os::raw::c_void)>;
-pub type duk_debug_request_function = ::std::option::Option<
+    std::option::Option<unsafe extern "C" fn(udata: *mut std::os::raw::c_void)>;
+pub type duk_debug_request_function = std::option::Option<
     unsafe extern "C" fn(
         ctx: *mut duk_context,
-        udata: *mut ::std::os::raw::c_void,
+        udata: *mut std::os::raw::c_void,
         nvalues: duk_idx_t,
     ) -> duk_idx_t,
 >;
-pub type duk_debug_detached_function = ::std::option::Option<
-    unsafe extern "C" fn(ctx: *mut duk_context, udata: *mut ::std::os::raw::c_void),
+pub type duk_debug_detached_function = std::option::Option<
+    unsafe extern "C" fn(ctx: *mut duk_context, udata: *mut std::os::raw::c_void),
 >;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct duk_thread_state {
-    pub data: [::std::os::raw::c_char; 128usize],
+    pub data: [std::os::raw::c_char; 128usize],
 }
 #[test]
 fn bindgen_test_layout_duk_thread_state() {
     assert_eq!(
-        ::std::mem::size_of::<duk_thread_state>(),
+        std::mem::size_of::<duk_thread_state>(),
         128usize,
         concat!("Size of: ", stringify!(duk_thread_state))
     );
     assert_eq!(
-        ::std::mem::align_of::<duk_thread_state>(),
+        std::mem::align_of::<duk_thread_state>(),
         1usize,
         concat!("Alignment of ", stringify!(duk_thread_state))
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_thread_state>())).data as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_thread_state>())).data as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -383,22 +383,22 @@ pub struct duk_memory_functions {
     pub alloc_func: duk_alloc_function,
     pub realloc_func: duk_realloc_function,
     pub free_func: duk_free_function,
-    pub udata: *mut ::std::os::raw::c_void,
+    pub udata: *mut std::os::raw::c_void,
 }
 #[test]
 fn bindgen_test_layout_duk_memory_functions() {
     assert_eq!(
-        ::std::mem::size_of::<duk_memory_functions>(),
+        std::mem::size_of::<duk_memory_functions>(),
         32usize,
         concat!("Size of: ", stringify!(duk_memory_functions))
     );
     assert_eq!(
-        ::std::mem::align_of::<duk_memory_functions>(),
+        std::mem::align_of::<duk_memory_functions>(),
         8usize,
         concat!("Alignment of ", stringify!(duk_memory_functions))
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_memory_functions>())).alloc_func as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_memory_functions>())).alloc_func as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -409,7 +409,7 @@ fn bindgen_test_layout_duk_memory_functions() {
     );
     assert_eq!(
         unsafe {
-            &(*(::std::ptr::null::<duk_memory_functions>())).realloc_func as *const _ as usize
+            &(*(std::ptr::null::<duk_memory_functions>())).realloc_func as *const _ as usize
         },
         8usize,
         concat!(
@@ -420,7 +420,7 @@ fn bindgen_test_layout_duk_memory_functions() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_memory_functions>())).free_func as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_memory_functions>())).free_func as *const _ as usize },
         16usize,
         concat!(
             "Offset of field: ",
@@ -430,7 +430,7 @@ fn bindgen_test_layout_duk_memory_functions() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_memory_functions>())).udata as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_memory_functions>())).udata as *const _ as usize },
         24usize,
         concat!(
             "Offset of field: ",
@@ -443,24 +443,24 @@ fn bindgen_test_layout_duk_memory_functions() {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duk_function_list_entry {
-    pub key: *const ::std::os::raw::c_char,
+    pub key: *const std::os::raw::c_char,
     pub value: duk_c_function,
     pub nargs: duk_idx_t,
 }
 #[test]
 fn bindgen_test_layout_duk_function_list_entry() {
     assert_eq!(
-        ::std::mem::size_of::<duk_function_list_entry>(),
+        std::mem::size_of::<duk_function_list_entry>(),
         24usize,
         concat!("Size of: ", stringify!(duk_function_list_entry))
     );
     assert_eq!(
-        ::std::mem::align_of::<duk_function_list_entry>(),
+        std::mem::align_of::<duk_function_list_entry>(),
         8usize,
         concat!("Alignment of ", stringify!(duk_function_list_entry))
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_function_list_entry>())).key as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_function_list_entry>())).key as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -470,7 +470,7 @@ fn bindgen_test_layout_duk_function_list_entry() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_function_list_entry>())).value as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_function_list_entry>())).value as *const _ as usize },
         8usize,
         concat!(
             "Offset of field: ",
@@ -480,7 +480,7 @@ fn bindgen_test_layout_duk_function_list_entry() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_function_list_entry>())).nargs as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_function_list_entry>())).nargs as *const _ as usize },
         16usize,
         concat!(
             "Offset of field: ",
@@ -493,23 +493,23 @@ fn bindgen_test_layout_duk_function_list_entry() {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct duk_number_list_entry {
-    pub key: *const ::std::os::raw::c_char,
+    pub key: *const std::os::raw::c_char,
     pub value: duk_double_t,
 }
 #[test]
 fn bindgen_test_layout_duk_number_list_entry() {
     assert_eq!(
-        ::std::mem::size_of::<duk_number_list_entry>(),
+        std::mem::size_of::<duk_number_list_entry>(),
         16usize,
         concat!("Size of: ", stringify!(duk_number_list_entry))
     );
     assert_eq!(
-        ::std::mem::align_of::<duk_number_list_entry>(),
+        std::mem::align_of::<duk_number_list_entry>(),
         8usize,
         concat!("Alignment of ", stringify!(duk_number_list_entry))
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_number_list_entry>())).key as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_number_list_entry>())).key as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -519,7 +519,7 @@ fn bindgen_test_layout_duk_number_list_entry() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_number_list_entry>())).value as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_number_list_entry>())).value as *const _ as usize },
         8usize,
         concat!(
             "Offset of field: ",
@@ -544,17 +544,17 @@ pub struct duk_time_components {
 #[test]
 fn bindgen_test_layout_duk_time_components() {
     assert_eq!(
-        ::std::mem::size_of::<duk_time_components>(),
+        std::mem::size_of::<duk_time_components>(),
         64usize,
         concat!("Size of: ", stringify!(duk_time_components))
     );
     assert_eq!(
-        ::std::mem::align_of::<duk_time_components>(),
+        std::mem::align_of::<duk_time_components>(),
         8usize,
         concat!("Alignment of ", stringify!(duk_time_components))
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).year as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_time_components>())).year as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -564,7 +564,7 @@ fn bindgen_test_layout_duk_time_components() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).month as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_time_components>())).month as *const _ as usize },
         8usize,
         concat!(
             "Offset of field: ",
@@ -574,7 +574,7 @@ fn bindgen_test_layout_duk_time_components() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).day as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_time_components>())).day as *const _ as usize },
         16usize,
         concat!(
             "Offset of field: ",
@@ -584,7 +584,7 @@ fn bindgen_test_layout_duk_time_components() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).hours as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_time_components>())).hours as *const _ as usize },
         24usize,
         concat!(
             "Offset of field: ",
@@ -594,7 +594,7 @@ fn bindgen_test_layout_duk_time_components() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).minutes as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_time_components>())).minutes as *const _ as usize },
         32usize,
         concat!(
             "Offset of field: ",
@@ -604,7 +604,7 @@ fn bindgen_test_layout_duk_time_components() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).seconds as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_time_components>())).seconds as *const _ as usize },
         40usize,
         concat!(
             "Offset of field: ",
@@ -615,7 +615,7 @@ fn bindgen_test_layout_duk_time_components() {
     );
     assert_eq!(
         unsafe {
-            &(*(::std::ptr::null::<duk_time_components>())).milliseconds as *const _ as usize
+            &(*(std::ptr::null::<duk_time_components>())).milliseconds as *const _ as usize
         },
         48usize,
         concat!(
@@ -626,7 +626,7 @@ fn bindgen_test_layout_duk_time_components() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<duk_time_components>())).weekday as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<duk_time_components>())).weekday as *const _ as usize },
         56usize,
         concat!(
             "Offset of field: ",
@@ -641,7 +641,7 @@ extern "C" {
         alloc_func: duk_alloc_function,
         realloc_func: duk_realloc_function,
         free_func: duk_free_function,
-        heap_udata: *mut ::std::os::raw::c_void,
+        heap_udata: *mut std::os::raw::c_void,
         fatal_handler: duk_fatal_function,
     ) -> *mut duk_context;
 }
@@ -655,30 +655,30 @@ extern "C" {
     pub fn duk_resume(ctx: *mut duk_context, state: *const duk_thread_state);
 }
 extern "C" {
-    pub fn duk_alloc_raw(ctx: *mut duk_context, size: duk_size_t) -> *mut ::std::os::raw::c_void;
+    pub fn duk_alloc_raw(ctx: *mut duk_context, size: duk_size_t) -> *mut std::os::raw::c_void;
 }
 extern "C" {
-    pub fn duk_free_raw(ctx: *mut duk_context, ptr: *mut ::std::os::raw::c_void);
+    pub fn duk_free_raw(ctx: *mut duk_context, ptr: *mut std::os::raw::c_void);
 }
 extern "C" {
     pub fn duk_realloc_raw(
         ctx: *mut duk_context,
-        ptr: *mut ::std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
         size: duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
-    pub fn duk_alloc(ctx: *mut duk_context, size: duk_size_t) -> *mut ::std::os::raw::c_void;
+    pub fn duk_alloc(ctx: *mut duk_context, size: duk_size_t) -> *mut std::os::raw::c_void;
 }
 extern "C" {
-    pub fn duk_free(ctx: *mut duk_context, ptr: *mut ::std::os::raw::c_void);
+    pub fn duk_free(ctx: *mut duk_context, ptr: *mut std::os::raw::c_void);
 }
 extern "C" {
     pub fn duk_realloc(
         ctx: *mut duk_context,
-        ptr: *mut ::std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
         size: duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_get_memory_functions(ctx: *mut duk_context, out_funcs: *mut duk_memory_functions);
@@ -690,15 +690,15 @@ extern "C" {
     pub fn duk_throw_raw(ctx: *mut duk_context);
 }
 extern "C" {
-    pub fn duk_fatal_raw(ctx: *mut duk_context, err_msg: *const ::std::os::raw::c_char);
+    pub fn duk_fatal_raw(ctx: *mut duk_context, err_msg: *const std::os::raw::c_char);
 }
 extern "C" {
     pub fn duk_error_raw(
         ctx: *mut duk_context,
         err_code: duk_errcode_t,
-        filename: *const ::std::os::raw::c_char,
+        filename: *const std::os::raw::c_char,
         line: duk_int_t,
-        fmt: *const ::std::os::raw::c_char,
+        fmt: *const std::os::raw::c_char,
         ...
     );
 }
@@ -706,9 +706,9 @@ extern "C" {
     pub fn duk_error_va_raw(
         ctx: *mut duk_context,
         err_code: duk_errcode_t,
-        filename: *const ::std::os::raw::c_char,
+        filename: *const std::os::raw::c_char,
         line: duk_int_t,
-        fmt: *const ::std::os::raw::c_char,
+        fmt: *const std::os::raw::c_char,
         ap: *mut __va_list_tag,
     );
 }
@@ -816,39 +816,39 @@ extern "C" {
 extern "C" {
     pub fn duk_push_string(
         ctx: *mut duk_context,
-        str: *const ::std::os::raw::c_char,
-    ) -> *const ::std::os::raw::c_char;
+        str: *const std::os::raw::c_char,
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_push_lstring(
         ctx: *mut duk_context,
-        str: *const ::std::os::raw::c_char,
+        str: *const std::os::raw::c_char,
         len: duk_size_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
-    pub fn duk_push_pointer(ctx: *mut duk_context, p: *mut ::std::os::raw::c_void);
+    pub fn duk_push_pointer(ctx: *mut duk_context, p: *mut std::os::raw::c_void);
 }
 extern "C" {
     pub fn duk_push_sprintf(
         ctx: *mut duk_context,
-        fmt: *const ::std::os::raw::c_char,
+        fmt: *const std::os::raw::c_char,
         ...
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_push_vsprintf(
         ctx: *mut duk_context,
-        fmt: *const ::std::os::raw::c_char,
+        fmt: *const std::os::raw::c_char,
         ap: *mut __va_list_tag,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_push_literal_raw(
         ctx: *mut duk_context,
-        str: *const ::std::os::raw::c_char,
+        str: *const std::os::raw::c_char,
         len: duk_size_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_push_this(ctx: *mut duk_context);
@@ -909,9 +909,9 @@ extern "C" {
     pub fn duk_push_error_object_raw(
         ctx: *mut duk_context,
         err_code: duk_errcode_t,
-        filename: *const ::std::os::raw::c_char,
+        filename: *const std::os::raw::c_char,
         line: duk_int_t,
-        fmt: *const ::std::os::raw::c_char,
+        fmt: *const std::os::raw::c_char,
         ...
     ) -> duk_idx_t;
 }
@@ -919,9 +919,9 @@ extern "C" {
     pub fn duk_push_error_object_va_raw(
         ctx: *mut duk_context,
         err_code: duk_errcode_t,
-        filename: *const ::std::os::raw::c_char,
+        filename: *const std::os::raw::c_char,
         line: duk_int_t,
-        fmt: *const ::std::os::raw::c_char,
+        fmt: *const std::os::raw::c_char,
         ap: *mut __va_list_tag,
     ) -> duk_idx_t;
 }
@@ -930,7 +930,7 @@ extern "C" {
         ctx: *mut duk_context,
         size: duk_size_t,
         flags: duk_small_uint_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_push_buffer_object(
@@ -942,7 +942,7 @@ extern "C" {
     );
 }
 extern "C" {
-    pub fn duk_push_heapptr(ctx: *mut duk_context, ptr: *mut ::std::os::raw::c_void) -> duk_idx_t;
+    pub fn duk_push_heapptr(ctx: *mut duk_context, ptr: *mut std::os::raw::c_void) -> duk_idx_t;
 }
 extern "C" {
     pub fn duk_pop(ctx: *mut duk_context);
@@ -1054,31 +1054,31 @@ extern "C" {
     pub fn duk_get_uint(ctx: *mut duk_context, idx: duk_idx_t) -> duk_uint_t;
 }
 extern "C" {
-    pub fn duk_get_string(ctx: *mut duk_context, idx: duk_idx_t) -> *const ::std::os::raw::c_char;
+    pub fn duk_get_string(ctx: *mut duk_context, idx: duk_idx_t) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_get_lstring(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_len: *mut duk_size_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_get_buffer(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_get_buffer_data(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
-    pub fn duk_get_pointer(ctx: *mut duk_context, idx: duk_idx_t) -> *mut ::std::os::raw::c_void;
+    pub fn duk_get_pointer(ctx: *mut duk_context, idx: duk_idx_t) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_get_c_function(ctx: *mut duk_context, idx: duk_idx_t) -> duk_c_function;
@@ -1087,7 +1087,7 @@ extern "C" {
     pub fn duk_get_context(ctx: *mut duk_context, idx: duk_idx_t) -> *mut duk_context;
 }
 extern "C" {
-    pub fn duk_get_heapptr(ctx: *mut duk_context, idx: duk_idx_t) -> *mut ::std::os::raw::c_void;
+    pub fn duk_get_heapptr(ctx: *mut duk_context, idx: duk_idx_t) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_get_boolean_default(
@@ -1121,42 +1121,42 @@ extern "C" {
     pub fn duk_get_string_default(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-        def_value: *const ::std::os::raw::c_char,
-    ) -> *const ::std::os::raw::c_char;
+        def_value: *const std::os::raw::c_char,
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_get_lstring_default(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_len: *mut duk_size_t,
-        def_ptr: *const ::std::os::raw::c_char,
+        def_ptr: *const std::os::raw::c_char,
         def_len: duk_size_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_get_buffer_default(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
-        def_ptr: *mut ::std::os::raw::c_void,
+        def_ptr: *mut std::os::raw::c_void,
         def_len: duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_get_buffer_data_default(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
-        def_ptr: *mut ::std::os::raw::c_void,
+        def_ptr: *mut std::os::raw::c_void,
         def_len: duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_get_pointer_default(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-        def_value: *mut ::std::os::raw::c_void,
-    ) -> *mut ::std::os::raw::c_void;
+        def_value: *mut std::os::raw::c_void,
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_get_c_function_default(
@@ -1176,8 +1176,8 @@ extern "C" {
     pub fn duk_get_heapptr_default(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-        def_value: *mut ::std::os::raw::c_void,
-    ) -> *mut ::std::os::raw::c_void;
+        def_value: *mut std::os::raw::c_void,
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_opt_boolean(
@@ -1204,42 +1204,42 @@ extern "C" {
     pub fn duk_opt_string(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-        def_ptr: *const ::std::os::raw::c_char,
-    ) -> *const ::std::os::raw::c_char;
+        def_ptr: *const std::os::raw::c_char,
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_opt_lstring(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_len: *mut duk_size_t,
-        def_ptr: *const ::std::os::raw::c_char,
+        def_ptr: *const std::os::raw::c_char,
         def_len: duk_size_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_opt_buffer(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
-        def_ptr: *mut ::std::os::raw::c_void,
+        def_ptr: *mut std::os::raw::c_void,
         def_size: duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_opt_buffer_data(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
-        def_ptr: *mut ::std::os::raw::c_void,
+        def_ptr: *mut std::os::raw::c_void,
         def_size: duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_opt_pointer(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-        def_value: *mut ::std::os::raw::c_void,
-    ) -> *mut ::std::os::raw::c_void;
+        def_value: *mut std::os::raw::c_void,
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_opt_c_function(
@@ -1259,8 +1259,8 @@ extern "C" {
     pub fn duk_opt_heapptr(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-        def_value: *mut ::std::os::raw::c_void,
-    ) -> *mut ::std::os::raw::c_void;
+        def_value: *mut std::os::raw::c_void,
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_require_undefined(ctx: *mut duk_context, idx: duk_idx_t);
@@ -1284,14 +1284,14 @@ extern "C" {
     pub fn duk_require_string(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_require_lstring(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_len: *mut duk_size_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_require_object(ctx: *mut duk_context, idx: duk_idx_t);
@@ -1301,20 +1301,20 @@ extern "C" {
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_require_buffer_data(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_require_pointer(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_require_c_function(ctx: *mut duk_context, idx: duk_idx_t) -> duk_c_function;
@@ -1329,7 +1329,7 @@ extern "C" {
     pub fn duk_require_heapptr(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_to_undefined(ctx: *mut duk_context, idx: duk_idx_t);
@@ -1359,14 +1359,14 @@ extern "C" {
     pub fn duk_to_uint16(ctx: *mut duk_context, idx: duk_idx_t) -> duk_uint16_t;
 }
 extern "C" {
-    pub fn duk_to_string(ctx: *mut duk_context, idx: duk_idx_t) -> *const ::std::os::raw::c_char;
+    pub fn duk_to_string(ctx: *mut duk_context, idx: duk_idx_t) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_to_lstring(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_len: *mut duk_size_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_to_buffer_raw(
@@ -1374,10 +1374,10 @@ extern "C" {
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
         flags: duk_uint_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
-    pub fn duk_to_pointer(ctx: *mut duk_context, idx: duk_idx_t) -> *mut ::std::os::raw::c_void;
+    pub fn duk_to_pointer(ctx: *mut duk_context, idx: duk_idx_t) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_to_object(ctx: *mut duk_context, idx: duk_idx_t);
@@ -1390,7 +1390,7 @@ extern "C" {
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_len: *mut duk_size_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_get_length(ctx: *mut duk_context, idx: duk_idx_t) -> duk_size_t;
@@ -1402,19 +1402,19 @@ extern "C" {
     pub fn duk_base64_encode(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_base64_decode(ctx: *mut duk_context, idx: duk_idx_t);
 }
 extern "C" {
-    pub fn duk_hex_encode(ctx: *mut duk_context, idx: duk_idx_t) -> *const ::std::os::raw::c_char;
+    pub fn duk_hex_encode(ctx: *mut duk_context, idx: duk_idx_t) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_hex_decode(ctx: *mut duk_context, idx: duk_idx_t);
 }
 extern "C" {
-    pub fn duk_json_encode(ctx: *mut duk_context, idx: duk_idx_t) -> *const ::std::os::raw::c_char;
+    pub fn duk_json_encode(ctx: *mut duk_context, idx: duk_idx_t) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_json_decode(ctx: *mut duk_context, idx: duk_idx_t);
@@ -1423,27 +1423,27 @@ extern "C" {
     pub fn duk_buffer_to_string(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-    ) -> *const ::std::os::raw::c_char;
+    ) -> *const std::os::raw::c_char;
 }
 extern "C" {
     pub fn duk_resize_buffer(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         new_size: duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_steal_buffer(
         ctx: *mut duk_context,
         idx: duk_idx_t,
         out_size: *mut duk_size_t,
-    ) -> *mut ::std::os::raw::c_void;
+    ) -> *mut std::os::raw::c_void;
 }
 extern "C" {
     pub fn duk_config_buffer(
         ctx: *mut duk_context,
         idx: duk_idx_t,
-        ptr: *mut ::std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
         len: duk_size_t,
     );
 }
@@ -1454,14 +1454,14 @@ extern "C" {
     pub fn duk_get_prop_string(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_get_prop_lstring(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
@@ -1469,7 +1469,7 @@ extern "C" {
     pub fn duk_get_prop_literal_raw(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
@@ -1484,7 +1484,7 @@ extern "C" {
     pub fn duk_get_prop_heapptr(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        ptr: *mut ::std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
     ) -> duk_bool_t;
 }
 extern "C" {
@@ -1494,14 +1494,14 @@ extern "C" {
     pub fn duk_put_prop_string(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_put_prop_lstring(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
@@ -1509,7 +1509,7 @@ extern "C" {
     pub fn duk_put_prop_literal_raw(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
@@ -1524,7 +1524,7 @@ extern "C" {
     pub fn duk_put_prop_heapptr(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        ptr: *mut ::std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
     ) -> duk_bool_t;
 }
 extern "C" {
@@ -1534,14 +1534,14 @@ extern "C" {
     pub fn duk_del_prop_string(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_del_prop_lstring(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
@@ -1549,7 +1549,7 @@ extern "C" {
     pub fn duk_del_prop_literal_raw(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
@@ -1564,7 +1564,7 @@ extern "C" {
     pub fn duk_del_prop_heapptr(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        ptr: *mut ::std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
     ) -> duk_bool_t;
 }
 extern "C" {
@@ -1574,14 +1574,14 @@ extern "C" {
     pub fn duk_has_prop_string(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_has_prop_lstring(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
@@ -1589,7 +1589,7 @@ extern "C" {
     pub fn duk_has_prop_literal_raw(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
@@ -1604,7 +1604,7 @@ extern "C" {
     pub fn duk_has_prop_heapptr(
         ctx: *mut duk_context,
         obj_idx: duk_idx_t,
-        ptr: *mut ::std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
     ) -> duk_bool_t;
 }
 extern "C" {
@@ -1616,53 +1616,53 @@ extern "C" {
 extern "C" {
     pub fn duk_get_global_string(
         ctx: *mut duk_context,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_get_global_lstring(
         ctx: *mut duk_context,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_get_global_literal_raw(
         ctx: *mut duk_context,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_get_global_heapptr(
         ctx: *mut duk_context,
-        ptr: *mut ::std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_put_global_string(
         ctx: *mut duk_context,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_put_global_lstring(
         ctx: *mut duk_context,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_put_global_literal_raw(
         ctx: *mut duk_context,
-        key: *const ::std::os::raw::c_char,
+        key: *const std::os::raw::c_char,
         key_len: duk_size_t,
     ) -> duk_bool_t;
 }
 extern "C" {
     pub fn duk_put_global_heapptr(
         ctx: *mut duk_context,
-        ptr: *mut ::std::os::raw::c_void,
+        ptr: *mut std::os::raw::c_void,
     ) -> duk_bool_t;
 }
 extern "C" {
@@ -1739,7 +1739,7 @@ extern "C" {
         ctx: *mut duk_context,
         idx: duk_idx_t,
         callback: duk_decode_char_function,
-        udata: *mut ::std::os::raw::c_void,
+        udata: *mut std::os::raw::c_void,
     );
 }
 extern "C" {
@@ -1747,7 +1747,7 @@ extern "C" {
         ctx: *mut duk_context,
         idx: duk_idx_t,
         callback: duk_map_char_function,
-        udata: *mut ::std::os::raw::c_void,
+        udata: *mut std::os::raw::c_void,
     );
 }
 extern "C" {
@@ -1813,7 +1813,7 @@ extern "C" {
     pub fn duk_safe_call(
         ctx: *mut duk_context,
         func: duk_safe_call_function,
-        udata: *mut ::std::os::raw::c_void,
+        udata: *mut std::os::raw::c_void,
         nargs: duk_idx_t,
         nrets: duk_idx_t,
     ) -> duk_int_t;
@@ -1821,7 +1821,7 @@ extern "C" {
 extern "C" {
     pub fn duk_eval_raw(
         ctx: *mut duk_context,
-        src_buffer: *const ::std::os::raw::c_char,
+        src_buffer: *const std::os::raw::c_char,
         src_length: duk_size_t,
         flags: duk_uint_t,
     ) -> duk_int_t;
@@ -1829,7 +1829,7 @@ extern "C" {
 extern "C" {
     pub fn duk_compile_raw(
         ctx: *mut duk_context,
-        src_buffer: *const ::std::os::raw::c_char,
+        src_buffer: *const std::os::raw::c_char,
         src_length: duk_size_t,
         flags: duk_uint_t,
     ) -> duk_int_t;
@@ -1853,7 +1853,7 @@ extern "C" {
         write_flush_cb: duk_debug_write_flush_function,
         request_cb: duk_debug_request_function,
         detached_cb: duk_debug_detached_function,
-        udata: *mut ::std::os::raw::c_void,
+        udata: *mut std::os::raw::c_void,
     );
 }
 extern "C" {
@@ -1888,25 +1888,25 @@ pub type __builtin_va_list = [__va_list_tag; 1usize];
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct __va_list_tag {
-    pub gp_offset: ::std::os::raw::c_uint,
-    pub fp_offset: ::std::os::raw::c_uint,
-    pub overflow_arg_area: *mut ::std::os::raw::c_void,
-    pub reg_save_area: *mut ::std::os::raw::c_void,
+    pub gp_offset: std::os::raw::c_uint,
+    pub fp_offset: std::os::raw::c_uint,
+    pub overflow_arg_area: *mut std::os::raw::c_void,
+    pub reg_save_area: *mut std::os::raw::c_void,
 }
 #[test]
 fn bindgen_test_layout___va_list_tag() {
     assert_eq!(
-        ::std::mem::size_of::<__va_list_tag>(),
+        std::mem::size_of::<__va_list_tag>(),
         24usize,
         concat!("Size of: ", stringify!(__va_list_tag))
     );
     assert_eq!(
-        ::std::mem::align_of::<__va_list_tag>(),
+        std::mem::align_of::<__va_list_tag>(),
         8usize,
         concat!("Alignment of ", stringify!(__va_list_tag))
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<__va_list_tag>())).gp_offset as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<__va_list_tag>())).gp_offset as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -1916,7 +1916,7 @@ fn bindgen_test_layout___va_list_tag() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<__va_list_tag>())).fp_offset as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<__va_list_tag>())).fp_offset as *const _ as usize },
         4usize,
         concat!(
             "Offset of field: ",
@@ -1926,7 +1926,7 @@ fn bindgen_test_layout___va_list_tag() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<__va_list_tag>())).overflow_arg_area as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<__va_list_tag>())).overflow_arg_area as *const _ as usize },
         8usize,
         concat!(
             "Offset of field: ",
@@ -1936,7 +1936,7 @@ fn bindgen_test_layout___va_list_tag() {
         )
     );
     assert_eq!(
-        unsafe { &(*(::std::ptr::null::<__va_list_tag>())).reg_save_area as *const _ as usize },
+        unsafe { &(*(std::ptr::null::<__va_list_tag>())).reg_save_area as *const _ as usize },
         16usize,
         concat!(
             "Offset of field: ",

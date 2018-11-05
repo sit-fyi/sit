@@ -2,7 +2,7 @@
 
 use serde_json::{Map, Value};
 
-use record::{RecordOwningContainer, RecordContainerReduction};
+use crate::record::{RecordOwningContainer, RecordContainerReduction};
 
 /// Because of SIT's extensible nature, item can
 /// be used to represent a wild variety of entities, such

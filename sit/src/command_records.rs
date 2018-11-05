@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 use sit_core::{Repository, Record, record::RecordContainer, record::OrderedFiles, path::HasPath};
-use cfg::Configuration;
+use crate::cfg::Configuration;
 use serde_json;
 use super::get_named_expression;
 use jmespath;

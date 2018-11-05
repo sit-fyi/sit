@@ -2,7 +2,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
 use sit_core::{self, Repository, path::HasPath};
-use which;
+use crate::which;
 
 #[derive(Error, Debug)]
 pub enum Error {

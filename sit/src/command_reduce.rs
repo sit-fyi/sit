@@ -1,7 +1,7 @@
 use clap::{ArgMatches, Values};
 use sit_core::{self, Repository, record::RecordContainerReduction, repository, 
                reducers::duktape, path::{HasPath, ResolvePath}};
-use cfg::Configuration;
+use crate::cfg::Configuration;
 use serde_json;
 use super::get_named_expression;
 use jmespath;

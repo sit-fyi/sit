@@ -3,7 +3,7 @@ extern crate cli_test_dir;
 use cli_test_dir::*;
 
 mod helpers;
-use helpers::*;
+use crate::helpers::*;
 use std::env;
 
 /// Should fail on an unavailable command

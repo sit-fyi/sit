@@ -8,7 +8,7 @@ use std::fs;
 use sit_core::Repository;
 
 mod helpers;
-use helpers::*;
+use crate::helpers::*;
 
 /// Tests that modules defined via <repo>/modules/<directory> convention are listed by `sit modules`
 #[test]

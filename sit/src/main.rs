@@ -20,7 +20,7 @@ extern crate config;
 
 mod cfg;
 mod rebuild;
-use rebuild::rebuild_repository;
+use crate::rebuild::rebuild_repository;
 mod command_config;
 mod command_args;
 mod command_init;
@@ -106,7 +106,7 @@ pub fn gnupg(matches: &ArgMatches, config: &cfg::Configuration) -> Result<OsStri
 }
 
 mod module_iter;
-use module_iter::ScriptModule;
+use crate::module_iter::ScriptModule;
 
 use sit_core::path::HasPath;
 

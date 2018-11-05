@@ -55,11 +55,11 @@ pub mod repository;
 #[cfg(feature = "deprecated-item-api")]
 pub mod item;
 #[cfg(feature = "deprecated-item-api")]
-pub use item::Item;
+pub use crate::item::Item;
 pub mod record;
-pub use record::Record;
-pub use repository::{Repository, Error as RepositoryError};
+pub use crate::record::Record;
+pub use crate::repository::{Repository, Error as RepositoryError};
 pub mod reducers;
-pub use reducers::Reducer;
+pub use crate::reducers::Reducer;
 #[cfg(feature = "duktape")]
 pub mod duktape;
