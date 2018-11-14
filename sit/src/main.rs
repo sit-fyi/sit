@@ -430,6 +430,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
     let default_config = project_dirs.config_dir().join("config.json");
 
     let config_path = matches.value_of("config").unwrap_or(default_config.to_str().unwrap());
+    std::fs::create_dir_all(project_dirs.config_dir()).expect("can't ensure config directory's presence");
 
     let mut settings = config::Config::default();
     settings
