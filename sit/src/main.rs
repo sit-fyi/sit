@@ -574,7 +574,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             }
 
             if let Some(web_matches) = matches.subcommand_matches("web") {
-                return command_web::command(repo, web_matches, matches.clone(), config, config_path);
+                return command_web::command(repo, web_matches, matches.clone(), config, canonical_working_dir, config_path);
             }
 
             match command_external::command(&matches, repo, &cwd) {

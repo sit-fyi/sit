@@ -130,7 +130,7 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: 
         if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
             config.author = Some(author);
         } else {
-            let result = derive_authorship(&mut config, config_path.as_ref());
+            let result = derive_authorship(&mut config, working_directory, config_path.as_ref());
             if result != 0 {
                 return result;
             }
