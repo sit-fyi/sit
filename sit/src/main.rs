@@ -34,6 +34,7 @@ mod command_jmespath;
 mod command_integrity;
 #[cfg(feature="web")]
 mod command_web;
+mod authorship;
 
 mod cli;
 
@@ -572,7 +573,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
             }
 
             if let Some(web_matches) = matches.subcommand_matches("web") {
-                return command_web::command(repo, web_matches, matches.clone(), config);
+                return command_web::command(repo, web_matches, matches.clone(), config, config_path);
             }
 
             match command_external::command(&matches, repo, &cwd) {

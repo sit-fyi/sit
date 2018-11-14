@@ -1,9 +1,8 @@
-use atty;
 use chrono::prelude::*;
 use clap::{self, ArgMatches};
 use dunce;
-use serde_json;
 use crate::cfg::{self, Configuration};
+use crate::authorship::derive_authorship;
 use sit_core::{
     record::{BoxedOrderedFiles, OrderedFiles, RecordOwningContainer},
     Record, Repository
@@ -131,40 +130,9 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: 
         if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
             config.author = Some(author);
         } else {
-            if atty::is(atty::Stream::Stdin) {
-                println!("SIT needs your authorship identity to be configured\n");
-                use question::{Question, Answer};
-                let name = loop {
-                    match Question::new("What is your name?").ask() {
-                        None => continue,
-                        Some(Answer::RESPONSE(value)) => {
-                            if value.trim() == "" {
-                                continue;
-                            } else {
-                                break value;
-                            }
-                        },
-                        Some(answer) => panic!("Invalid answer {:?}", answer),
-                    }
-                };
-                let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
-                    None => None,
-                    Some(Answer::RESPONSE(value)) => {
-                        if value.trim() == "" {
-                            None
-                        } else {
-                            Some(value)
-                        }
-                    },
-                    Some(answer) => panic!("Invalid answer {:?}", answer),
-                };
-                config.author = Some(cfg::Author { name, email });
-                let file =
-                    fs::File::create(config_path).expect("can't open config file for writing");
-                serde_json::to_writer_pretty(file, &config).expect("can't write config");
-            } else {
-                eprintln!("SIT needs your authorship identity to be configured (supported sources: sit, git), or re-run this command in a terminal\n");
-                return 1;
+            let result = derive_authorship(&mut config, config_path.as_ref());
+            if result != 0 {
+                return result;
             }
         }
     }
