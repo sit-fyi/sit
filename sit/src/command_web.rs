@@ -4,10 +4,11 @@ use crate::cfg::Configuration;
 use crate::authorship::derive_authorship;
 use std::path::{Path, PathBuf};
 
-pub fn command<MI: 'static + Send + Sync, P: AsRef<Path>>(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, mut config: Configuration, config_path: P) -> i32 
+pub fn command<MI: 'static + Send + Sync, P: AsRef<Path>, P1: AsRef<Path>>(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, mut config: Configuration, 
+                                                          working_dir: P, config_path: P1) -> i32 
     where MI: repository::ModuleIterator<PathBuf, repository::Error> {
     {
-        let result = derive_authorship(&mut config, config_path.as_ref());
+        let result = derive_authorship(&mut config, working_dir, config_path.as_ref());
         if result != 0 {
             return result;
         }
