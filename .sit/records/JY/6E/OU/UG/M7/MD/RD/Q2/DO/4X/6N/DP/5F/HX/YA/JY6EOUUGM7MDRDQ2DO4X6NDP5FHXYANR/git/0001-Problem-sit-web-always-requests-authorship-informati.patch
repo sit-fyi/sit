@@ -1,0 +1,170 @@
+From eedbc55942a6fcf8f3e173dc03895d67b7c59e76 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 14 Nov 2018 15:46:28 +0700
+Subject: [PATCH] Problem: sit web always requests authorship information
+
+Solution: ensure it only does that if none is found
+---
+ sit/src/authorship.rs     | 65 ++++++++++++++++++++++-----------------
+ sit/src/command_record.rs |  2 +-
+ sit/src/command_web.rs    |  5 +--
+ sit/src/main.rs           |  2 +-
+ sit/tests/command_web.rs  | 19 +++++++++++-
+ 5 files changed, 59 insertions(+), 34 deletions(-)
+
+diff --git a/sit/src/authorship.rs b/sit/src/authorship.rs
+index 37438047..7b38e592 100644
+--- a/sit/src/authorship.rs
++++ b/sit/src/authorship.rs
+@@ -4,41 +4,48 @@ use atty;
+ use crate::cfg::{self, Configuration};
+ use serde_json;
+ 
+-pub(crate) fn derive_authorship<P: AsRef<Path>>(config: &mut Configuration, config_path: P) -> i32 {
+-    if atty::is(atty::Stream::Stdin) {
+-        println!("SIT needs your authorship identity to be configured\n");
+-        use question::{Question, Answer};
+-        let name = loop {
+-            match Question::new("What is your name?").ask() {
+-                None => continue,
++pub(crate) fn derive_authorship<P: AsRef<Path>, P1: AsRef<Path>>(config: &mut Configuration, working_dir: P, config_path: P1) -> i32 {
++    if config.author.is_none() {
++        let authorship = cfg::Author::from_gitconfig(working_dir.as_ref().join(".git").join("config"));
++        if authorship.is_some() {
++            config.author = authorship;
++            return 0;
++        }
++        if atty::is(atty::Stream::Stdin) {
++            println!("SIT needs your authorship identity to be configured\n");
++            use question::{Question, Answer};
++            let name = loop {
++                match Question::new("What is your name?").ask() {
++                    None => continue,
++                    Some(Answer::RESPONSE(value)) => {
++                        if value.trim() == "" {
++                            continue;
++                        } else {
++                            break value;
++                        }
++                    },
++                    Some(answer) => panic!("Invalid answer {:?}", answer),
++                }
++            };
++            let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
++                None => None,
+                 Some(Answer::RESPONSE(value)) => {
+                     if value.trim() == "" {
+-                        continue;
++                        None
+                     } else {
+-                        break value;
++                        Some(value)
+                     }
+                 },
+                 Some(answer) => panic!("Invalid answer {:?}", answer),
+-            }
+-        };
+-        let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
+-            None => None,
+-            Some(Answer::RESPONSE(value)) => {
+-                if value.trim() == "" {
+-                    None
+-                } else {
+-                    Some(value)
+-                }
+-            },
+-            Some(answer) => panic!("Invalid answer {:?}", answer),
+-        };
+-        config.author = Some(cfg::Author { name, email });
+-        let file =
+-            fs::File::create(config_path).expect("can't open config file for writing");
+-        serde_json::to_writer_pretty(file, &config).expect("can't write config");
+-    } else {
+-        eprintln!("SIT needs your authorship identity to be configured (supported sources: sit, git), or re-run this command in a terminal\n");
+-        return 1;
++            };
++            config.author = Some(cfg::Author { name, email });
++            let file =
++                fs::File::create(config_path).expect("can't open config file for writing");
++            serde_json::to_writer_pretty(file, &config).expect("can't write config");
++        } else {
++            eprintln!("SIT needs your authorship identity to be configured (supported sources: sit, git), or re-run this command in a terminal\n");
++            return 1;
++        }
+     }
+     0
+ }
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+index f585a141..bd65d8f6 100644
+--- a/sit/src/command_record.rs
++++ b/sit/src/command_record.rs
+@@ -130,7 +130,7 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo:
+         if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
+             config.author = Some(author);
+         } else {
+-            let result = derive_authorship(&mut config, config_path.as_ref());
++            let result = derive_authorship(&mut config, working_directory, config_path.as_ref());
+             if result != 0 {
+                 return result;
+             }
+diff --git a/sit/src/command_web.rs b/sit/src/command_web.rs
+index d16659c2..26f6a66f 100644
+--- a/sit/src/command_web.rs
++++ b/sit/src/command_web.rs
+@@ -4,10 +4,11 @@ use crate::cfg::Configuration;
+ use crate::authorship::derive_authorship;
+ use std::path::{Path, PathBuf};
+ 
+-pub fn command<MI: 'static + Send + Sync, P: AsRef<Path>>(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, mut config: Configuration, config_path: P) -> i32 
++pub fn command<MI: 'static + Send + Sync, P: AsRef<Path>, P1: AsRef<Path>>(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, mut config: Configuration, 
++                                                          working_dir: P, config_path: P1) -> i32 
+     where MI: repository::ModuleIterator<PathBuf, repository::Error> {
+     {
+-        let result = derive_authorship(&mut config, config_path.as_ref());
++        let result = derive_authorship(&mut config, working_dir, config_path.as_ref());
+         if result != 0 {
+             return result;
+         }
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 6b5047ea..3d61b964 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -574,7 +574,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+             }
+ 
+             if let Some(web_matches) = matches.subcommand_matches("web") {
+-                return command_web::command(repo, web_matches, matches.clone(), config, config_path);
++                return command_web::command(repo, web_matches, matches.clone(), config, canonical_working_dir, config_path);
+             }
+ 
+             match command_external::command(&matches, repo, &cwd) {
+diff --git a/sit/tests/command_web.rs b/sit/tests/command_web.rs
+index 366f8d8d..3f4261f4 100644
+--- a/sit/tests/command_web.rs
++++ b/sit/tests/command_web.rs
+@@ -20,4 +20,21 @@ fn web_no_authorship_no_git() {
+     assert!(String::from_utf8(out).unwrap().contains("SIT needs your authorship identity to be configured"));
+ }
+ 
+-
++/// Should derive authorship from git if it is available
++#[test]
++fn web_no_authorship() {
++    let dir = TestDir::new("sit", "web_no_authorship");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    no_user_config(&dir);
++    dir.create_file(".git/config", "[user]\nname=Test\nemail=test@test.com");
++    let out = dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["web","-"])
++        .expect_failure().stderr;
++    // should fail because the socket address is invalid, but not the authorship
++    println!("{}", String::from_utf8(out.clone()).unwrap());
++    assert!(String::from_utf8(out).unwrap().contains("invalid socket address"));
++}
+-- 
+2.18.1
+
