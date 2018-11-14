@@ -1,10 +1,17 @@
 use clap::{self, ArgMatches};
 use sit_core::{Repository, repository};
 use crate::cfg::Configuration;
-use std::path::PathBuf;
+use crate::authorship::derive_authorship;
+use std::path::{Path, PathBuf};
 
-pub fn command<MI: 'static + Send + Sync >(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, config: Configuration) -> i32 
+pub fn command<MI: 'static + Send + Sync, P: AsRef<Path>>(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, mut config: Configuration, config_path: P) -> i32 
     where MI: repository::ModuleIterator<PathBuf, repository::Error> {
+    {
+        let result = derive_authorship(&mut config, config_path.as_ref());
+        if result != 0 {
+            return result;
+        }
+    }
     let listen = matches.value_of("listen").unwrap();
     let readonly = matches.is_present("readonly");
     let overlays: Vec<_> = matches.values_of("overlay").unwrap_or(clap::Values::default()).collect();

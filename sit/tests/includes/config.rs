@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 fn user_config(dir: &TestDir, cfg: &str) {
     #[cfg(all(unix, not(target_os = "macos")))]
     dir.create_file(".config/sit/config.json", cfg);

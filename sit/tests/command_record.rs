@@ -58,11 +58,12 @@ fn record_no_authorship_no_git() {
         .arg("init")
         .expect_success();
     no_user_config(&dir);
-    dir.cmd()
+    let out = dir.cmd()
         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
         .env("USERPROFILE", dir.path(".").to_str().unwrap())
         .args(&["record", "-t","Sometype"])
-        .expect_failure();
+        .expect_failure().stderr;
+    assert!(String::from_utf8(out).unwrap().contains("SIT needs your authorship identity to be configured"));
 }
 
 /// Should not attempt to record record authorship if specifically asked to do so
