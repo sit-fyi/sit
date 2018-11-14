@@ -1,0 +1,20 @@
+```
+thread '<unnamed>' panicked at 'multipart request: WrongContentType', libcore/result.rs:1009:5
+```
+
+Solution: fail to start sit-web if authorship is not configured
+
+The above failure happens when a user is starting sit web without
+pre-configured authorship (and one can't be derived from elsewhere, like
+git) and is trying to create a record.
+
+`sit record` doesn't have this problem because it checks whether there's
+any authorship to derive and fails if there's none. However, `sit web`
+didn't do this. This patch makes sit-web unable to start until such
+authorship can be derived.
+
+I want to note that (soon-ish) this functionality will be on its way out
+as I have a plan to extract it out of sit as it doesn't really belong
+there (along with timestamps, PGP, etc.). Until this is done, however,
+the tool should be usable and produce no confusing crashes.
+

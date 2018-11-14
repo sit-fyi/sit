@@ -1,0 +1,250 @@
+From 9af6f70a947474e86a67a2993a76c928ca6065d8 Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Wed, 14 Nov 2018 09:37:59 +0700
+Subject: [PATCH] Problem: sit-web produces an obscure error
+
+```
+thread '<unnamed>' panicked at 'multipart request: WrongContentType', libcore/result.rs:1009:5
+```
+
+Solution: fail to start sit-web if authorship is not configured
+
+The above failure happens when a user is starting sit web without
+pre-configured authorship (and one can't be derived from elsewhere, like
+git) and is trying to create a record.
+
+`sit record` doesn't have this problem because it checks whether there's
+any authorship to derive and fails if there's none. However, `sit web`
+didn't do this. This patch makes sit-web unable to start until such
+authorship can be derived.
+
+I want to note that (soon-ish) this functionality will be on its way out
+as I have a plan to extract it out of sit as it doesn't really belong
+there (along with timestamps, PGP, etc.). Until this is done, however,
+the tool should be usable and produce no confusing crashes.
+---
+ sit/src/authorship.rs        | 44 ++++++++++++++++++++++++++++++++++++
+ sit/src/command_record.rs    | 40 ++++----------------------------
+ sit/src/command_web.rs       | 11 +++++++--
+ sit/src/main.rs              |  3 ++-
+ sit/tests/command_record.rs  |  5 ++--
+ sit/tests/command_web.rs     | 23 +++++++++++++++++++
+ sit/tests/includes/config.rs |  1 +
+ 7 files changed, 86 insertions(+), 41 deletions(-)
+ create mode 100644 sit/src/authorship.rs
+ create mode 100644 sit/tests/command_web.rs
+
+diff --git a/sit/src/authorship.rs b/sit/src/authorship.rs
+new file mode 100644
+index 00000000..37438047
+--- /dev/null
++++ b/sit/src/authorship.rs
+@@ -0,0 +1,44 @@
++use std::fs;
++use std::path::Path;
++use atty;
++use crate::cfg::{self, Configuration};
++use serde_json;
++
++pub(crate) fn derive_authorship<P: AsRef<Path>>(config: &mut Configuration, config_path: P) -> i32 {
++    if atty::is(atty::Stream::Stdin) {
++        println!("SIT needs your authorship identity to be configured\n");
++        use question::{Question, Answer};
++        let name = loop {
++            match Question::new("What is your name?").ask() {
++                None => continue,
++                Some(Answer::RESPONSE(value)) => {
++                    if value.trim() == "" {
++                        continue;
++                    } else {
++                        break value;
++                    }
++                },
++                Some(answer) => panic!("Invalid answer {:?}", answer),
++            }
++        };
++        let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
++            None => None,
++            Some(Answer::RESPONSE(value)) => {
++                if value.trim() == "" {
++                    None
++                } else {
++                    Some(value)
++                }
++            },
++            Some(answer) => panic!("Invalid answer {:?}", answer),
++        };
++        config.author = Some(cfg::Author { name, email });
++        let file =
++            fs::File::create(config_path).expect("can't open config file for writing");
++        serde_json::to_writer_pretty(file, &config).expect("can't write config");
++    } else {
++        eprintln!("SIT needs your authorship identity to be configured (supported sources: sit, git), or re-run this command in a terminal\n");
++        return 1;
++    }
++    0
++}
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+index b3ababb7..f585a141 100644
+--- a/sit/src/command_record.rs
++++ b/sit/src/command_record.rs
+@@ -1,9 +1,8 @@
+-use atty;
+ use chrono::prelude::*;
+ use clap::{self, ArgMatches};
+ use dunce;
+-use serde_json;
+ use crate::cfg::{self, Configuration};
++use crate::authorship::derive_authorship;
+ use sit_core::{
+     record::{BoxedOrderedFiles, OrderedFiles, RecordOwningContainer},
+     Record, Repository
+@@ -131,40 +130,9 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo:
+         if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
+             config.author = Some(author);
+         } else {
+-            if atty::is(atty::Stream::Stdin) {
+-                println!("SIT needs your authorship identity to be configured\n");
+-                use question::{Question, Answer};
+-                let name = loop {
+-                    match Question::new("What is your name?").ask() {
+-                        None => continue,
+-                        Some(Answer::RESPONSE(value)) => {
+-                            if value.trim() == "" {
+-                                continue;
+-                            } else {
+-                                break value;
+-                            }
+-                        },
+-                        Some(answer) => panic!("Invalid answer {:?}", answer),
+-                    }
+-                };
+-                let email = match Question::new("What is your e-mail address?").clarification("optional").ask() {
+-                    None => None,
+-                    Some(Answer::RESPONSE(value)) => {
+-                        if value.trim() == "" {
+-                            None
+-                        } else {
+-                            Some(value)
+-                        }
+-                    },
+-                    Some(answer) => panic!("Invalid answer {:?}", answer),
+-                };
+-                config.author = Some(cfg::Author { name, email });
+-                let file =
+-                    fs::File::create(config_path).expect("can't open config file for writing");
+-                serde_json::to_writer_pretty(file, &config).expect("can't write config");
+-            } else {
+-                eprintln!("SIT needs your authorship identity to be configured (supported sources: sit, git), or re-run this command in a terminal\n");
+-                return 1;
++            let result = derive_authorship(&mut config, config_path.as_ref());
++            if result != 0 {
++                return result;
+             }
+         }
+     }
+diff --git a/sit/src/command_web.rs b/sit/src/command_web.rs
+index 860030e4..d16659c2 100644
+--- a/sit/src/command_web.rs
++++ b/sit/src/command_web.rs
+@@ -1,10 +1,17 @@
+ use clap::{self, ArgMatches};
+ use sit_core::{Repository, repository};
+ use crate::cfg::Configuration;
+-use std::path::PathBuf;
++use crate::authorship::derive_authorship;
++use std::path::{Path, PathBuf};
+ 
+-pub fn command<MI: 'static + Send + Sync >(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, config: Configuration) -> i32 
++pub fn command<MI: 'static + Send + Sync, P: AsRef<Path>>(repo: Repository<MI>, matches: &ArgMatches, main_matches: ArgMatches<'static>, mut config: Configuration, config_path: P) -> i32 
+     where MI: repository::ModuleIterator<PathBuf, repository::Error> {
++    {
++        let result = derive_authorship(&mut config, config_path.as_ref());
++        if result != 0 {
++            return result;
++        }
++    }
+     let listen = matches.value_of("listen").unwrap();
+     let readonly = matches.is_present("readonly");
+     let overlays: Vec<_> = matches.values_of("overlay").unwrap_or(clap::Values::default()).collect();
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 24b94089..07b112bb 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -34,6 +34,7 @@ mod command_jmespath;
+ mod command_integrity;
+ #[cfg(feature="web")]
+ mod command_web;
++mod authorship;
+ 
+ mod cli;
+ 
+@@ -572,7 +573,7 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+             }
+ 
+             if let Some(web_matches) = matches.subcommand_matches("web") {
+-                return command_web::command(repo, web_matches, matches.clone(), config);
++                return command_web::command(repo, web_matches, matches.clone(), config, config_path);
+             }
+ 
+             match command_external::command(&matches, repo, &cwd) {
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index 9b939bd4..410e6e09 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -58,11 +58,12 @@ fn record_no_authorship_no_git() {
+         .arg("init")
+         .expect_success();
+     no_user_config(&dir);
+-    dir.cmd()
++    let out = dir.cmd()
+         .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
+         .env("USERPROFILE", dir.path(".").to_str().unwrap())
+         .args(&["record", "-t","Sometype"])
+-        .expect_failure();
++        .expect_failure().stderr;
++    assert!(String::from_utf8(out).unwrap().contains("SIT needs your authorship identity to be configured"));
+ }
+ 
+ /// Should not attempt to record record authorship if specifically asked to do so
+diff --git a/sit/tests/command_web.rs b/sit/tests/command_web.rs
+new file mode 100644
+index 00000000..366f8d8d
+--- /dev/null
++++ b/sit/tests/command_web.rs
+@@ -0,0 +1,23 @@
++extern crate cli_test_dir;
++
++use cli_test_dir::*;
++
++include!("includes/config.rs");
++
++/// Should fail if there's no authorship configured and no git configs available
++#[test]
++fn web_no_authorship_no_git() {
++    let dir = TestDir::new("sit", "web_no_authorship_no_git");
++    dir.cmd()
++        .arg("init")
++        .expect_success();
++    no_user_config(&dir);
++    let out = dir.cmd()
++        .env("HOME", dir.path(".").to_str().unwrap()) // to ensure there are no configs
++        .env("USERPROFILE", dir.path(".").to_str().unwrap())
++        .args(&["web"])
++        .expect_failure().stderr;
++    assert!(String::from_utf8(out).unwrap().contains("SIT needs your authorship identity to be configured"));
++}
++
++
+diff --git a/sit/tests/includes/config.rs b/sit/tests/includes/config.rs
+index 3214bea5..039ef5f8 100644
+--- a/sit/tests/includes/config.rs
++++ b/sit/tests/includes/config.rs
+@@ -1,3 +1,4 @@
++#[allow(dead_code)]
+ fn user_config(dir: &TestDir, cfg: &str) {
+     #[cfg(all(unix, not(target_os = "macos")))]
+     dir.create_file(".config/sit/config.json", cfg);
+-- 
+2.18.1
+
