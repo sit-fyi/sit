@@ -1,0 +1,4 @@
+This happens when the config directory doesn't exist.
+
+Solution: during sit's startup, ensure config dir exists
+
