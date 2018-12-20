@@ -1,22 +1,9 @@
-extern crate sit_core;
-
-extern crate chrono;
-extern crate tempfile;
-#[macro_use]
-extern crate clap;
-
 use std::env;
 use std::path::PathBuf;
 use std::process::exit;
 
 use clap::{App, Arg, ArgMatches, SubCommand};
-
-extern crate serde;
-extern crate serde_json;
-extern crate walkdir;
-extern crate yaml_rust;
-
-extern crate config;
+use clap::{crate_version, crate_description};
 
 mod cfg;
 mod rebuild;
@@ -38,47 +25,7 @@ mod authorship;
 
 mod cli;
 
-extern crate jmespath;
-
-extern crate fs_extra;
-extern crate pbr;
-extern crate tempdir;
-extern crate glob;
-
-extern crate atty;
-
-extern crate rayon;
-
-extern crate question;
-
-extern crate dunce;
-
-extern crate which;
 use which::which;
-
-extern crate thread_local;
-
-#[macro_use] extern crate derive_error;
-extern crate directories;
-extern crate itertools;
-
-#[cfg(feature="web")]
-#[macro_use]
-extern crate rouille;
-#[cfg(feature="web")]
-extern crate mime_guess;
-#[cfg(feature="web")]
-extern crate digest;
-#[cfg(feature="web")]
-extern crate blake2;
-#[cfg(feature="web")]
-extern crate hex;
-#[cfg(feature="web")]
-#[macro_use]
-extern crate lazy_static;
-
-#[cfg(feature = "git")] extern crate git2;
-#[macro_use] extern crate serde_derive;
 
 use std::collections::HashMap;
 pub fn get_named_expression<S: AsRef<str>, MI>(name: S, repo: &sit_core::Repository<MI>,
@@ -573,8 +520,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
                 return command_integrity::command(repo);
             }
 
-            if let Some(web_matches) = matches.subcommand_matches("web") {
-                return command_web::command(repo, web_matches, matches.clone(), config, canonical_working_dir, config_path);
+            #[cfg(feature = "web")] {
+                if let Some(web_matches) = matches.subcommand_matches("web") {
+                    return command_web::command(repo, web_matches, matches.clone(), config, canonical_working_dir, config_path);
+                }
             }
 
             match command_external::command(&matches, repo, &cwd) {

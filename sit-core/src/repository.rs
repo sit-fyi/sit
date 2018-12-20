@@ -23,6 +23,10 @@ use super::id::IdGenerator;
 
 use std::collections::HashMap;
 
+use serde_derive::{Deserialize, Serialize};
+use typed_builder::TypedBuilder;
+use derive_error::Error;
+
 /// Current repository format version
 const VERSION: &str = "1";
 /// Current repository features
@@ -231,6 +235,8 @@ mod default_files {
 
     use std::path::PathBuf;
     use std::collections::HashMap;
+
+    use lazy_static::*;
 
     lazy_static! {
       pub static ref ASSETS: HashMap<PathBuf, File> = {
@@ -1132,6 +1138,7 @@ mod tests {
 
     use super::*;
     use crate::path::HasPath;
+    use assert_matches::assert_matches;
 
     #[test]
     fn new_repo() {

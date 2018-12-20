@@ -1,9 +1,3 @@
-extern crate sit_core;
-extern crate which;
-#[cfg(feature = "git")] extern crate git2;
-#[macro_use] extern crate serde_derive;
-extern crate serde_json;
-#[macro_use] extern crate derive_error;
 mod cli;
 mod module_iter;
 pub mod cfg;

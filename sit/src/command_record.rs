@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use clap::{self, ArgMatches};
 use dunce;
-use crate::cfg::{self, Configuration};
+use crate::cfg::Configuration;
 use crate::authorship::derive_authorship;
 use sit_core::{
     record::{BoxedOrderedFiles, OrderedFiles, RecordOwningContainer},
@@ -127,9 +127,12 @@ fn record_files(
 
 pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: &Repository<MI>, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
     if !matches.is_present("no-aux") && !matches.is_present("no-author") && config.author.is_none() {
-        if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
-            config.author = Some(author);
-        } else {
+        #[cfg(feature = "git")] {
+            if let Some(author) = crate::cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
+                config.author = Some(author);
+            }
+        }
+        if config.author.is_none() {
             let result = derive_authorship(&mut config, working_directory, config_path.as_ref());
             if result != 0 {
                 return result;
@@ -208,7 +211,7 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: 
         let mut child = command.spawn().expect("failed spawning gnupg");
 
         {
-            let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
+            let stdin = child.stdin.as_mut().expect("Failed to open stdin");
             let mut hasher = repo.config().hashing_algorithm().hasher();
             files.hash(&mut *hasher).expect("failed hashing files");
             let hash = hasher.result_box();

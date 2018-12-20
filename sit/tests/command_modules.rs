@@ -1,7 +1,7 @@
 extern crate cli_test_dir;
 extern crate sit_core;
 extern crate dunce;
-use sit_core::serde_json::Value;
+use serde_json::Value;
 
 use cli_test_dir::*;
 use std::fs;

@@ -3,6 +3,7 @@
 use std::io::{self, Read};
 use crate::hash::{Hasher, HashingAlgorithm};
 use std::path::PathBuf;
+use derive_error::Error;
 
 /// Record's file
 ///
@@ -96,7 +97,7 @@ impl<'a, F: File> OrderedFiles<'a, F> {
         for file in self.0.iter_mut() {
             let name: String = file.name().into();
             hasher.process(name.as_bytes());
-            let mut reader = file.read();
+            let reader = file.read();
             let mut file_processor = per_file(&name)?;
             loop {
                 let bytes_read = reader.read(&mut buf)?;
@@ -169,7 +170,7 @@ impl<'a, F, S> Sub<S> for OrderedFiles<'a, F> where F: File + 'a, S: AsRef<str> 
 
 #[cfg(test)]
 mod ordered_files_tests {
-    use proptest::collection::*;
+    use proptest::{*, collection::*};
     use super::*;
 
     proptest! {

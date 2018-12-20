@@ -13,6 +13,8 @@ use std::io;
 use crate::path::HasPath;
 use crate::RepositoryError;
 
+use derive_error::Error;
+
 #[cfg(feature = "duktape-mmap")]
 use memmap;
 
@@ -436,7 +438,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
             duktape::duk_push_object(ctx);
             #[cfg(feature = "duktape-mmap")]
             let mut mmaps = vec![];
-            for (name, mut reader) in item.file_iter() {
+            for (name, reader) in item.file_iter() {
                 let filename = CString::new(name.as_ref()).unwrap();
                 #[cfg(feature = "duktape-mmap")] {
                     // avoid unused warning
@@ -503,7 +505,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
                 if res as u32 == duktape::DUK_EXEC_ERROR {
                     let err = std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut()));
                     {
-                        let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
+                        let arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
                         let mut error = Map::new();
                         error.insert("file".into(), JsonValue::String(self.filenames[i as usize].to_str().unwrap().into()));
                         error.insert("error".into(), JsonValue::String(err.to_str().unwrap().into()));
@@ -523,7 +525,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
                 } else {
                     let err = format!("TypeError: invalid return value {}, expected an object", std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut())).to_string_lossy());
                     {
-                        let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
+                        let arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
                         let mut error = Map::new();
                         error.insert("file".into(), JsonValue::String(self.filenames[i as usize].to_str().unwrap().into()));
                         error.insert("error".into(), JsonValue::String(err));
@@ -566,6 +568,7 @@ mod tests {
     use crate::Repository;
     use crate::record::{RecordOwningContainer, RecordContainerReduction};
     use crate::path::HasPath;
+    use assert_matches::assert_matches;
 
     #[test]
     fn undefined_result() {

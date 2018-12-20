@@ -77,7 +77,7 @@ fn list<R: RecordContainer, MI>(matches: &ArgMatches, iter: &R, repo: &Repositor
                         let hash = hasher.result_box();
                         let encoded_hash = repo.config().encoding().encode(&hash);
                         use std::io::Write;
-                        let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
+                        let stdin = child.stdin.as_mut().expect("Failed to open stdin");
                         stdin.write_all(encoded_hash.as_bytes()).expect("Failed to write to stdin");
                     }
 

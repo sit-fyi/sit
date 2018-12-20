@@ -6,6 +6,7 @@ license = "MIT/Apache-2.0"
 repository = "https://github.com/sit-it/sit"
 documentation = "https://docs.rs/sit-core"
 description = "Core library for SIT (Serverless Information Tracker)"
+edition = "2018"
 
 [dependencies]
 derive-error = "0.0"

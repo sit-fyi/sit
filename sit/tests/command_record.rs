@@ -107,6 +107,7 @@ fn record_no_aux() {
 
 
 /// Should derive authorship from /working/directory/.git/config if it is otherwise unavailable
+#[cfg(feature = "git")]
 #[test]
 fn record_no_authorship_local_git() {
     let dir = TestDir::new("sit", "record_no_authorship_local_git");
@@ -124,6 +125,7 @@ fn record_no_authorship_local_git() {
 }
 
 /// Should derive authorship from $HOME/.gitconfig if it is otherwise unavailable
+#[cfg(feature = "git")]
 #[test]
 fn record_no_authorship_user_git() {
     let dir = TestDir::new("sit", "record_no_authorship_user_git");
@@ -141,6 +143,7 @@ fn record_no_authorship_user_git() {
 }
 
 /// Should prefer .git/config over $HOME/.gitconfig if authorship information is unavailable otherwise
+#[cfg(feature = "git")]
 #[test]
 fn record_no_authorship_local_over_user_git() {
     let dir = TestDir::new("sit", "record_no_authorship_local_over_user_git");
