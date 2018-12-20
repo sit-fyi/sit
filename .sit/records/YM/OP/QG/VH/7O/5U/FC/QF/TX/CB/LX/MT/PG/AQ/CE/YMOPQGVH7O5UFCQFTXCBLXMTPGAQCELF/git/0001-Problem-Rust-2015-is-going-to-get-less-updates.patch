@@ -1,0 +1,666 @@
+From 079fd82efcb5b15121a60f7d1e20d5163097f94c Mon Sep 17 00:00:00 2001
+From: Yurii Rashkovskii <me@yrashk.com>
+Date: Fri, 21 Dec 2018 02:35:40 +0700
+Subject: [PATCH] Problem: Rust 2015 is going to get less updates
+
+Solution: use Rust 2018 and update the code to conform
+---
+ README.md                                    |  2 +-
+ build-tools/cross-compile-osx/Dockerfile     |  2 +-
+ build-tools/linux-build-container/Dockerfile |  2 +-
+ sit-core/Cargo.toml                          |  1 +
+ sit-core/src/encoding.rs                     |  3 +
+ sit-core/src/hash.rs                         |  3 +-
+ sit-core/src/id.rs                           |  2 +
+ sit-core/src/lib.rs                          | 39 -------------
+ sit-core/src/record.rs                       |  5 +-
+ sit-core/src/reducers/duktape.rs             |  9 ++-
+ sit-core/src/repository.rs                   |  7 +++
+ sit/Cargo.toml                               |  5 +-
+ sit/src/authorship.rs                        | 11 +++-
+ sit/src/cfg.rs                               |  1 +
+ sit/src/cli.rs                               |  5 +-
+ sit/src/command_record.rs                    | 13 +++--
+ sit/src/command_records.rs                   |  2 +-
+ sit/src/command_web.rs                       | 14 +++--
+ sit/src/lib.rs                               |  6 --
+ sit/src/main.rs                              | 61 ++------------------
+ sit/tests/command_modules.rs                 |  2 +-
+ sit/tests/command_record.rs                  |  3 +
+ sit/tests/command_web.rs                     |  2 +
+ 23 files changed, 71 insertions(+), 129 deletions(-)
+
+diff --git a/README.md b/README.md
+index faff811e..e5c13c1b 100644
+--- a/README.md
++++ b/README.md
+@@ -110,7 +110,7 @@ build SIT from sources.*
+ As SIT is currently in its early days, sometimes it might make sense to use a
+ pre-release build. We encourage that. It helps us building a better product.
+ 
+-Firstly, you will need to install Rust 1.30 and CMake. Luckily
++Firstly, you will need to install Rust 1.31 and CMake. Luckily
+ it is typically a very simple process. You can find
+ instructions on [Rust's website](https://www.rust-lang.org/en-US/install.html).
+ 
+diff --git a/build-tools/cross-compile-osx/Dockerfile b/build-tools/cross-compile-osx/Dockerfile
+index 6d77d2bf..713f1887 100644
+--- a/build-tools/cross-compile-osx/Dockerfile
++++ b/build-tools/cross-compile-osx/Dockerfile
+@@ -1,4 +1,4 @@
+-FROM rust:1.30
++FROM rust:1.31
+ RUN apt-get update && apt-get install -y clang autotools-dev automake cmake libfuse-dev fuse git
+ RUN rustup target add x86_64-apple-darwin
+ RUN git clone https://github.com/tpoechtrager/osxcross && cd osxcross && git checkout 1a1733a
+diff --git a/build-tools/linux-build-container/Dockerfile b/build-tools/linux-build-container/Dockerfile
+index fc49726d..f3b95417 100644
+--- a/build-tools/linux-build-container/Dockerfile
++++ b/build-tools/linux-build-container/Dockerfile
+@@ -1,4 +1,4 @@
+-FROM rust:1.30
++FROM rust:1.31
+ RUN apt-get update && apt-get install -y cmake libgit2-dev musl-tools
+ RUN rustup target add x86_64-unknown-linux-musl
+ RUN apt-get install -y clang libclang-dev
+diff --git a/sit-core/Cargo.toml b/sit-core/Cargo.toml
+index 9f1141c7..291c91cd 100644
+--- a/sit-core/Cargo.toml
++++ b/sit-core/Cargo.toml
+@@ -6,6 +6,7 @@ license = "MIT/Apache-2.0"
+ repository = "https://github.com/sit-it/sit"
+ documentation = "https://docs.rs/sit-core"
+ description = "Core library for SIT (Serverless Information Tracker)"
++edition = "2018"
+ 
+ [dependencies]
+ derive-error = "0.0"
+diff --git a/sit-core/src/encoding.rs b/sit-core/src/encoding.rs
+index 12b351c1..fe8d2516 100644
+--- a/sit-core/src/encoding.rs
++++ b/sit-core/src/encoding.rs
+@@ -1,5 +1,8 @@
+ //! Binary identifier encodings
+ 
++use serde_derive::{Deserialize, Serialize};
++use data_encoding_macro::*;
++
+ /// Available encodings
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+ pub enum Encoding {
+diff --git a/sit-core/src/hash.rs b/sit-core/src/hash.rs
+index 29c903f0..275a8453 100644
+--- a/sit-core/src/hash.rs
++++ b/sit-core/src/hash.rs
+@@ -1,4 +1,5 @@
+ //! SIT uses hashing for content-addressable entities (such as records)
++use serde_derive::{Deserialize, Serialize};
+ 
+ /// Enumerates known hashing algorithm. Its content depends on features
+ /// enabled during build-time
+@@ -154,4 +155,4 @@ mod tests {
+         // 294863232e30c5580ee9410b7c35a2c6d3b6ceb3
+         assert_eq!(hasher.result_box(), vec![41, 72, 99, 35, 46, 48, 197, 88, 14, 233, 65, 11, 124, 53, 162, 198, 211, 182, 206, 179]);
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/sit-core/src/id.rs b/sit-core/src/id.rs
+index a637ce52..1a067d6f 100644
+--- a/sit-core/src/id.rs
++++ b/sit-core/src/id.rs
+@@ -1,5 +1,7 @@
+ //! ID generation abstraction
+ 
++use serde_derive::{Deserialize, Serialize};
++
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+ pub enum IdGenerator {
+     /// UUID v4 (random)
+diff --git a/sit-core/src/lib.rs b/sit-core/src/lib.rs
+index b4c064ba..6903844a 100644
+--- a/sit-core/src/lib.rs
++++ b/sit-core/src/lib.rs
+@@ -7,45 +7,6 @@
+ //!
+ //! [`Repository`]: repository/struct.Repository.html
+ 
+-#[macro_use] extern crate derive_error;
+-#[macro_use] extern crate typed_builder;
+-
+-// Serialization
+-extern crate serde;
+-#[macro_use] extern crate serde_derive;
+-pub extern crate serde_json;
+-
+-extern crate tempdir;
+-extern crate glob;
+-extern crate data_encoding;
+-#[macro_use] extern crate data_encoding_macro;
+-#[macro_use] extern crate lazy_static;
+-
+-// Hashing
+-extern crate digest;
+-#[cfg(feature = "blake2")] extern crate blake2;
+-#[cfg(feature = "sha-1")] extern crate sha1;
+-
+-#[cfg(feature = "uuid")] extern crate uuid;
+-
+-#[cfg(feature = "memmap")] extern crate memmap;
+-
+-#[cfg(feature = "cesu8")] extern crate cesu8;
+-
+-#[cfg(feature = "git")] extern crate git2;
+-
+-#[cfg(test)] extern crate dunce;
+-
+-extern crate relative_path;
+-
+-extern crate itertools;
+-extern crate walkdir;
+-
+-// Crates necessary for testing
+-#[cfg(test)] #[macro_use] extern crate assert_matches;
+-#[cfg(test)] #[macro_use] extern crate proptest;
+-
+-
+ pub mod path;
+ pub mod hash;
+ pub mod encoding;
+diff --git a/sit-core/src/record.rs b/sit-core/src/record.rs
+index 6b34fb08..b81ef5c5 100644
+--- a/sit-core/src/record.rs
++++ b/sit-core/src/record.rs
+@@ -3,6 +3,7 @@
+ use std::io::{self, Read};
+ use crate::hash::{Hasher, HashingAlgorithm};
+ use std::path::PathBuf;
++use derive_error::Error;
+ 
+ /// Record's file
+ ///
+@@ -96,7 +97,7 @@ impl<'a, F: File> OrderedFiles<'a, F> {
+         for file in self.0.iter_mut() {
+             let name: String = file.name().into();
+             hasher.process(name.as_bytes());
+-            let mut reader = file.read();
++            let reader = file.read();
+             let mut file_processor = per_file(&name)?;
+             loop {
+                 let bytes_read = reader.read(&mut buf)?;
+@@ -169,7 +170,7 @@ impl<'a, F, S> Sub<S> for OrderedFiles<'a, F> where F: File + 'a, S: AsRef<str>
+ 
+ #[cfg(test)]
+ mod ordered_files_tests {
+-    use proptest::collection::*;
++    use proptest::{*, collection::*};
+     use super::*;
+ 
+     proptest! {
+diff --git a/sit-core/src/reducers/duktape.rs b/sit-core/src/reducers/duktape.rs
+index 6e535b5c..8c4e46c2 100644
+--- a/sit-core/src/reducers/duktape.rs
++++ b/sit-core/src/reducers/duktape.rs
+@@ -13,6 +13,8 @@ use std::io;
+ use crate::path::HasPath;
+ use crate::RepositoryError;
+ 
++use derive_error::Error;
++
+ #[cfg(feature = "duktape-mmap")]
+ use memmap;
+ 
+@@ -436,7 +438,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
+             duktape::duk_push_object(ctx);
+             #[cfg(feature = "duktape-mmap")]
+             let mut mmaps = vec![];
+-            for (name, mut reader) in item.file_iter() {
++            for (name, reader) in item.file_iter() {
+                 let filename = CString::new(name.as_ref()).unwrap();
+                 #[cfg(feature = "duktape-mmap")] {
+                     // avoid unused warning
+@@ -503,7 +505,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
+                 if res as u32 == duktape::DUK_EXEC_ERROR {
+                     let err = std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut()));
+                     {
+-                        let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
++                        let arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
+                         let mut error = Map::new();
+                         error.insert("file".into(), JsonValue::String(self.filenames[i as usize].to_str().unwrap().into()));
+                         error.insert("error".into(), JsonValue::String(err.to_str().unwrap().into()));
+@@ -523,7 +525,7 @@ impl<R: Record + HasPath> Reducer for DuktapeReducer<R> {
+                 } else {
+                     let err = format!("TypeError: invalid return value {}, expected an object", std::ffi::CStr::from_ptr(duktape::duk_safe_to_lstring(ctx, -1, ptr::null_mut())).to_string_lossy());
+                     {
+-                        let mut arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
++                        let arr = state.entry(String::from("errors")).or_insert(JsonValue::Array(vec![]));
+                         let mut error = Map::new();
+                         error.insert("file".into(), JsonValue::String(self.filenames[i as usize].to_str().unwrap().into()));
+                         error.insert("error".into(), JsonValue::String(err));
+@@ -566,6 +568,7 @@ mod tests {
+     use crate::Repository;
+     use crate::record::{RecordOwningContainer, RecordContainerReduction};
+     use crate::path::HasPath;
++    use assert_matches::assert_matches;
+ 
+     #[test]
+     fn undefined_result() {
+diff --git a/sit-core/src/repository.rs b/sit-core/src/repository.rs
+index 72ed07c8..91a1817a 100644
+--- a/sit-core/src/repository.rs
++++ b/sit-core/src/repository.rs
+@@ -23,6 +23,10 @@ use super::id::IdGenerator;
+ 
+ use std::collections::HashMap;
+ 
++use serde_derive::{Deserialize, Serialize};
++use typed_builder::TypedBuilder;
++use derive_error::Error;
++
+ /// Current repository format version
+ const VERSION: &str = "1";
+ /// Current repository features
+@@ -232,6 +236,8 @@ mod default_files {
+     use std::path::PathBuf;
+     use std::collections::HashMap;
+ 
++    use lazy_static::*;
++
+     lazy_static! {
+       pub static ref ASSETS: HashMap<PathBuf, File> = {
+          let mut map = HashMap::new();
+@@ -1132,6 +1138,7 @@ mod tests {
+ 
+     use super::*;
+     use crate::path::HasPath;
++    use assert_matches::assert_matches;
+ 
+     #[test]
+     fn new_repo() {
+diff --git a/sit/Cargo.toml b/sit/Cargo.toml
+index 307a28e9..574a6d69 100644
+--- a/sit/Cargo.toml
++++ b/sit/Cargo.toml
+@@ -4,6 +4,7 @@ version = "0.5.0-pre"
+ description = "Serverless Information Tracker"
+ authors = ["Yurii Rashkovskii <me@yrashk.com>"]
+ license = "MIT/Apache-2.0"
++edition = "2018"
+ 
+ [dependencies]
+ clap = { version = "2.31", features = ["yaml"] }
+@@ -12,6 +13,7 @@ chrono = "0.4"
+ tempfile = "2.2"
+ config = { version = "0.8", features = ["json"] }
+ serde = "1.0"
++serde_derive = "1.0"
+ serde_json = "1.0"
+ jmespath = { version = "0.2", features = ["sync"] }
+ fs_extra = "1.1"
+@@ -34,7 +36,6 @@ digest = { version = "0.7", optional = true }
+ blake2 = { version = "0.7", optional = true }
+ hex = { version = "0.3", optional = true }
+ lazy_static = { version = "1.0", optional = true }
+-serde_derive = { version = "1.0", optional = true }
+ git2 = { version = "0.7", optional = true, default-features = false }
+ sit-core = { path = "../sit-core", version = "0.5.0-pre" }
+ 
+@@ -51,5 +52,5 @@ fs_extra = "1.1"
+ default = ["deprecated-items", "web", "git"]
+ windows7 = ["sit-core/windows7"]
+ deprecated-items = ["sit-core/deprecated-item-api"]
+-web = ["rouille", "mime_guess", "digest", "blake2", "hex", "lazy_static", "serde_derive" ]
++web = ["rouille", "mime_guess", "digest", "blake2", "hex", "lazy_static" ]
+ git = ["git2"]
+diff --git a/sit/src/authorship.rs b/sit/src/authorship.rs
+index 7b38e592..7d57f050 100644
+--- a/sit/src/authorship.rs
++++ b/sit/src/authorship.rs
+@@ -1,12 +1,17 @@
+ use std::fs;
+ use std::path::Path;
+ use atty;
+-use crate::cfg::{self, Configuration};
++use crate::cfg::Configuration;
+ use serde_json;
+ 
+ pub(crate) fn derive_authorship<P: AsRef<Path>, P1: AsRef<Path>>(config: &mut Configuration, working_dir: P, config_path: P1) -> i32 {
++    #[cfg(not(feature = "git"))]
++    let _ = working_dir; // to suppress the warning
+     if config.author.is_none() {
+-        let authorship = cfg::Author::from_gitconfig(working_dir.as_ref().join(".git").join("config"));
++        #[cfg(feature = "git")]
++        let authorship = crate::cfg::Author::from_gitconfig(working_dir.as_ref().join(".git").join("config"));
++        #[cfg(not(feature = "git"))]
++        let authorship = None;
+         if authorship.is_some() {
+             config.author = authorship;
+             return 0;
+@@ -38,7 +43,7 @@ pub(crate) fn derive_authorship<P: AsRef<Path>, P1: AsRef<Path>>(config: &mut Co
+                 },
+                 Some(answer) => panic!("Invalid answer {:?}", answer),
+             };
+-            config.author = Some(cfg::Author { name, email });
++            config.author = Some(crate::cfg::Author { name, email });
+             let file =
+                 fs::File::create(config_path).expect("can't open config file for writing");
+             serde_json::to_writer_pretty(file, &config).expect("can't write config");
+diff --git a/sit/src/cfg.rs b/sit/src/cfg.rs
+index 252ee7c1..87933f90 100644
+--- a/sit/src/cfg.rs
++++ b/sit/src/cfg.rs
+@@ -1,6 +1,7 @@
+ //! Client configuration
+ #[cfg(feature = "git")]
+ use std::path::PathBuf;
++use serde_derive::{Serialize, Deserialize};
+ 
+ #[derive(Clone, Serialize, Deserialize)]
+ pub struct Author {
+diff --git a/sit/src/cli.rs b/sit/src/cli.rs
+index 72a3c068..67a4595f 100644
+--- a/sit/src/cli.rs
++++ b/sit/src/cli.rs
+@@ -2,7 +2,8 @@ use std::env;
+ use std::path::{Path, PathBuf};
+ use std::ffi::OsStr;
+ use sit_core::{self, Repository, path::HasPath};
+-use crate::which;
++use which;
++use derive_error::Error;
+ 
+ #[derive(Error, Debug)]
+ pub enum Error {
+@@ -85,4 +86,4 @@ pub fn execute_cli<MI, E, K, V>(repo: &Repository<MI>, cwd: &Path, subcommand: &
+     let process = command.spawn()?;
+     let result = process.wait_with_output().unwrap();
+     Ok((result.status.code().unwrap(), result.stdout))
+-}
+\ No newline at end of file
++}
+diff --git a/sit/src/command_record.rs b/sit/src/command_record.rs
+index bd65d8f6..5d2620f1 100644
+--- a/sit/src/command_record.rs
++++ b/sit/src/command_record.rs
+@@ -1,7 +1,7 @@
+ use chrono::prelude::*;
+ use clap::{self, ArgMatches};
+ use dunce;
+-use crate::cfg::{self, Configuration};
++use crate::cfg::Configuration;
+ use crate::authorship::derive_authorship;
+ use sit_core::{
+     record::{BoxedOrderedFiles, OrderedFiles, RecordOwningContainer},
+@@ -127,9 +127,12 @@ fn record_files(
+ 
+ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo: &Repository<MI>, mut config: Configuration, working_directory: P, config_path: P1) -> i32 {
+     if !matches.is_present("no-aux") && !matches.is_present("no-author") && config.author.is_none() {
+-        if let Some(author) = cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
+-            config.author = Some(author);
+-        } else {
++        #[cfg(feature = "git")] {
++            if let Some(author) = crate::cfg::Author::from_gitconfig(working_directory.as_ref().join(".git").join("config")) {
++                config.author = Some(author);
++            }
++        }
++        if config.author.is_none() {
+             let result = derive_authorship(&mut config, working_directory, config_path.as_ref());
+             if result != 0 {
+                 return result;
+@@ -208,7 +211,7 @@ pub fn command<P: AsRef<Path>, P1: AsRef<Path>, MI>(matches: &ArgMatches, repo:
+         let mut child = command.spawn().expect("failed spawning gnupg");
+ 
+         {
+-            let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
++            let stdin = child.stdin.as_mut().expect("Failed to open stdin");
+             let mut hasher = repo.config().hashing_algorithm().hasher();
+             files.hash(&mut *hasher).expect("failed hashing files");
+             let hash = hasher.result_box();
+diff --git a/sit/src/command_records.rs b/sit/src/command_records.rs
+index d6550503..ff3ec771 100644
+--- a/sit/src/command_records.rs
++++ b/sit/src/command_records.rs
+@@ -77,7 +77,7 @@ fn list<R: RecordContainer, MI>(matches: &ArgMatches, iter: &R, repo: &Repositor
+                         let hash = hasher.result_box();
+                         let encoded_hash = repo.config().encoding().encode(&hash);
+                         use std::io::Write;
+-                        let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
++                        let stdin = child.stdin.as_mut().expect("Failed to open stdin");
+                         stdin.write_all(encoded_hash.as_bytes()).expect("Failed to write to stdin");
+                     }
+ 
+diff --git a/sit/src/command_web.rs b/sit/src/command_web.rs
+index 26f6a66f..dfdf9317 100644
+--- a/sit/src/command_web.rs
++++ b/sit/src/command_web.rs
+@@ -59,6 +59,7 @@ mod webapp {
+ 
+         use std::collections::HashMap;
+ 
++        use lazy_static::*;
+         lazy_static! {
+             pub static ref ASSETS: HashMap<PathBuf, File> = {
+                 let mut map = HashMap::new();
+@@ -144,7 +145,9 @@ mod webapp {
+     use itertools::Itertools;
+     use sit_core;
+ 
+-#[derive(Serialize)]
++
++    use serde_derive::Serialize;
++    #[derive(Serialize)]
+     struct Config {
+         readonly: bool,
+     }
+@@ -163,7 +166,7 @@ mod webapp {
+             let mut field = part.unwrap();
+             loop {
+                 let path = {
+-                    let mut file = field.data.as_file().expect("files only");
++                    let file = field.data.as_file().expect("files only");
+                     let saved_file = file.save().temp().into_result().expect("can't save file");
+                     saved_file.path
+                 };
+@@ -209,7 +212,7 @@ mod webapp {
+             let mut child = command.spawn().expect("failed spawning gnupg");
+ 
+             {
+-                let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
++                let stdin = child.stdin.as_mut().expect("Failed to open stdin");
+                 let mut hasher = repo.config().hashing_algorithm().hasher();
+                 files_.hash(&mut *hasher).expect("failed hashing files");
+                 let hash = hasher.result_box();
+@@ -308,6 +311,7 @@ mod webapp {
+             let repo_config = Config {
+                 readonly,
+             };
++            use rouille::router;
+             start_server(addr, move |request|
+                          router!(request,
+                                  (GET) (/user/config) => {
+@@ -321,7 +325,7 @@ mod webapp {
+                                          use jmespath;
+                                          use sit_core::record::RecordContainerReduction;
+                                          let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
+-                                         let mut reducer = Arc::new(Mutex::new(sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap()));
++                                         let reducer = Arc::new(Mutex::new(sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap()));
+                                          let tl_reducer: ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>>= ThreadLocal::new();
+ 
+                                          let filter_defined = filter_expr != "";
+@@ -437,7 +441,7 @@ mod webapp {
+                                      #[cfg(feature = "deprecated-items")] {
+                                          if readonly { return Response::empty_404(); }
+                                          use sit_core::{Item, Record};
+-                                         let mut item = match repo.item_iter().unwrap().find(|i| i.id() == id) {
++                                         let item = match repo.item_iter().unwrap().find(|i| i.id() == id) {
+                                              Some(item) => item,
+                                              None => return Response::empty_404(),
+                                          };
+diff --git a/sit/src/lib.rs b/sit/src/lib.rs
+index 9aa7e6d0..1e7d5f27 100644
+--- a/sit/src/lib.rs
++++ b/sit/src/lib.rs
+@@ -1,9 +1,3 @@
+-extern crate sit_core;
+-extern crate which;
+-#[cfg(feature = "git")] extern crate git2;
+-#[macro_use] extern crate serde_derive;
+-extern crate serde_json;
+-#[macro_use] extern crate derive_error;
+ mod cli;
+ mod module_iter;
+ pub mod cfg;
+diff --git a/sit/src/main.rs b/sit/src/main.rs
+index 3d61b964..afaea9ce 100644
+--- a/sit/src/main.rs
++++ b/sit/src/main.rs
+@@ -1,22 +1,9 @@
+-extern crate sit_core;
+-
+-extern crate chrono;
+-extern crate tempfile;
+-#[macro_use]
+-extern crate clap;
+-
+ use std::env;
+ use std::path::PathBuf;
+ use std::process::exit;
+ 
+ use clap::{App, Arg, ArgMatches, SubCommand};
+-
+-extern crate serde;
+-extern crate serde_json;
+-extern crate walkdir;
+-extern crate yaml_rust;
+-
+-extern crate config;
++use clap::{crate_version, crate_description};
+ 
+ mod cfg;
+ mod rebuild;
+@@ -38,48 +25,8 @@ mod authorship;
+ 
+ mod cli;
+ 
+-extern crate jmespath;
+-
+-extern crate fs_extra;
+-extern crate pbr;
+-extern crate tempdir;
+-extern crate glob;
+-
+-extern crate atty;
+-
+-extern crate rayon;
+-
+-extern crate question;
+-
+-extern crate dunce;
+-
+-extern crate which;
+ use which::which;
+ 
+-extern crate thread_local;
+-
+-#[macro_use] extern crate derive_error;
+-extern crate directories;
+-extern crate itertools;
+-
+-#[cfg(feature="web")]
+-#[macro_use]
+-extern crate rouille;
+-#[cfg(feature="web")]
+-extern crate mime_guess;
+-#[cfg(feature="web")]
+-extern crate digest;
+-#[cfg(feature="web")]
+-extern crate blake2;
+-#[cfg(feature="web")]
+-extern crate hex;
+-#[cfg(feature="web")]
+-#[macro_use]
+-extern crate lazy_static;
+-
+-#[cfg(feature = "git")] extern crate git2;
+-#[macro_use] extern crate serde_derive;
+-
+ use std::collections::HashMap;
+ pub fn get_named_expression<S: AsRef<str>, MI>(name: S, repo: &sit_core::Repository<MI>,
+                                        repo_path: S, exprs: &HashMap<String, String>) -> Option<String> {
+@@ -573,8 +520,10 @@ fn main_with_result(allow_external_subcommands: bool) -> i32 {
+                 return command_integrity::command(repo);
+             }
+ 
+-            if let Some(web_matches) = matches.subcommand_matches("web") {
+-                return command_web::command(repo, web_matches, matches.clone(), config, canonical_working_dir, config_path);
++            #[cfg(feature = "web")] {
++                if let Some(web_matches) = matches.subcommand_matches("web") {
++                    return command_web::command(repo, web_matches, matches.clone(), config, canonical_working_dir, config_path);
++                }
+             }
+ 
+             match command_external::command(&matches, repo, &cwd) {
+diff --git a/sit/tests/command_modules.rs b/sit/tests/command_modules.rs
+index b2b2d2c6..5015fce1 100644
+--- a/sit/tests/command_modules.rs
++++ b/sit/tests/command_modules.rs
+@@ -1,7 +1,7 @@
+ extern crate cli_test_dir;
+ extern crate sit_core;
+ extern crate dunce;
+-use sit_core::serde_json::Value;
++use serde_json::Value;
+ 
+ use cli_test_dir::*;
+ use std::fs;
+diff --git a/sit/tests/command_record.rs b/sit/tests/command_record.rs
+index 410e6e09..b25e0737 100644
+--- a/sit/tests/command_record.rs
++++ b/sit/tests/command_record.rs
+@@ -107,6 +107,7 @@ fn record_no_aux() {
+ 
+ 
+ /// Should derive authorship from /working/directory/.git/config if it is otherwise unavailable
++#[cfg(feature = "git")]
+ #[test]
+ fn record_no_authorship_local_git() {
+     let dir = TestDir::new("sit", "record_no_authorship_local_git");
+@@ -124,6 +125,7 @@ fn record_no_authorship_local_git() {
+ }
+ 
+ /// Should derive authorship from $HOME/.gitconfig if it is otherwise unavailable
++#[cfg(feature = "git")]
+ #[test]
+ fn record_no_authorship_user_git() {
+     let dir = TestDir::new("sit", "record_no_authorship_user_git");
+@@ -141,6 +143,7 @@ fn record_no_authorship_user_git() {
+ }
+ 
+ /// Should prefer .git/config over $HOME/.gitconfig if authorship information is unavailable otherwise
++#[cfg(feature = "git")]
+ #[test]
+ fn record_no_authorship_local_over_user_git() {
+     let dir = TestDir::new("sit", "record_no_authorship_local_over_user_git");
+diff --git a/sit/tests/command_web.rs b/sit/tests/command_web.rs
+index 3f4261f4..bbd4b587 100644
+--- a/sit/tests/command_web.rs
++++ b/sit/tests/command_web.rs
+@@ -5,6 +5,7 @@ use cli_test_dir::*;
+ include!("includes/config.rs");
+ 
+ /// Should fail if there's no authorship configured and no git configs available
++#[cfg(feature = "git")]
+ #[test]
+ fn web_no_authorship_no_git() {
+     let dir = TestDir::new("sit", "web_no_authorship_no_git");
+@@ -21,6 +22,7 @@ fn web_no_authorship_no_git() {
+ }
+ 
+ /// Should derive authorship from git if it is available
++#[cfg(feature = "git")]
+ #[test]
+ fn web_no_authorship() {
+     let dir = TestDir::new("sit", "web_no_authorship");
+-- 
+2.18.1
+
