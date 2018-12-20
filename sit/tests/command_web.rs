@@ -5,6 +5,7 @@ use cli_test_dir::*;
 include!("includes/config.rs");
 
 /// Should fail if there's no authorship configured and no git configs available
+#[cfg(feature = "git")]
 #[test]
 fn web_no_authorship_no_git() {
     let dir = TestDir::new("sit", "web_no_authorship_no_git");
@@ -21,6 +22,7 @@ fn web_no_authorship_no_git() {
 }
 
 /// Should derive authorship from git if it is available
+#[cfg(feature = "git")]
 #[test]
 fn web_no_authorship() {
     let dir = TestDir::new("sit", "web_no_authorship");

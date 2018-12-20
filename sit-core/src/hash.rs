@@ -1,4 +1,5 @@
 //! SIT uses hashing for content-addressable entities (such as records)
+use serde_derive::{Deserialize, Serialize};
 
 /// Enumerates known hashing algorithm. Its content depends on features
 /// enabled during build-time

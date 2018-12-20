@@ -1,5 +1,8 @@
 //! Binary identifier encodings
 
+use serde_derive::{Deserialize, Serialize};
+use data_encoding_macro::*;
+
 /// Available encodings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Encoding {

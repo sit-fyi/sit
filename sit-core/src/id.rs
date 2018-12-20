@@ -1,5 +1,7 @@
 //! ID generation abstraction
 
+use serde_derive::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IdGenerator {
     /// UUID v4 (random)

@@ -7,45 +7,6 @@
 //!
 //! [`Repository`]: repository/struct.Repository.html
 
-#[macro_use] extern crate derive_error;
-#[macro_use] extern crate typed_builder;
-
-// Serialization
-extern crate serde;
-#[macro_use] extern crate serde_derive;
-pub extern crate serde_json;
-
-extern crate tempdir;
-extern crate glob;
-extern crate data_encoding;
-#[macro_use] extern crate data_encoding_macro;
-#[macro_use] extern crate lazy_static;
-
-// Hashing
-extern crate digest;
-#[cfg(feature = "blake2")] extern crate blake2;
-#[cfg(feature = "sha-1")] extern crate sha1;
-
-#[cfg(feature = "uuid")] extern crate uuid;
-
-#[cfg(feature = "memmap")] extern crate memmap;
-
-#[cfg(feature = "cesu8")] extern crate cesu8;
-
-#[cfg(feature = "git")] extern crate git2;
-
-#[cfg(test)] extern crate dunce;
-
-extern crate relative_path;
-
-extern crate itertools;
-extern crate walkdir;
-
-// Crates necessary for testing
-#[cfg(test)] #[macro_use] extern crate assert_matches;
-#[cfg(test)] #[macro_use] extern crate proptest;
-
-
 pub mod path;
 pub mod hash;
 pub mod encoding;

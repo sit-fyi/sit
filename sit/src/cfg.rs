@@ -1,6 +1,7 @@
 //! Client configuration
 #[cfg(feature = "git")]
 use std::path::PathBuf;
+use serde_derive::{Serialize, Deserialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Author {

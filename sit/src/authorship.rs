@@ -1,12 +1,17 @@
 use std::fs;
 use std::path::Path;
 use atty;
-use crate::cfg::{self, Configuration};
+use crate::cfg::Configuration;
 use serde_json;
 
 pub(crate) fn derive_authorship<P: AsRef<Path>, P1: AsRef<Path>>(config: &mut Configuration, working_dir: P, config_path: P1) -> i32 {
+    #[cfg(not(feature = "git"))]
+    let _ = working_dir; // to suppress the warning
     if config.author.is_none() {
-        let authorship = cfg::Author::from_gitconfig(working_dir.as_ref().join(".git").join("config"));
+        #[cfg(feature = "git")]
+        let authorship = crate::cfg::Author::from_gitconfig(working_dir.as_ref().join(".git").join("config"));
+        #[cfg(not(feature = "git"))]
+        let authorship = None;
         if authorship.is_some() {
             config.author = authorship;
             return 0;
@@ -38,7 +43,7 @@ pub(crate) fn derive_authorship<P: AsRef<Path>, P1: AsRef<Path>>(config: &mut Co
                 },
                 Some(answer) => panic!("Invalid answer {:?}", answer),
             };
-            config.author = Some(cfg::Author { name, email });
+            config.author = Some(crate::cfg::Author { name, email });
             let file =
                 fs::File::create(config_path).expect("can't open config file for writing");
             serde_json::to_writer_pretty(file, &config).expect("can't write config");

@@ -59,6 +59,7 @@ mod webapp {
 
         use std::collections::HashMap;
 
+        use lazy_static::*;
         lazy_static! {
             pub static ref ASSETS: HashMap<PathBuf, File> = {
                 let mut map = HashMap::new();
@@ -144,7 +145,9 @@ mod webapp {
     use itertools::Itertools;
     use sit_core;
 
-#[derive(Serialize)]
+
+    use serde_derive::Serialize;
+    #[derive(Serialize)]
     struct Config {
         readonly: bool,
     }
@@ -163,7 +166,7 @@ mod webapp {
             let mut field = part.unwrap();
             loop {
                 let path = {
-                    let mut file = field.data.as_file().expect("files only");
+                    let file = field.data.as_file().expect("files only");
                     let saved_file = file.save().temp().into_result().expect("can't save file");
                     saved_file.path
                 };
@@ -209,7 +212,7 @@ mod webapp {
             let mut child = command.spawn().expect("failed spawning gnupg");
 
             {
-                let mut stdin = child.stdin.as_mut().expect("Failed to open stdin");
+                let stdin = child.stdin.as_mut().expect("Failed to open stdin");
                 let mut hasher = repo.config().hashing_algorithm().hasher();
                 files_.hash(&mut *hasher).expect("failed hashing files");
                 let hash = hasher.result_box();
@@ -308,6 +311,7 @@ mod webapp {
             let repo_config = Config {
                 readonly,
             };
+            use rouille::router;
             start_server(addr, move |request|
                          router!(request,
                                  (GET) (/user/config) => {
@@ -321,7 +325,7 @@ mod webapp {
                                          use jmespath;
                                          use sit_core::record::RecordContainerReduction;
                                          let items: Vec<_> = repo.item_iter().expect("can't list items").collect();
-                                         let mut reducer = Arc::new(Mutex::new(sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap()));
+                                         let reducer = Arc::new(Mutex::new(sit_core::reducers::duktape::DuktapeReducer::new(&repo).unwrap()));
                                          let tl_reducer: ThreadLocal<RefCell<DuktapeReducer<sit_core::repository::Record>>>= ThreadLocal::new();
 
                                          let filter_defined = filter_expr != "";
@@ -437,7 +441,7 @@ mod webapp {
                                      #[cfg(feature = "deprecated-items")] {
                                          if readonly { return Response::empty_404(); }
                                          use sit_core::{Item, Record};
-                                         let mut item = match repo.item_iter().unwrap().find(|i| i.id() == id) {
+                                         let item = match repo.item_iter().unwrap().find(|i| i.id() == id) {
                                              Some(item) => item,
                                              None => return Response::empty_404(),
                                          };
